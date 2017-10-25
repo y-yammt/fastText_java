@@ -8,7 +8,7 @@ import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
 
-import fasttext.Main;
+import cc.fasttext.Main;
 import ru.avicomp.TestsBase;
 
 /**

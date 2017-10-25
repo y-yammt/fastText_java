@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
 import org.junit.Assert;
 import org.junit.Test;
 
-import fasttext.Main;
+import cc.fasttext.Main;
 
 /**
  * Created by @szuev on 20.10.2017.

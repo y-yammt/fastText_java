@@ -1,4 +1,4 @@
-package fasttext;
+package cc.fasttext;
 
 /**
  * TODO: implement

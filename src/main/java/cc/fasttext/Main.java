@@ -1,4 +1,4 @@
-package fasttext;
+package cc.fasttext;
 
 import java.io.File;
 import java.io.FileInputStream;

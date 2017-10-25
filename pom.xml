@@ -76,7 +76,7 @@
 					</descriptorRefs>
 					<archive>
 						<manifest>
-							<mainClass>fasttext.Main</mainClass>
+							<mainClass>cc.fasttext.Main</mainClass>
 						</manifest>
 					</archive>
 				</configuration>

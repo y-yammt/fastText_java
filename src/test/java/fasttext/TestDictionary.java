@@ -1,10 +1,13 @@
 package fasttext;
 
-import static org.junit.Assert.*;
-
 import java.util.Map;
 
 import org.junit.Test;
+
+import cc.fasttext.Args;
+import cc.fasttext.Dictionary;
+
+import static org.junit.Assert.assertEquals;
 
 public class TestDictionary {
 
@@ -34,8 +37,8 @@ public class TestDictionary {
 		dictionary.add(w);
 		dictionary.add(w);
 		Map<Long, Integer> word2int = dictionary.getWord2int();
-		assertEquals(3, dictionary.getWords().get(word2int.get(dictionary.find(w))).count);
-		assertEquals(2, dictionary.getWords().get(word2int.get(dictionary.find("is"))).count);
-		assertEquals(1, dictionary.getWords().get(word2int.get(dictionary.find(","))).count);
+		assertEquals(3, dictionary.getWords().get(word2int.get(dictionary.find(w))).count());
+		assertEquals(2, dictionary.getWords().get(word2int.get(dictionary.find("is"))).count());
+		assertEquals(1, dictionary.getWords().get(word2int.get(dictionary.find(","))).count());
 	}
 }
