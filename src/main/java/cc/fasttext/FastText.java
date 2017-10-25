@@ -139,25 +139,21 @@ public class FastText {
             return;
         }
 
-        File file = new File(args_.output + ".bin");
-        if (file.exists()) {
-            file.delete();
-        }
-        if (file.getParentFile() != null) {
-            file.getParentFile().mkdirs();
+        // validate and prepare:
+        Path file = Paths.get(args_.output + ".bin");
+        args_.getIOStreams().prepare(file.toString());
+        if (!args_.getIOStreams().canWrite(file.toString())) {
+            throw new IOException("Can't write to " + file);
         }
         if (args_.verbose > 1) {
-            System.out.println("Saving model to " + file.getCanonicalPath().toString());
+            System.out.println("Saving model to " + file.toAbsolutePath());
         }
-        OutputStream ofs = new BufferedOutputStream(new FileOutputStream(file));
-        try {
-            args_.save(ofs);
-            dict_.save(ofs);
-            input_.save(ofs);
-            output_.save(ofs);
-        } finally {
-            ofs.flush();
-            ofs.close();
+
+        try (OutputStream out = new BufferedOutputStream(args_.getIOStreams().create(file.toString()))) {
+            args_.save(out);
+            dict_.save(out);
+            input_.save(out);
+            output_.save(out);
         }
     }
 

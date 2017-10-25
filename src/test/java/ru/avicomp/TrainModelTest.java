@@ -5,16 +5,18 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
+import cc.fasttext.Args;
+import cc.fasttext.FastText;
 import cc.fasttext.Main;
+import ru.avicomp.hdfs.HadoopMain;
+import ru.avicomp.io.IOStreams;
 
 /**
  * Created by @szuev on 20.10.2017.
@@ -24,7 +26,7 @@ public class TrainModelTest {
     @Test
     public void cboxThread4Dim128Ws5Epoch10MinCount5test() throws Exception {
         Path input = Paths.get(TrainModelTest.class.getResource("/text-data.txt").toURI());
-        Path output = TestsBase.DESTINATION_DIR.resolve("test.fasttext.cbox.d128.w5.hs");
+        Path output = TestsBase.DESTINATION_DIR.resolve("junit.test-data.cbox.d128.w5.hs");
         new Main().train(TestsBase.cmd("cbow -thread 4 -dim 128 -ws 5 -epoch 10 -minCount 5 -input %s -output %s", input, output));
 
         Path bin = Paths.get(output.toString() + ".bin");
@@ -51,6 +53,28 @@ public class TrainModelTest {
         try (BufferedReader r = Files.newBufferedReader(vec)) {
             Assert.assertEquals("Wrong first line", expectedSize + " " + expectedDim, r.lines().findFirst().orElseThrow(AssertionError::new));
         }
+    }
+
+    @Ignore // ignore since it requires preconfigured hadoop with test data inside fs
+    @Test
+    public void hadoopCboxThread4Dim128Ws5Epoch10MinCount5test() throws Exception {
+        String hadoopGome = Paths.get(TrainModelTest.class.getResource("/bin").toURI()).getParent().toString();
+        Map<String, String> props = new HashMap<>();
+        props.put("hadoop.home.dir", hadoopGome);
+
+        IOStreams fs = HadoopMain.createHadoopFS("hdfs://172.16.35.1:54310", "hadoop", Collections.emptyMap(), props);
+        System.out.println(fs);
+        String file = "raw-text-data.txt";
+        String dir = "/tmp/out";
+        String input = String.format("%s/%s", dir, file);
+        String output = String.format("%s/junit.%s.d128.w5.hs", dir, file);
+
+        String[] cmd = TestsBase.cmd("cbow -thread 4 -dim 128 -ws 5 -epoch 10 -minCount 5 -verbose 2 -input %s -output %s", input, output);
+        Args args = new Args();
+        args.setIOStreams(fs);
+        args.parseArgs(cmd);
+        FastText fasttext = new FastText();
+        fasttext.train(args);
     }
 
     private static class Word implements Comparable<Word> {

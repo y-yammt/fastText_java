@@ -23,7 +23,7 @@ public class TestsBase {
         }
     }
 
-    public static String[] cmd(String cmd, Path in, Path out) {
+    public static String[] cmd(String cmd, Object in, Object out) {
         String res = String.format(cmd, in, out);
         System.out.println("Cmd: " + res);
         return res.split("\\s");
