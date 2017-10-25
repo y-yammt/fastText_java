@@ -3,6 +3,7 @@
 *.bin
 *.vec
 data
-fasttext
 result
 target
+.idea/
+/out/

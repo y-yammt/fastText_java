@@ -1,0 +1,1025 @@
+Text classification
+
+Text classification is a core problem to many applications, like spam detection, sentiment analysis or smart replies. In this tutorial, we describe how to build a text classifier with the fastText tool.
+What is text classification? #
+
+The goal of text classification is to assign documents (such as emails, posts, text messages, product reviews, etc...) to one or multiple categories. Such categories can be review scores, spam v.s. non-spam, or the language in which the document was typed. Nowadays, the dominant approach to build such classifiers is machine learning, that is learning classification rules from examples. In order to build such classifiers, we need labeled data, which consists of documents and their corresponding categories (or tags, or labels).
+
+As an example, we build a classifier which automatically classifies stackexchange questions about cooking into one of several possible tags, such as pot, bowl or baking.
+Installing fastText #
+
+The first step of this tutorial is to install and build fastText. It only requires a c++ compiler with good support of c++11.
+
+Let us start by cloning the fastText repository:
+
+>> git clone git@github.com/facebookresearch/fastText.git
+
+Move to the fastText directory and build it:
+
+>> cd fastText && make
+
+Running the binary without any argument will print the high level documentation, showing the different usecases supported by fastText:
+
+>> ./fasttext
+usage: fasttext <command> <args>
+
+The commands supported by fasttext are:
+
+supervised     train a supervised classifier
+test           evaluate a supervised classifier
+predict        predict most likely labels
+predict-prob   predict most likely labels with probabilities
+skipgram       train a skipgram model
+cbow           train a cbow model
+print-vectors  print vectors given a trained model
+
+In this tutorial, we mainly use the supervised, test and predict subcommands, which corresponds to learning (and using) text classifier. For an introduction to the other functionalities of fastText, please see the tutorial about learning word vectors.
+Getting and preparing the data #
+
+As mentioned in the introduction, we need labeled data to train our supervised classifier. In this tutorial, we are interested in building a classifier to automatically recognize the topic of a stackexchange question about cooking. Let's download examples of questions from the cooking section of Stackexchange, and their associated tags:
+
+>> wget https://s3-us-west-1.amazonaws.com/fasttext-vectors/cooking.stackexchange.tar.gz && tar xvzf cooking.stackexchange.tar.gz
+>> head cooking.stackexchange.txt
+
+Each line of the text file contains a list of labels, followed by the corresponding document. All the labels start by the __label__ prefix, which is how fastText recognize what is a label or what is a word. The model is then trained to predict the labels given the word in the document.
+
+Before training our first classifier, we need to split the data into train and validation. We will use the validation set to evaluate how good the learned classifier is on new data.
+
+>> wc cooking.stackexchange.txt 
+   15404  169582 1401900 cooking.stackexchange.txt
+
+Our full dataset contains 15404 examples. Let's split it into a training set of 12404 examples and a validation set of 3000 examples:
+
+>> head -n 12404 cooking.stackexchange.txt > cooking.train
+>> tail -n 3000 cooking.stackexchange.txt > cooking.valid
+
+Our first classifier #
+
+We are now ready to train our first classifier:
+
+>> ./fasttext supervised -input cooking.train -output model_cooking
+Read 0M words
+Number of words:  14598
+Number of labels: 734
+Progress: 100.0%  words/sec/thread: 75109  lr: 0.000000  loss: 5.708354  eta: 0h0m
+
+The -input command line option indicates the file containing the training examples, while the -output option indicates where to save the model. At the end of training, a file model_cooking.bin, containing the trained classifier, is created in the current directory.
+
+It is possible to directly test our classifier interactively, by running the command:
+
+>> ./fasttext predict model_cooking.bin -
+
+and then typing a sentence. Let's first try the sentence:
+
+Which baking dish is best to bake a banana bread ?
+
+The predicted tag is baking which fits well to this question. Let us now try a second example:
+
+Why not put knives in the dishwasher?
+
+The label predicted by the model is food-safety, which is not relevant. Somehow, the model seems to fail on simple examples. To get a better sense of its quality, let's test it on the validation data by running:
+
+>> ./fasttext test model_cooking.bin cooking.valid                 
+N  3000
+P@1  0.124
+R@1  0.0541
+Number of examples: 3000
+
+The output of fastText are the precision at one (P@1) and the recall at one (R@1). We can also compute the precision at five and recall at five with:
+
+>> ./fasttext test model_cooking.bin cooking.valid 5               
+N  3000
+P@5  0.0668
+R@5  0.146
+Number of examples: 3000
+
+Advanced reader: precision and recall #
+
+The precision is the number of correct labels among the labels predicted by fastText. The recall is the number of labels that successfully were predicted, among all the real labels. Let's take an example to make this more clear:
+
+Why not put knives in the dishwasher?
+
+On Stack Exchange, this sentence is labeled with three tags: equipment, cleaning and knives. The top five labels predicted by the model can be obtained with:
+
+>> ./fasttext predict model_cooking.bin - 5
+
+are food-safety, baking, equipment, substitutions and bread.
+
+Thus, one out of five labels predicted by the model is correct, giving a precision of 0.20. Out of the three real labels, only one is predicted by the model, giving a recall of 0.33.
+
+For more details, see the related Wikipedia page.
+Making the model better #
+
+The model obtained by running fastText with the default arguments is pretty bad at classifying new questions. Let's try to improve the performance, by changing the default parameters.
+preprocessing the data #
+
+Looking at the data, we observe that some words contain uppercase letter or punctuation. One of the first step to improve the performance of our model is to apply some simple pre-processing. A crude normalization can be obtained using command line tools such as sed and tr:
+
+>> cat cooking.stackexchange.txt | sed -e "s/([.!?,'/()])/ 1 /g" | tr "[:upper:]" "[:lower:]" > cooking.preprocessed.txt
+>> head -n 12404 cooking.preprocessed.txt > cooking.train
+>> tail -n 3000 cooking.preprocessed.txt > cooking.valid
+
+Let's train a new model on the pre-processed data:
+
+>> ./fasttext supervised -input cooking.train -output model_cooking
+Read 0M words
+Number of words:  9012
+Number of labels: 734
+Progress: 100.0%  words/sec/thread: 82041  lr: 0.000000  loss: 5.671649  eta: 0h0m h-14m 
+
+>> ./fasttext test model_cooking.bin cooking.valid 
+N  3000
+P@1  0.164
+R@1  0.0717
+Number of examples: 3000
+
+We observe that thanks to the pre-processing, the vocabulary is smaller (from 14k words to 9k). The precision is also starting to go up by 4%!
+more epochs and larger learning rate #
+
+By default, fastText sees each training example only five times during training, which is pretty small, given that our training set only have 12k training examples. The number of times each examples is seen (also known as the number of epochs), can be increased using the -epoch option:
+
+>> ./fasttext supervised -input cooking.train -output model_cooking -epoch 25 
+Read 0M words
+Number of words:  9012
+Number of labels: 734
+Progress: 100.0%  words/sec/thread: 77633  lr: 0.000000  loss: 7.147976  eta: 0h0m
+
+Let's test the new model:
+
+>> ./fasttext test model_cooking.bin cooking.valid                                        
+N  3000
+P@1  0.501
+R@1  0.218
+Number of examples: 3000
+
+This is much better! Another way to change the learning speed of our model is to increase (or decrease) the learning rate of the algorithm. This corresponds to how much the model changes after processing each example. A learning rate of 0 would means that the model does not change at all, and thus, does not learn anything. Good values of the learning rate are in the range 0.1 - 1.0.
+
+>> ./fasttext supervised -input cooking.train -output model_cooking -lr 1.0  
+Read 0M words
+Number of words:  9012
+Number of labels: 734
+Progress: 100.0%  words/sec/thread: 81469  lr: 0.000000  loss: 6.405640  eta: 0h0m
+
+>> ./fasttext test model_cooking.bin cooking.valid                         
+N  3000
+P@1  0.563
+R@1  0.245
+Number of examples: 3000
+
+Even better! Let's try both together:
+
+>> ./fasttext supervised -input cooking.train -output model_cooking -lr 1.0 -epoch 25
+Read 0M words
+Number of words:  9012
+Number of labels: 734
+Progress: 100.0%  words/sec/thread: 76394  lr: 0.000000  loss: 4.350277  eta: 0h0m
+
+>> ./fasttext test model_cooking.bin cooking.valid                                   
+N  3000
+P@1  0.585
+R@1  0.255
+Number of examples: 3000
+
+Let us now add a few more features to improve even further our performance!
+word n-grams #
+
+Finally, we can improve the performance of a model by using word bigrams, instead of just unigrams. This is especially important for classification problems where word order is important, such as sentiment analysis.
+
+>> ./fasttext supervised -input cooking.train -output model_cooking -lr 1.0 -epoch 25 -wordNgrams 2
+Read 0M words
+Number of words:  9012
+Number of labels: 734
+Progress: 100.0%  words/sec/thread: 75366  lr: 0.000000  loss: 3.226064  eta: 0h0m 
+
+>> ./fasttext test model_cooking.bin cooking.valid                                                 
+N  3000
+P@1  0.599
+R@1  0.261
+Number of examples: 3000
+
+With a few steps, we were able to go from a precision at one of 12.4% to 59.9%. Important steps included:
+
+    preprocessing the data ;
+    changing the number of epochs (using the option -epoch, standard range [5 - 50]) ;
+    changing the learning rate (using the option -lr, standard range [0.1 - 1.0]) ;
+    using word n-grams (using the option -wordNgrams, standard range [1 - 5]).
+
+Advanced readers: What is a Bigram? #
+
+A 'unigram' refers to a single undividing unit, or token, usually used as an input to a model. For example a unigram can a word or a letter depending on the model. In fastText, we work at the word level and thus unigrams are words.
+
+Similarly we denote by 'bigram' the concatenation of 2 consecutive tokens or words. Similarly we often talk about n-gram to refer to the concatenation any n consecutive tokens.
+
+For example, in the sentence, 'Last donut of the night', the unigrams are 'last', 'donut', 'of', 'the' and 'night'. The bigrams are: 'Last donut', 'donut of', 'of the' and 'the night'.
+
+Bigrams are particularly interesting because, for most sentences, you can reconstruct the order of the words just by looking at a bag of n-grams.
+
+Let us illustrate this by a simple exercise, given the following bigrams, try to reconstruct the original sentence: 'all out', 'I am', 'of bubblegum', 'out of' and 'am all'. It is common to refer to a word as a unigram.
+Scaling things up #
+
+Since we are training our model on a few thousands of examples, the training only takes a few seconds. But training models on larger datasets, with more labels can start to be too slow. A potential solution to make the training faster is to use the hierarchical softmax, instead of the regular softmax [Add a quick explanation of the hierarchical softmax]. This can be done with the option -loss hs:
+
+>> ./fasttext supervised -input cooking.train -output model_cooking -lr 1.0 -epoch 25 -wordNgrams 2 -bucket 200000 -dim 50 -loss hs
+Read 0M words
+Number of words:  9012
+Number of labels: 734
+Progress: 100.0%  words/sec/thread: 2199406  lr: 0.000000  loss: 1.718807  eta: 0h0m
+
+Training should now take less than a second.
+Conclusion #
+
+In this tutorial, we gave a brief overview of how to use fastText to train powerful text classifiers. We had a light overview of some of the most important options to tune.
+
+Word representations
+
+A popular idea in modern machine learning is to represent words by vectors. These vectors capture hidden information about a language, like word analogies or semantic. It is also used to improve performance of text classifiers.
+
+In this tutorial, we show how to build these word vectors with the fastText tool. To download and install fastText, follow the first steps of the tutorial on text classification.
+Getting the data #
+
+In order to compute word vectors, you need a large text corpus. Depending on the corpus, the word vectors will capture different information. In this tutorial, we focus on Wikipedia's articles but other sources could be considered, like news or Webcrawl (more examples here). To download a raw dump of Wikipedia, run the following command:
+
+wget https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-pages-articles.xml.bz2
+
+Downloading the Wikipedia corpus takes some time. Instead, lets restrict our study to the first 1 billion bytes of English Wikipedia. They can be found on Matt Mahoney's website:
+
+$ mkdir data
+$ wget -c http://mattmahoney.net/dc/enwik9.zip -P data
+$ unzip data/enwik9.zip -d data
+
+A raw Wikipedia dump contains a lot of HTML / XML data. We pre-process it with the wikifil.pl script bundled with fastText (this script was originally developed by Matt Mahoney, and can be found on his website )
+
+$ perl wikifil.pl data/enwik9 > data/fil9
+
+We can check the file by running the following command:
+
+$ head -c 80 data/text9
+anarchism originated as a term of abuse first used against early working class
+
+The text is nicely pre-processed and can be used to learn our word vectors.
+Training word vectors #
+
+Learning word vectors on this data can now be achieved with a single command:
+
+$ mkdir result
+$ ./fasttext skipgram -input data/fil9 -output result/fil9
+
+To decompose this command line: ./fastext calls the binary fastText executable (see how to install fastText here) with the 'skipgram' model (it can also be 'cbow'). We then specify the requires options '-input' for the location of the data and '-output' for the location where the word representations will be saved.
+
+While fastText is running, the progress and estimated time to completion is shown on your screen. Once the program finishes, there should be two files in the result directory:
+
+$ ls -l result
+-rw-r-r-- 1 bojanowski 1876110778 978480850 Dec 20 11:01 fil9.bin
+-rw-r-r-- 1 bojanowski 1876110778 190004182 Dec 20 11:01 fil9.vec
+
+The fil9.bin file is a binary file that stores the whole fastText model and can be subsequently loaded. The fil9.vec file is a text file that contains the word vectors, one per line for each word in the vocabulary:
+
+$ head -n 4 result/fil9.vec
+218316 100
+the -0.10363 -0.063669 0.032436 -0.040798 0.53749 0.00097867 0.10083 0.24829 ...
+of -0.0083724 0.0059414 -0.046618 -0.072735 0.83007 0.038895 -0.13634 0.60063 ...
+one 0.32731 0.044409 -0.46484 0.14716 0.7431 0.24684 -0.11301 0.51721 0.73262 ...
+
+The first line is a header containing the number of words and the dimensionality of the vectors. The subsequent lines are the word vectors for all words in the vocabulary, sorted by decreasing frequency.
+Advanced readers: skipgram versus cbow #
+
+fastText provides two models for computing word representations: skipgram and cbow ('continuous-bag-of-words').
+
+The skipgram model learns to predict a target word thanks to a nearby word. On the other hand, the cbow model predicts the target word according to its context. The context is represented as a bag of the words contained in a fixed size window around the target word.
+
+Let us illustrate this difference with an example: given the sentence 'Poets have been mysteriously silent on the subject of cheese' and the target word 'silent', a skipgram model tries to predict the target using a random close-by word, like 'subject' or 'mysteriously'**. The cbow model takes all the words in a surrounding window, like {been, mysteriously, on, the}, and uses the sum of their vectors to predict the target. The figure below summarizes this difference with another example.
+
+cbow vs skipgram To train a cbow model with fastText, you run the following command:
+
+./fasttext cbow -input data/fil9 -output result/fil9
+
+In practice, we observe that skipgram models works better with subword information than cbow.
+Advanced readers: playing with the parameters #
+
+So far, we run fastText with the default parameters, but depending on the data, these parameters may not be optimal. Let us give an introduction to some of the key parameters for word vectors.
+
+The most important parameters of the model are its dimension and the range of size for the subwords. The dimension (dim) controls the size of the vectors, the larger they are the more information they can capture but requires more data to be learned. But, if they are too large, they are harder and slower to train. By default, we use 100 dimensions, but any value in the 100-300 range is as popular. The subwords are all the substrings contained in a word between the minimum size (nmin) and the maximal size (nmax). By default, we take all the subword between 3 and 6 characters, but other range could be more appropriate to different languages:
+
+$ ./fasttext skipgram -input data/fil9 -output result/fil9 -nmin 2 -nmax 5 -dim 300
+
+Depending on the quantity of data you have, you may want to change the parameters of the training. The epoch parameter controls how many time will loop over your data. By default, we loop over the dataset 5 times. If you dataset is extremely massive, you may want to loop over it less often. Another important parameter is the learning rate -lr). The higher the learning rate is, the faster the model converge to a solution but at the risk of overfitting to the dataset. The default value is 0.05 which is a good compromise. If you want to play with it we suggest to stay in the range of [0.01, 1]:
+
+$ ./fasttext skipgram -input data/fil9 -output result/fil9 -epoch 1 -lr 0.5
+
+Finally , fastText is multi-threaded and uses 12 threads by default. If you have less CPU cores (say 4), you can easily set the number of threads using the thread flag:
+
+$ ./fasttext skipgram -input data/fil9 -output result/fil9 -thread 4
+
+Printing word vectors #
+
+Searching and printing word vectors directly from the fil9.vec file is cumbersome. Fortunately, there is a print-vectors functionality in fastText.
+
+For examples, we can print the word vectors of words asparagus, pidgey and yellow with the following command:
+
+$ echo "asparagus pidgey yellow" | ./fasttext print-vectors result/fil9.bin
+asparagus 0.46826 -0.20187 -0.29122 -0.17918 0.31289 -0.31679 0.17828 -0.04418 ...
+pidgey -0.16065 -0.45867 0.10565 0.036952 -0.11482 0.030053 0.12115 0.39725 ...
+yellow -0.39965 -0.41068 0.067086 -0.034611 0.15246 -0.12208 -0.040719 -0.30155 ...
+
+A nice feature is that you can also query for words that did not appear in your data! Indeed words are represented by the sum of its substrings. As long as the unknown word is made of known substrings, there is a representation of it!
+
+As an example let's try with a misspelled word:
+
+$ echo "enviroment" | ./fasttext print-vectors result/fil9.bin
+
+You still get a word vector for it! But how good it is? Let s find out in the next sections!
+Nearest neighbor queries #
+
+A simple way to check the quality of a word vector is to look at its nearest neighbors. This give an intuition of the type of semantic information the vectors are able to capture.
+
+This can be achieve with the nn functionality. For example, we can query the 10 nearest neighbors of a word by running the following command:
+
+$ ./fasttext nn result/fil9.bin
+Pre-computing word vectors... done.
+
+Then we are prompted to type our query word, let us try asparagus :
+
+Query word? asparagus
+beetroot 0.812384
+tomato 0.806688
+horseradish 0.805928
+spinach 0.801483
+licorice 0.791697
+lingonberries 0.781507
+asparagales 0.780756
+lingonberry 0.778534
+celery 0.774529
+beets 0.773984
+
+Nice! It seems that vegetable vectors are similar. Note that the nearest neighbor is the word asparagus itself, this means that this word appeared in the dataset. What about pokemons?
+
+Query word? pidgey
+pidgeot 0.891801
+pidgeotto 0.885109
+pidge 0.884739
+pidgeon 0.787351
+pok 0.781068
+pikachu 0.758688
+charizard 0.749403
+squirtle 0.742582
+beedrill 0.741579
+charmeleon 0.733625
+
+Different evolution of the same Pokemon have close-by vectors! But what about our misspelled word, is its vector close to anything reasonable? Let s find out:
+
+Query word? enviroment
+enviromental 0.907951
+environ 0.87146
+enviro 0.855381
+environs 0.803349
+environnement 0.772682
+enviromission 0.761168
+realclimate 0.716746
+environment 0.702706
+acclimatation 0.697196
+ecotourism 0.697081
+
+Thanks to the information contained within the word, the vector of our misspelled word matches to reasonable words! It is not perfect but the main information has been captured.
+Advanced reader: measure of similarity #
+
+In order to find nearest neighbors, we need to compute a similarity score between words. Our words are represented by continuous word vectors and we can thus apply simple similarities to them. In particular we use the cosine of the angles between two vectors. This similarity is computed for all words in the vocabulary, and the 10 most similar words are shown. Of course, if the word appears in the vocabulary, it will appear on top, with a similarity of 1.
+Word analogies #
+
+In a similar spirit, one can play around with word analogies. For example, we can see if our model can guess what is to France, what Berlin is to Germany.
+
+This can be done with the analogies functionality. It takes a word triplet (like Germany Berlin France) and outputs the analogy:
+
+$ ./fasttext analogies result/fil9.bin
+Pre-computing word vectors... done.
+Query triplet (A - B + C)? berlin germany france
+paris 0.896462
+bourges 0.768954
+louveciennes 0.765569
+toulouse 0.761916
+valenciennes 0.760251
+montpellier 0.752747
+strasbourg 0.744487
+meudon 0.74143
+bordeaux 0.740635
+pigneaux 0.736122
+
+The answer provides by our model is Paris, which is correct. Let's have a look at a less obvious example:
+
+Query triplet (A - B + C)? psx sony nintendo
+gamecube 0.803352
+nintendogs 0.792646
+playstation 0.77344
+sega 0.772165
+gameboy 0.767959
+arcade 0.754774
+playstationjapan 0.753473
+gba 0.752909
+dreamcast 0.74907
+famicom 0.745298
+
+Our model considers that the nintendo analogy of a psx is the gamecube, which seems reasonable. Of course the quality of the analogies depend on the dataset used to train the model and one can only hope to cover fields only in the dataset.
+Importance of character n-grams #
+
+Using subword-level information is particularly interesting to build vectors for unknown words. For example, the word gearshift does not exist on Wikipedia but we can still query its closest existing words:
+
+Query word? gearshift
+gearing 0.790762
+flywheels 0.779804
+flywheel 0.777859
+gears 0.776133
+driveshafts 0.756345
+driveshaft 0.755679
+daisywheel 0.749998
+wheelsets 0.748578
+epicycles 0.744268
+gearboxes 0.73986
+
+Most of the retrieved words share substantial substrings but a few are actually quite different, like cogwheel. You can try other words like sunbathe or grandnieces.
+
+Now that we have seen the interest of subword information for unknown words, let s check how it compares to a model that do not use subword information. To train a model without no subwords, just run the following command:
+
+$ ./fasttext skipgram -input data/fil9 -output result/fil9-none -maxn 0
+
+The results are saved in result/fil9-non.vec and result/fil9-non.bin.
+
+To illustrate the difference, let us take an uncommon word in Wikipedia, like accomodation which is a misspelling of accommodation**. Here is the nearest neighbors obtained without no subwords:
+
+$ ./fasttext nn result/fil9-none.bin
+Query word? accomodation
+sunnhordland 0.775057
+accomodations 0.769206
+administrational 0.753011
+laponian 0.752274
+ammenities 0.750805
+dachas 0.75026
+vuosaari 0.74172
+hostelling 0.739995
+greenbelts 0.733975
+asserbo 0.732465
+
+The result does not make much sense, most of these words are unrelated. On the other hand, using subword information gives the following list of nearest neighbors:
+
+Query word? accomodation
+accomodations 0.96342
+accommodation 0.942124
+accommodations 0.915427
+accommodative 0.847751
+accommodating 0.794353
+accomodated 0.740381
+amenities 0.729746
+catering 0.725975
+accomodate 0.703177
+hospitality 0.701426
+
+The nearest neighbors capture different variation around the word accommodation. We also get semantically related words such as amenities or lodging.
+Conclusion #
+
+In this tutorial, we show how to obtain word vectors from Wikipedia. This can be done for any language and you can find pre-trained models with the default setting for 294 of them here
+
+FAQ
+What is fastText? Are there tutorials? #
+
+FastText is a library for text classification and representation. It transforms text into continuous vectors that can later be used on any language related task. A few tutorials are available.
+Why are my fastText models that big? #
+
+fastText uses a hashtable for either word or character ngrams. The size of the hashtable direclty impacts the size of a model. To reduce the size of the model, it is possible to reduce the size of this table with the option '-hash'. For example a good value is 20000. Another option that greatly impacts the size of a model is the size of the vectors (-dim). This dimension can be reduced to save space but this can significantly impact performance. If that still produce a model that is too big, one can further reduce the size of a trained model with the quantization option.
+
+./fasttext quantize -output model
+
+What would be the best way to represent word phrases rather than words? #
+
+Currently the best approach to represent word phrases or sentence is to take a bag of words of word vectors. Additionally, for phrases like “New York”, preprocessing the data so that it becomes a single token “New_York” can greatly help.
+Why does fastText produce vectors even for unknown words? #
+
+One of the key features of fastText word representation is its ability to produce vectors for any words, even made-up ones. Indeed, fastText word vectors are built from vectors of substrings of characters contained in it. This allows to build vectors even for misspelled words or concatenation of words.
+Why is the hierarchical softmax slightly worse in performance than the full softmax? #
+
+The hierachical softmax is an approximation of the full softmax loss that allows to train on large number of class efficiently. This is often at the cost of a few percent of accuracy. Note also that this loss is thought for classes that are unbalanced, that is some classes are more frequent than others. If your dataset has a balanced number of examples per class, it is worth trying the negative sampling loss (-loss ns -neg 100). However, negative sampling will still be very slow at test time, since the full softmax will be computed.
+Can we run fastText program on a GPU? #
+
+FastText only works on CPU for accessibility. That being said, fastText has been implemented in the caffe2 library which can be run on GPU.
+Can I use fastText with python? Or other languages? #
+
+There are few unofficial wrappers for python or lua available on github.
+Can I use fastText with continuous data? #
+
+FastText works on discrete tokens and thus cannot be directly used on continuous tokens. However, one can discretize continuous tokens to use fastText on them, for example by rounding values to a specific digit ("12.3" becomes "12").
+There are misspellings in the dictionary. Should we improve text normalization? #
+
+If the words are infrequent, there is no need to worry.
+My compiler / architecture can't build fastText. What should I do? #
+
+Try a newer version of your compiler. We try to maintain compatibility with older versions of gcc and many platforms, however sometimes maintaining backwards compatibility becomes very hard. In general, compilers and tool chains that ship with LTS versions of major linux distributions should be fair game. In any case, create an issue with your compiler version and architecture and we'll try to implement compatibility.
+
+References
+
+Please cite 1 if using this code for learning word representations or 2 if using for text classification.
+
+[1] P. Bojanowski*, E. Grave*, A. Joulin, T. Mikolov, Enriching Word Vectors with Subword Information
+
+@article{bojanowski2016enriching,
+  title={Enriching Word Vectors with Subword Information},
+  author={Bojanowski, Piotr and Grave, Edouard and Joulin, Armand and Mikolov, Tomas},
+  journal={arXiv preprint arXiv:1607.04606},
+  year={2016}
+}
+
+[2] A. Joulin, E. Grave, P. Bojanowski, T. Mikolov, Bag of Tricks for Efficient Text Classification
+
+@article{joulin2016bag,
+  title={Bag of Tricks for Efficient Text Classification},
+  author={Joulin, Armand and Grave, Edouard and Bojanowski, Piotr and Mikolov, Tomas},
+  journal={arXiv preprint arXiv:1607.01759},
+  year={2016}
+}
+
+[3] A. Joulin, E. Grave, P. Bojanowski, M. Douze, H. Jégou, T. Mikolov, FastText.zip: Compressing text classification models
+
+@article{joulin2016fasttext,
+  title={FastText.zip: Compressing text classification models},
+  author={Joulin, Armand and Grave, Edouard and Bojanowski, Piotr and Douze, Matthijs and J{\'e}gou, H{\'e}rve and Mikolov, Tomas},
+  journal={arXiv preprint arXiv:1612.03651},
+  year={2016}
+}
+
+(* These authors contributed equally.)
+List of options
+
+Invoke a command without arguments to list available arguments and their default values:
+
+$ ./fasttext supervised
+Empty input or output path.
+
+The following arguments are mandatory:
+  -input              training file path
+  -output             output file path
+
+  The following arguments are optional:
+  -verbose            verbosity level [2]
+
+  The following arguments for the dictionary are optional:
+  -minCount           minimal number of word occurences [5]
+  -minCountLabel      minimal number of label occurences [0]
+  -wordNgrams         max length of word ngram [1]
+  -bucket             number of buckets [2000000]
+  -minn               min length of char ngram [3]
+  -maxn               max length of char ngram [6]
+  -t                  sampling threshold [0.0001]
+  -label              labels prefix [__label__]
+
+  The following arguments for training are optional:
+  -lr                 learning rate [0.05]
+  -lrUpdateRate       change the rate of updates for the learning rate [100]
+  -dim                size of word vectors [100]
+  -ws                 size of the context window [5]
+  -epoch              number of epochs [5]
+  -neg                number of negatives sampled [5]
+  -loss               loss function {ns, hs, softmax} [ns]
+  -thread             number of threads [12]
+  -pretrainedVectors  pretrained word vectors for supervised learning []
+  -saveOutput         whether output params should be saved [0]
+
+  The following arguments for quantization are optional:
+  -cutoff             number of words and ngrams to retain [0]
+  -retrain            finetune embeddings if a cutoff is applied [0]
+  -qnorm              quantizing the norm separately [0]
+  -qout               quantizing the classifier [0]
+  -dsub               size of each sub-vector [2]
+
+Defaults may vary by mode. (Word-representation modes skipgram and cbow use a default -minCount of 5.)
+
+List of options
+
+Invoke a command without arguments to list available arguments and their default values:
+
+$ ./fasttext supervised
+Empty input or output path.
+
+The following arguments are mandatory:
+  -input              training file path
+  -output             output file path
+
+  The following arguments are optional:
+  -verbose            verbosity level [2]
+
+  The following arguments for the dictionary are optional:
+  -minCount           minimal number of word occurences [5]
+  -minCountLabel      minimal number of label occurences [0]
+  -wordNgrams         max length of word ngram [1]
+  -bucket             number of buckets [2000000]
+  -minn               min length of char ngram [3]
+  -maxn               max length of char ngram [6]
+  -t                  sampling threshold [0.0001]
+  -label              labels prefix [__label__]
+
+  The following arguments for training are optional:
+  -lr                 learning rate [0.05]
+  -lrUpdateRate       change the rate of updates for the learning rate [100]
+  -dim                size of word vectors [100]
+  -ws                 size of the context window [5]
+  -epoch              number of epochs [5]
+  -neg                number of negatives sampled [5]
+  -loss               loss function {ns, hs, softmax} [ns]
+  -thread             number of threads [12]
+  -pretrainedVectors  pretrained word vectors for supervised learning []
+  -saveOutput         whether output params should be saved [0]
+
+  The following arguments for quantization are optional:
+  -cutoff             number of words and ngrams to retain [0]
+  -retrain            finetune embeddings if a cutoff is applied [0]
+  -qnorm              quantizing the norm separately [0]
+  -qout               quantizing the classifier [0]
+  -dsub               size of each sub-vector [2]
+
+Defaults may vary by mode. (Word-representation modes skipgram and cbow use a default -minCount of 5.)
+
+Cheatsheet
+Word representation learning #
+
+In order to learn word vectors do:
+
+$ ./fasttext skipgram -input data.txt -output model
+
+Obtaining word vectors #
+
+Print word vectors for a text file queries.txt containing words.
+
+$ ./fasttext print-word-vectors model.bin < queries.txt
+
+Text classification #
+
+In order to train a text classifier do:
+
+$ ./fasttext supervised -input train.txt -output model
+
+Once the model was trained, you can evaluate it by computing the precision and recall at k (P@k and R@k) on a test set using:
+
+$ ./fasttext test model.bin test.txt 1
+
+In order to obtain the k most likely labels for a piece of text, use:
+
+$ ./fasttext predict model.bin test.txt k
+
+In order to obtain the k most likely labels and their associated probabilities for a piece of text, use:
+
+$ ./fasttext predict-prob model.bin test.txt k
+
+If you want to compute vector representations of sentences or paragraphs, please use:
+
+$ ./fasttext print-sentence-vectors model.bin < text.txt
+
+Quantization #
+
+In order to create a .ftz file with a smaller memory footprint do:
+
+$ ./fasttext quantize -output model
+
+All other commands such as test also work with this model
+
+$ ./fasttext test model.ftz test.txt
+
+Get started
+What is fastText? #
+
+fastText is a library for efficient learning of word representations and sentence classification.
+Requirements #
+
+fastText builds on modern Mac OS and Linux distributions. Since it uses C++11 features, it requires a compiler with good C++11 support. These include :
+
+    (gcc-4.6.3 or newer) or (clang-3.3 or newer)
+
+Compilation is carried out using a Makefile, so you will need to have a working make. For the word-similarity evaluation script you will need:
+
+    python 2.6 or newer
+    numpy & scipy
+
+Building fastText #
+
+In order to build fastText, use the following:
+
+$ git clone https://github.com/facebookresearch/fastText.git
+$ cd fastText
+$ make
+
+This will produce object files for all the classes as well as the main binary fasttext. If you do not plan on using the default system-wide compiler, update the two macros defined at the beginning of the Makefile (CC and INCLUDES).
+
+
+Language identification
+
+October 2, 2017
+
+Edouard Grave
+Fast and accurate language identification using fastText #
+
+We are excited to announce that we are publishing a fast and accurate tool for text-based language identification. It can recognize more than 170 languages, takes less than 1MB of memory and can classify thousands of documents per second. It is based on fastText library and is released here as open source, free to use by everyone. We are releasing several versions of the model, each optimized for different memory usage, and compared them to the popular tool langid.py.
+Read More
+fastText on mobile
+
+May 2, 2017
+
+Armand Joulin
+
+Today, the Facebook AI Research (FAIR) team released pre-trained vectors in 294 languages, accompanied by two quick-start tutorials, to increase fastText’s accessibility to the large community of students, software developers, and researchers interested in machine learning. fastText’s models now fit on smartphones and small computers like Raspberry Pi devices thanks to a new functionality that reduces memory usage.
+
+First open-sourced last summer, fastText was designed to be accessible to anyone with generic hardware like notebooks and X86 cloud instances, or almost any platform with enough memory. Smartphone and small computer support extend fastText’s accessibility to an even larger community and a greater range of applications.
+Read More
+Releasing fastText
+
+August 18, 2016
+
+Edouard Grave
+Faster, better text classification! #
+
+Understanding the meaning of words that roll off your tongue as you talk, or your fingertips as you tap out posts is one of the biggest technical challenges facing artificial intelligence researchers. But it is an essential need. Automatic text processing forms a key part of the day-to-day interaction with your computer; it’s a critical component of everything from web search and content ranking to spam filtering, and when it works well, it’s completely invisible to you. With the growing amount of online data, there is a need for more flexible tools to better understand the content of very large datasets, in order to provide more accurate classification results.
+
+To address this need, the Facebook AI Research (FAIR) lab is open-sourcing fastText, a library designed to help build scalable solutions for text representation and classification. Our ongoing commitment to collaboration and sharing with the community extends beyond just delivering code. We know it’s important to share our learnings to advance the field, so have also published our research relating to fastText.
+
+FastText combines some of the most successful concepts introduced by the natural language processing and machine learning communities in the last few decades. These include representing sentences with bag of words and bag of n-grams, as well as using subword information, and sharing information across classes through a hidden representation. We also employ a hierachical softmax that takes advantage of the unbalanced distribution of the classes to speed up computation. These different concepts are being used for two different tasks: efficient text classification and learning word vector representations.
+
+Releasing fastText
+
+August 18, 2016
+
+Edouard Grave
+Faster, better text classification! #
+
+Understanding the meaning of words that roll off your tongue as you talk, or your fingertips as you tap out posts is one of the biggest technical challenges facing artificial intelligence researchers. But it is an essential need. Automatic text processing forms a key part of the day-to-day interaction with your computer; it’s a critical component of everything from web search and content ranking to spam filtering, and when it works well, it’s completely invisible to you. With the growing amount of online data, there is a need for more flexible tools to better understand the content of very large datasets, in order to provide more accurate classification results.
+
+To address this need, the Facebook AI Research (FAIR) lab is open-sourcing fastText, a library designed to help build scalable solutions for text representation and classification. Our ongoing commitment to collaboration and sharing with the community extends beyond just delivering code. We know it’s important to share our learnings to advance the field, so have also published our research relating to fastText.
+
+FastText combines some of the most successful concepts introduced by the natural language processing and machine learning communities in the last few decades. These include representing sentences with bag of words and bag of n-grams, as well as using subword information, and sharing information across classes through a hidden representation. We also employ a hierachical softmax that takes advantage of the unbalanced distribution of the classes to speed up computation. These different concepts are being used for two different tasks: efficient text classification and learning word vector representations.
+Efficient learning for text classification #
+
+Deep neural networks have recently become very popular for text processing. While these models achieve very good performance in limited laboratory practice, they can be slow to train and test, which limits their use on very large datasets.
+
+FastText helps solve this problem. To be efficient on datasets with very large number of categories, it uses a hierarchical classifier instead of a flat structure, in which the different categories are organized in a tree (think binary tree instead of list). This reduces the time complexities of training and testing text classifiers from linear to logarithmic with respect to the number of classes. FastText also exploits the fact that classes are imbalanced (some classes appearing more often than other) by using the Huffman algorithm to build the tree used to represent categories. The depth in the tree of very frequent categories is therefore smaller than for infrequent ones, leading to further computational efficiency.
+
+FastText also represents a text by a low dimensional vector, which is obtained by summing vectors corresponding to the words appearing in the text. In fastText, a low dimensional vector is associated to each word of the vocabulary. This hidden representation is shared across all classifiers for different categories, allowing information about words learned for one category to be used by other categories. These kind of representations, called bag of words, ignore word order. In fastText we also use vectors to represent word ngrams to take into account local word order, which is important for many text classification problems.
+
+Our experiments show that fastText is often on par with deep learning classifiers in terms of accuracy, and many orders of magnitude faster for training and evaluation. With fastText, we were often able to cut training times from several days to just a few seconds, and achieve state-of-the-art performance on many standard problems, such as sentiment analysis or tag prediction.
+
+fastText performance Comparison between fastText and deep learning-based methods.
+A dedicated tool #
+
+Text classification is very important in the commercial world; spam or clickbait filtering being perhaps the most ubiquitous example. There are tools that design models for general classification problems (such as Vowpal Wabbit or libSVM), but fastText is exclusively dedicated to text classification. This allows it to be quickly trained on extremely large datasets. We have seen results of models trained on more than 1 billion words in less than 10 minutes using a standard multicore CPU. FastText can also classify a half-million sentences among more than 300,000 categories in less than five minutes.
+Works on many languages #
+
+Besides text classification, fastText can also be used to learn vector representations of words. It has been designed to work on a variety of languages, including English, German, Spanish, French, and Czech, by taking advantage of the languages morphological structure. It uses a simple yet effective way of incorporating subword information that turns out to work very well for morphologically rich languages like Czech, demonstrating that carefully designed character ngram features are strong source of information to enrich the word representations. FastText can achieve significantly better performance than the popular word2vec tool, or other state-of-the-art morphological word representations.
+
+fastText performance Comparison between fastText and state-of-the-art word representations for different languages.
+
+We hope the introduction of fastText helps the community build better, more scalable solutions for text representation and classification. Delivered as an open-source library, we believe fastText is a valuable addition to the research and engineering communities, which will ultimately help us all design better applications and further advances in language understanding.
+
+
+Skip to content
+
+    Features
+    Business
+    Explore
+    Marketplace
+    Pricing
+
+This repository
+Sign in or Sign up
+
+672
+10,879
+
+    1,729
+
+facebookresearch/fastText
+Code
+Issues 56
+Pull requests 53
+Projects 0
+Insights
+Join GitHub today
+
+GitHub is home to over 20 million developers working together to host and review code, manage projects, and build software together.
+
+Library for fast text representation and classification.
+
+    201 commits
+    1 branch
+    0 releases
+    18 contributors
+    BSD-3-Clause
+
+    C++ 83.4% Shell 11.4% Python 2.0% Perl 1.8% Makefile 1.4%
+
+Latest commit 431c9e2 5 days ago @EdouardGrave EdouardGrave committed with facebook-github-bot Print error message for invalid pretrained model files
+	src 	Print error message for invalid pretrained model files 	5 days ago
+	tutorials 	minor edits on tutorials 	6 months ago
+	.gitignore 	corrected gitignore 	a year ago
+	CONTRIBUTING.md 	Updated CONTRIBUTING.md 	a year ago
+	LICENSE 	initial commit 	a year ago
+	Makefile 	Quantization 	6 months ago
+	PATENTS 	initial commit 	a year ago
+	README.md 	add link to website/faq/cheatsheet 	a month ago
+	classification-example.sh 	fix link in bash script 	a year ago
+	classification-results.sh 	Fix google drive links in classification-results.sh - Issue 193 	6 months ago
+	eval.py 	script to evaluate trained models 	a month ago
+	get-wikimedia.sh 	build wiki data script 	4 months ago
+	pretrained-vectors.md 	Add links to pretrained word vectors for 294 languages 	6 months ago
+	quantization-example.sh 	update the readme 	6 months ago
+	quantization-results.sh 	create grid of models w/ and w/o quantization 	a month ago
+	wikifil.pl 	Corrected brace escaping in perl script 	8 months ago
+	word-vector-example.sh 	update rw.zip link again 	5 months ago
+README.md
+fastText
+
+fastText is a library for efficient learning of word representations and sentence classification.
+FAQ / Cheatsheet
+
+You can find answers to frequently asked questions on our website.
+
+We also provide a cheatsheet full of useful one-liners.
+Requirements
+
+fastText builds on modern Mac OS and Linux distributions. Since it uses C++11 features, it requires a compiler with good C++11 support. These include :
+
+    (gcc-4.6.3 or newer) or (clang-3.3 or newer)
+
+Compilation is carried out using a Makefile, so you will need to have a working make. For the word-similarity evaluation script you will need:
+
+    python 2.6 or newer
+    numpy & scipy
+
+Building fastText
+
+In order to build fastText, use the following:
+
+$ git clone https://github.com/facebookresearch/fastText.git
+$ cd fastText
+$ make
+
+This will produce object files for all the classes as well as the main binary fasttext. If you do not plan on using the default system-wide compiler, update the two macros defined at the beginning of the Makefile (CC and INCLUDES).
+Example use cases
+
+This library has two main use cases: word representation learning and text classification. These were described in the two papers 1 and 2.
+Word representation learning
+
+In order to learn word vectors, as described in 1, do:
+
+$ ./fasttext skipgram -input data.txt -output model
+
+where data.txt is a training file containing utf-8 encoded text. By default the word vectors will take into account character n-grams from 3 to 6 characters. At the end of optimization the program will save two files: model.bin and model.vec. model.vec is a text file containing the word vectors, one per line. model.bin is a binary file containing the parameters of the model along with the dictionary and all hyper parameters. The binary file can be used later to compute word vectors or to restart the optimization.
+Obtaining word vectors for out-of-vocabulary words
+
+The previously trained model can be used to compute word vectors for out-of-vocabulary words. Provided you have a text file queries.txt containing words for which you want to compute vectors, use the following command:
+
+$ ./fasttext print-word-vectors model.bin < queries.txt
+
+This will output word vectors to the standard output, one vector per line. This can also be used with pipes:
+
+$ cat queries.txt | ./fasttext print-word-vectors model.bin
+
+See the provided scripts for an example. For instance, running:
+
+$ ./word-vector-example.sh
+
+will compile the code, download data, compute word vectors and evaluate them on the rare words similarity dataset RW [Thang et al. 2013].
+Text classification
+
+This library can also be used to train supervised text classifiers, for instance for sentiment analysis. In order to train a text classifier using the method described in 2, use:
+
+$ ./fasttext supervised -input train.txt -output model
+
+where train.txt is a text file containing a training sentence per line along with the labels. By default, we assume that labels are words that are prefixed by the string __label__. This will output two files: model.bin and model.vec. Once the model was trained, you can evaluate it by computing the precision and recall at k (P@k and R@k) on a test set using:
+
+$ ./fasttext test model.bin test.txt k
+
+The argument k is optional, and is equal to 1 by default.
+
+In order to obtain the k most likely labels for a piece of text, use:
+
+$ ./fasttext predict model.bin test.txt k
+
+where test.txt contains a piece of text to classify per line. Doing so will print to the standard output the k most likely labels for each line. The argument k is optional, and equal to 1 by default. See classification-example.sh for an example use case. In order to reproduce results from the paper 2, run classification-results.sh, this will download all the datasets and reproduce the results from Table 1.
+
+If you want to compute vector representations of sentences or paragraphs, please use:
+
+$ ./fasttext print-sentence-vectors model.bin < text.txt
+
+This assumes that the text.txt file contains the paragraphs that you want to get vectors for. The program will output one vector representation per line in the file.
+
+You can also quantize a supervised model to reduce its memory usage with the following command:
+
+$ ./fasttext quantize -output model
+
+This will create a .ftz file with a smaller memory footprint. All the standard functionality, like test or predict work the same way on the quantized models:
+
+$ ./fasttext test model.ftz test.txt
+
+The quantization procedure follows the steps described in 3. You can run the script quantization-example.sh for an example.
+Full documentation
+
+Invoke a command without arguments to list available arguments and their default values:
+
+$ ./fasttext supervised
+Empty input or output path.
+
+The following arguments are mandatory:
+  -input              training file path
+  -output             output file path
+
+  The following arguments are optional:
+  -verbose            verbosity level [2]
+
+  The following arguments for the dictionary are optional:
+  -minCount           minimal number of word occurences [5]
+  -minCountLabel      minimal number of label occurences [0]
+  -wordNgrams         max length of word ngram [1]
+  -bucket             number of buckets [2000000]
+  -minn               min length of char ngram [3]
+  -maxn               max length of char ngram [6]
+  -t                  sampling threshold [0.0001]
+  -label              labels prefix [__label__]
+
+  The following arguments for training are optional:
+  -lr                 learning rate [0.05]
+  -lrUpdateRate       change the rate of updates for the learning rate [100]
+  -dim                size of word vectors [100]
+  -ws                 size of the context window [5]
+  -epoch              number of epochs [5]
+  -neg                number of negatives sampled [5]
+  -loss               loss function {ns, hs, softmax} [ns]
+  -thread             number of threads [12]
+  -pretrainedVectors  pretrained word vectors for supervised learning []
+  -saveOutput         whether output params should be saved [0]
+
+  The following arguments for quantization are optional:
+  -cutoff             number of words and ngrams to retain [0]
+  -retrain            finetune embeddings if a cutoff is applied [0]
+  -qnorm              quantizing the norm separately [0]
+  -qout               quantizing the classifier [0]
+  -dsub               size of each sub-vector [2]
+
+Defaults may vary by mode. (Word-representation modes skipgram and cbow use a default -minCount of 5.)
+References
+
+Please cite 1 if using this code for learning word representations or 2 if using for text classification.
+Enriching Word Vectors with Subword Information
+
+[1] P. Bojanowski*, E. Grave*, A. Joulin, T. Mikolov, Enriching Word Vectors with Subword Information
+
+@article{bojanowski2016enriching,
+  title={Enriching Word Vectors with Subword Information},
+  author={Bojanowski, Piotr and Grave, Edouard and Joulin, Armand and Mikolov, Tomas},
+  journal={arXiv preprint arXiv:1607.04606},
+  year={2016}
+}
+
+Bag of Tricks for Efficient Text Classification
+
+[2] A. Joulin, E. Grave, P. Bojanowski, T. Mikolov, Bag of Tricks for Efficient Text Classification
+
+@article{joulin2016bag,
+  title={Bag of Tricks for Efficient Text Classification},
+  author={Joulin, Armand and Grave, Edouard and Bojanowski, Piotr and Mikolov, Tomas},
+  journal={arXiv preprint arXiv:1607.01759},
+  year={2016}
+}
+
+FastText.zip: Compressing text classification models
+
+[3] A. Joulin, E. Grave, P. Bojanowski, M. Douze, H. Jégou, T. Mikolov, FastText.zip: Compressing text classification models
+
+@article{joulin2016fasttext,
+  title={FastText.zip: Compressing text classification models},
+  author={Joulin, Armand and Grave, Edouard and Bojanowski, Piotr and Douze, Matthijs and J{\'e}gou, H{\'e}rve and Mikolov, Tomas},
+  journal={arXiv preprint arXiv:1612.03651},
+  year={2016}
+}
+
+(* These authors contributed equally.)
+Resources
+
+You can find the preprocessed YFCC100M data used in [2] at https://research.facebook.com/research/fasttext/
+
+Pre-trained word vectors for 294 languages are available here.
+Join the fastText community
+
+    Facebook page: https://www.facebook.com/groups/1174547215919768
+    Google group: https://groups.google.com/forum/#!forum/fasttext-library
+    Contact: egrave@fb.com, bojanowski@fb.com, ajoulin@fb.com, tmikolov@fb.com
+
+See the CONTRIBUTING file for information about how to help out.
+License
+
+fastText is BSD-licensed. We also provide an additional patent grant.
+
+    © 2017 GitHub, Inc.
+    Terms
+    Privacy
+    Security
+    Status
+    Help
+
+    Contact GitHub
+    API
+    Training
+    Shop
+    Blog
+    About
+

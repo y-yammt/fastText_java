@@ -2,18 +2,22 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
-	<groupId>fasttext</groupId>
+	<groupId>cc.fasttext</groupId>
 	<artifactId>fasttext</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<packaging>jar</packaging>
 
-	<name>fasttext</name>
-	<url>http://maven.apache.org</url>
+	<name>fastText</name>
+	<url>https://fasttext.cc/</url>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<maven.compiler.source>1.6</maven.compiler.source>
-		<maven.compiler.target>1.6</maven.compiler.target>
+		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+		<java.version>1.8</java.version>
+		<maven.compiler.source>1.8</maven.compiler.source>
+		<maven.compiler.target>1.8</maven.compiler.target>
+		<maven.test.skip>true</maven.test.skip>
+		<skipTests>true</skipTests>
 	</properties>
 
 	<dependencies>
@@ -28,30 +32,31 @@
 	<build>
 		<plugins>
 			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
+				<version>3.7.0</version>
 				<configuration>
 					<encoding>UTF-8</encoding>
 					<compilerArguments>
 						<extdirs>lib</extdirs>
 					</compilerArguments>
-					<compilerVersion>1.6</compilerVersion>
-					<source>1.6</source>
-					<target>1.6</target>
+					<compilerVersion>1.8</compilerVersion>
+					<source>1.8</source>
+					<target>1.8</target>
 				</configuration>
-				<version>3.3</version>
 			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-resources-plugin</artifactId>
+				<version>3.0.1</version>
 				<configuration>
 					<encoding>UTF-8</encoding>
 				</configuration>
-				<version>3.0.1</version>
 			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-source-plugin</artifactId>
-				<version>2.4</version>
+				<version>3.0.1</version>
 				<executions>
 					<execution>
 						<id>attach-sources</id>
@@ -61,10 +66,10 @@
 					</execution>
 				</executions>
 			</plugin>
-
 			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-assembly-plugin</artifactId>
-				<version>2.6</version>
+				<version>3.1.0</version>
 				<configuration>
 					<descriptorRefs>
 						<descriptorRef>jar-with-dependencies</descriptorRef>
@@ -77,10 +82,9 @@
 				</configuration>
 				<executions>
 					<execution>
-						<id>simple-command</id>
 						<phase>package</phase>
 						<goals>
-							<goal>attached</goal>
+							<goal>single</goal>
 						</goals>
 					</execution>
 				</executions>
