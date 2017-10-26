@@ -2,7 +2,6 @@ package cc.fasttext;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.Reader;
 import java.lang.reflect.InvocationTargetException;
 import java.math.BigInteger;
@@ -10,7 +9,8 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
 
-import cc.fasttext.Args.model_name;
+import cc.fasttext.Args.ModelName;
+import ru.avicomp.io.FSOutputStream;
 import ru.avicomp.io.FSReader;
 
 public class Dictionary {
@@ -584,7 +584,7 @@ public class Dictionary {
                 if (type == EntryType.LABEL) {
                     labels.add(wid - nwords_);
                 }
-                if (words.size() > MAX_LINE_SIZE && args.model != model_name.sup) {
+                if (words.size() > MAX_LINE_SIZE && args.model != Args.ModelName.SUP) {
                     break;
                 }
                 // if (EOS == tokens[i]){
@@ -612,7 +612,7 @@ public class Dictionary {
     public boolean discard(int id, float rand) {
         Utils.checkArgument(id >= 0);
         Utils.checkArgument(id < nwords_);
-        return args.model != model_name.sup && rand > pdiscard_.get(id);
+        return args.model != Args.ModelName.SUP && rand > pdiscard_.get(id);
     }
 
     private static final BigInteger ADD_WORDS_NGRAMS_FACTOR = BigInteger.valueOf(116049371L);
@@ -769,19 +769,44 @@ public class Dictionary {
         return words_.get(lid + nwords_).word;
     }
 
-    public void save(OutputStream ofs) throws IOException {
-        IOUtil ioutil = new IOUtil();
-        ofs.write(ioutil.intToByteArray(size_));
-        ofs.write(ioutil.intToByteArray(nwords_));
-        ofs.write(ioutil.intToByteArray(nlabels_));
-        ofs.write(ioutil.longToByteArray(ntokens_));
-        // Charset charset = Charset.forName("UTF-8");
-        for (int i = 0; i < size_; i++) {
-            Entry e = words_.get(i);
-            ofs.write(e.word.getBytes());
-            ofs.write(0);
-            ofs.write(ioutil.longToByteArray(e.count));
-            ofs.write(ioutil.intToByte(e.type.ordinal()));
+    /**
+     * <pre>{@code
+     * void Dictionary::save(std::ostream& out) const {
+     *  out.write((char*) &size_, sizeof(int32_t));
+     *  out.write((char*) &nwords_, sizeof(int32_t));
+     *  out.write((char*) &nlabels_, sizeof(int32_t));
+     *  out.write((char*) &ntokens_, sizeof(int64_t));
+     *  out.write((char*) &pruneidx_size_, sizeof(int64_t));
+     *  for (int32_t i = 0; i < size_; i++) {
+     *      entry e = words_[i];
+     *      out.write(e.word.data(), e.word.size() * sizeof(char));
+     *      out.put(0);
+     *      out.write((char*) &(e.count), sizeof(int64_t));
+     *      out.write((char*) &(e.type), sizeof(entry_type));
+     *  }
+     *  for (const auto pair : pruneidx_) {
+     *      out.write((char*) &(pair.first), sizeof(int32_t));
+     *      out.write((char*) &(pair.second), sizeof(int32_t));
+     *  }
+     * }}</pre>
+     *
+     * @param out
+     * @throws IOException
+     */
+    public void save(FSOutputStream out) throws IOException {
+        out.writeInt(size_);
+        out.writeInt(nwords_);
+        out.writeInt(nlabels_);
+        out.writeLong(ntokens_);
+        out.writeLong(pruneidx_size_);
+        for (Entry e : words_) {
+            Utils.writeString(out, e.word);
+            out.writeLong(e.count);
+            out.writeByte(e.type.ordinal());
+        }
+        for (Integer key : pruneidx_.keySet()) {
+            out.writeInt(key);
+            out.writeInt(pruneidx_.get(key));
         }
     }
 
@@ -803,7 +828,7 @@ public class Dictionary {
             word2int_.put(find(e.word), i);
         }
         initTableDiscard();
-        if (model_name.cbow == args.model || model_name.sg == args.model) {
+        if (Args.ModelName.CBOW == args.model || ModelName.SG == args.model) {
             initNgrams();
         }
     }

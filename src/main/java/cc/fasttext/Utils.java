@@ -1,7 +1,13 @@
 package cc.fasttext;
 
-import java.io.*;
-import java.util.Map;
+import java.io.EOFException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 import java.util.Random;
 
 public class Utils {
@@ -27,10 +33,6 @@ public class Utils {
 
     public static boolean isEmpty(String str) {
         return (str == null || str.isEmpty());
-    }
-
-    public static <K, V> V mapGetOrDefault(Map<K, V> map, K key, V defaultValue) {
-        return map.getOrDefault(key, defaultValue);
     }
 
     public static int randomInt(Random rnd, int lower, int upper) {
@@ -68,44 +70,34 @@ public class Utils {
         return (rnd.nextFloat() * (upper - lower)) + lower;
     }
 
-    public static long sizeLine(String filename) throws IOException {
-        InputStream is = new BufferedInputStream(new FileInputStream(filename));
-        try {
-            byte[] c = new byte[1024];
-            long count = 0;
-            int readChars = 0;
-            boolean endsWithoutNewLine = false;
-            while ((readChars = is.read(c)) != -1) {
-                for (int i = 0; i < readChars; ++i) {
-                    if (c[i] == '\n')
-                        ++count;
-                }
-                endsWithoutNewLine = (c[readChars - 1] != '\n');
+
+    public static byte[] readUpToByte(InputStream in, byte end) throws IOException {
+        List<Integer> buff = new ArrayList<>(128);
+        while (true) {
+            int c = in.read();
+            if (c == end) {
+                break;
             }
-            if (endsWithoutNewLine) {
-                ++count;
-            }
-            return count;
-        } finally {
-            is.close();
+            if (c == -1) throw new EOFException();
+            buff.add(c);
         }
+        byte[] res = new byte[buff.size()];
+        for (int i = 0; i < buff.size(); i++) {
+            res[i] = buff.get(i).byteValue();
+        }
+        return res;
     }
 
-    /**
-     * @param br
-     * @param pos line numbers start from 1
-     * @throws IOException
-     */
-    public static void seekLine(BufferedReader br, long pos) throws IOException {
-        // br.reset();
-        String line;
-        int currentLine = 1;
-        while (currentLine < pos && (line = br.readLine()) != null) {
-            if (Utils.isEmpty(line) || line.startsWith("#")) {
-                continue;
-            }
-            currentLine++;
-        }
+    public static void writeString(OutputStream out, String s) throws IOException {
+        out.write(s.getBytes());
+        out.write(0);
     }
 
+    public static String readString(InputStream in) throws IOException {
+        return new String(readUpToByte(in, (byte) 0), StandardCharsets.UTF_8);
+    }
+
+    public static String formatNumber(double d) {
+        return String.format(Locale.US, "%g", d).replaceAll("0+($|e)", "$1");
+    }
 }

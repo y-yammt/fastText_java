@@ -3,8 +3,8 @@ package cc.fasttext;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
-import cc.fasttext.Args.loss_name;
-import cc.fasttext.Args.model_name;
+import cc.fasttext.Args.LossName;
+import cc.fasttext.Args.ModelName;
 
 public strictfp class Model {
 
@@ -44,7 +44,7 @@ public strictfp class Model {
     private List<List<Boolean>> codes;
     private List<Node> tree;
 
-    public transient Random rng = ThreadLocalRandom.current();
+    public Random rng = ThreadLocalRandom.current();
 
     public Model(Matrix wi, Matrix wo, Args args, int seed) {
         hidden_ = new Vector(args.dim);
@@ -158,7 +158,7 @@ public strictfp class Model {
             ((ArrayList<Pair<Float, Integer>>) heap).ensureCapacity(k + 1);
         }
         computeHidden(input, hidden);
-        if (args_.loss == loss_name.hs) {
+        if (args_.loss == Args.LossName.HS) {
             dfs(k, 2 * osz_ - 2, 0.0f, heap, hidden);
         } else {
             findKBest(k, heap, hidden, output);
@@ -213,16 +213,16 @@ public strictfp class Model {
         }
         computeHidden(input, hidden_);
 
-        if (args_.loss == loss_name.ns) {
+        if (args_.loss == LossName.NS) {
             loss_ += negativeSampling(target, lr);
-        } else if (args_.loss == loss_name.hs) {
+        } else if (args_.loss == Args.LossName.HS) {
             loss_ += hierarchicalSoftmax(target, lr);
         } else {
             loss_ += softmax(target, lr);
         }
         nexamples_ += 1;
 
-        if (args_.model == model_name.sup) {
+        if (args_.model == ModelName.SUP) {
             grad_.mul(1.0f / input.size());
         }
         for (Integer it : input) {
@@ -247,10 +247,10 @@ public strictfp class Model {
      */
     public void setTargetCounts(final List<Long> counts) {
         Utils.checkArgument(counts.size() == osz_);
-        if (args_.loss == loss_name.ns) {
+        if (args_.loss == Args.LossName.NS) {
             initTableNegatives(counts);
         }
-        if (args_.loss == loss_name.hs) {
+        if (args_.loss == Args.LossName.HS) {
             buildTree(counts);
         }
     }

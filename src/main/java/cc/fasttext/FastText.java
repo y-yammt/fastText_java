@@ -14,10 +14,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import cc.fasttext.Args.model_name;
+import cc.fasttext.Args.ModelName;
 import cc.fasttext.Dictionary.EntryType;
 import fasttext.io.BufferedLineReader;
 import fasttext.io.LineReader;
+import ru.avicomp.io.FSOutputStream;
 import ru.avicomp.io.FSReader;
 
 /**
@@ -27,11 +28,15 @@ import ru.avicomp.io.FSReader;
  */
 public class FastText {
 
+    public static final int FASTTEXT_VERSION = 12;
+    public static final int FASTTEXT_FILEFORMAT_MAGIC_INT32 = 793712314;
+
     private Args args_;
     private Dictionary dict_;
     private Matrix input_;
     private QMatrix qinput_;
     private Matrix output_;
+    private QMatrix qoutput_;
     private Model model_;
 
     private AtomicLong tokenCount_;
@@ -123,7 +128,7 @@ public class FastText {
                 writer.write(word);
                 for (int j = 0; j < vec.m_; j++) {
                     writer.write(" ");
-                    writer.write(IOUtil.formatNumber(vec.data_[j]));
+                    writer.write(Utils.formatNumber(vec.data_[j]));
                 }
                 writer.write("\n");
             }
@@ -131,6 +136,59 @@ public class FastText {
         }
     }
 
+    /**
+     * <pre>{@code
+     * void FastText::signModel(std::ostream& out) {
+     *  const int32_t magic = FASTTEXT_FILEFORMAT_MAGIC_INT32;
+     *  const int32_t version = FASTTEXT_VERSION;
+     *  out.write((char*)&(magic), sizeof(int32_t));
+     *  out.write((char*)&(version), sizeof(int32_t));
+     * }}</pre>
+     *
+     * @param out
+     */
+    private void signModel(FSOutputStream out) throws IOException {
+        out.writeInt(FASTTEXT_FILEFORMAT_MAGIC_INT32);
+        out.writeInt(FASTTEXT_VERSION);
+    }
+
+
+    /**
+     * <pre>{@code
+     * void FastText::saveModel() {
+     *  std::string fn(args_->output);
+     *  if (quant_) {
+     *      fn += ".ftz";
+     *  } else {
+     *      fn += ".bin";
+     *  }
+     *  std::ofstream ofs(fn, std::ofstream::binary);
+     *  if (!ofs.is_open()) {
+     *      std::cerr << "Model file cannot be opened for saving!" << std::endl;
+     *      exit(EXIT_FAILURE);
+     *  }
+     *  signModel(ofs);
+     *  args_->save(ofs);
+     *  dict_->save(ofs);
+     *
+     *  ofs.write((char*)&(quant_), sizeof(bool));
+     *  if (quant_) {
+     *      qinput_->save(ofs);
+     *  } else {
+     *      input_->save(ofs);
+     *  }
+     *  ofs.write((char*)&(args_->qout), sizeof(bool));
+     *  if (quant_ && args_->qout) {
+     *      qoutput_->save(ofs);
+     *  } else {
+     *      output_->save(ofs);
+     *  }
+     *  ofs.close();
+     * }
+     * }</pre>
+     *
+     * @throws IOException
+     */
     public void saveModel() throws IOException {
         if (Utils.isEmpty(args_.output)) {
             if (args_.verbose > 1) {
@@ -140,7 +198,7 @@ public class FastText {
         }
 
         // validate and prepare:
-        Path file = Paths.get(args_.output + ".bin");
+        Path file = Paths.get(args_.output + (quant_ ? ".ftz" : ".bin"));
         args_.getIOStreams().prepare(file.toString());
         if (!args_.getIOStreams().canWrite(file.toString())) {
             throw new IOException("Can't write to " + file);
@@ -149,11 +207,24 @@ public class FastText {
             System.out.println("Saving model to " + file.toAbsolutePath());
         }
 
-        try (OutputStream out = new BufferedOutputStream(args_.getIOStreams().create(file.toString()))) {
+        try (FSOutputStream out = args_.createOutputStream(file)) {
+            signModel(out);
             args_.save(out);
             dict_.save(out);
-            input_.save(out);
-            output_.save(out);
+
+            out.writeBoolean(quant_);
+            if (quant_) {
+                qinput_.save(out);
+            } else {
+                input_.save(out);
+            }
+
+            out.writeBoolean(args_.qout);
+            if (quant_ && args_.qout) {
+                qinput_.save(out);
+            } else {
+                output_.save(out);
+            }
         }
     }
 
@@ -172,8 +243,14 @@ public class FastText {
         BufferedInputStream bis = null;
         try {
             File file = new File(filename);
-            if (!(file.exists() && file.isFile() && file.canRead())) {
-                throw new IOException("Model file cannot be opened for loading!");
+            if (!file.exists()) {
+                throw new IOException("Model cannot be opened for loading: no such file <" + file + ">");
+            }
+            if (!file.isFile()) {
+                throw new IOException("Model cannot be opened for loading: no a file <" + file + ">");
+            }
+            if (!file.canRead()) {
+                throw new IOException("Model cannot be opened for loading: no access to <" + file + ">");
             }
             bis = new BufferedInputStream(new FileInputStream(file));
             dis = new DataInputStream(bis);
@@ -189,7 +266,7 @@ public class FastText {
             output_.load(dis);
 
             model_ = new Model(input_, output_, args_, 0);
-            if (args_.model == model_name.sup) {
+            if (args_.model == Args.ModelName.SUP) {
                 model_.setTargetCounts(dict_.getCounts(EntryType.LABEL));
             } else {
                 model_.setTargetCounts(dict_.getCounts(EntryType.WORD));
@@ -498,7 +575,7 @@ public class FastText {
     }
 
     public void printVectors() {
-        if (args_.model == model_name.sup) {
+        if (args_.model == Args.ModelName.SUP) {
             textVectors();
         } else {
             wordVectors();
@@ -595,7 +672,7 @@ public class FastText {
             input_.uniform(1.0f / args_.dim);
         }
 
-        if (args_.model == model_name.sup) {
+        if (args_.model == Args.ModelName.SUP) {
             output_ = new Matrix(dict_.nlabels(), args_.dim);
         } else {
             output_ = new Matrix(dict_.nwords(), args_.dim);
@@ -697,7 +774,7 @@ public class FastText {
             long skip = threadId * threadFileSize / args_.thread;
             r.skipBytes(skip);
             Model model = new Model(input_, output_, args_, threadId);
-            if (args_.model == model_name.sup) {
+            if (args_.model == Args.ModelName.SUP) {
                 model.setTargetCounts(dict_.getCounts(EntryType.LABEL));
             } else {
                 model.setTargetCounts(dict_.getCounts(EntryType.WORD));
@@ -710,13 +787,13 @@ public class FastText {
             while (tokenCount_.longValue() < args_.epoch * ntokens) {
                 float progress = tokenCount_.floatValue() / (args_.epoch * ntokens);
                 float lr = (float) (args_.lr * (1.0 - progress));
-                if (args_.model == model_name.sup) {
+                if (args_.model == Args.ModelName.SUP) {
                     localTokenCount += dict_.getLine(r, line, labels);
                     supervised(model, lr, line, labels);
-                } else if (args_.model == model_name.cbow) {
+                } else if (args_.model == Args.ModelName.CBOW) {
                     localTokenCount += dict_.getLine(r, line, model.rng);
                     cbow(model, lr, line);
-                } else if (args_.model == model_name.sg) {
+                } else if (args_.model == ModelName.SG) {
                     localTokenCount += dict_.getLine(r, line, model.rng);
                     skipgram(model, lr, line);
                 }

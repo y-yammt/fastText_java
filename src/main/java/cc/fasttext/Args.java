@@ -6,12 +6,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.Objects;
 
-import ru.avicomp.io.FSReader;
-import ru.avicomp.io.IOStreams;
-import ru.avicomp.io.InputStreamSupplier;
-import ru.avicomp.io.OutputStreamSupplier;
+import ru.avicomp.io.*;
 
 public class Args {
 
@@ -27,8 +25,8 @@ public class Args {
     public int minCountLabel = 0;
     public int neg = 5;
     public int wordNgrams = 1;
-    public loss_name loss = loss_name.ns;
-    public model_name model = model_name.sg;
+    public LossName loss = LossName.NS;
+    public ModelName model = ModelName.SG;
     public int bucket = 2000000;
     public int minn = 3;
     public int maxn = 6;
@@ -39,6 +37,8 @@ public class Args {
     public String pretrainedVectors = "";
     // TODO:
     public int saveOutput;
+    //TODO:
+    public boolean qout;
     Charset charset = StandardCharsets.UTF_8;
     private IOStreams factory = new LocalFileSystem();
 
@@ -55,8 +55,37 @@ public class Args {
         return new FSReader(getIOStreams().createInput(input), charset);
     }
 
+    /**
+     * Creates a writer for the specified path to write character data.
+     *
+     * @param path {@link Path} the path to write
+     * @return {@link FSOutputStream}
+     * @throws IOException if something is wrong
+     */
     public Writer createWriter(Path path) throws IOException {
-        return new OutputStreamWriter(new BufferedOutputStream(getIOStreams().create(path.toString())), charset);
+        return new OutputStreamWriter(getIOStreams().create(path.toString()), charset);
+    }
+
+    /**
+     * Creates a FS OutputStream for specified path to write binary data in cpp style.
+     *
+     * @param path {@link Path} the path to write
+     * @return {@link FSOutputStream}
+     * @throws IOException if something is wrong
+     */
+    public FSOutputStream createOutputStream(Path path) throws IOException {
+        return new FSOutputStream(getIOStreams().create(path.toString()));
+    }
+
+    /**
+     * Creates a FS InputStream for specified path to read binary data in cpp (little endian) style.
+     *
+     * @param path {@link Path} the path to read.
+     * @return {@link FSOutputStream}
+     * @throws IOException if something is wrong
+     */
+    public FSInputStream createInputStream(Path path) throws IOException {
+        return new FSInputStream(getIOStreams().open(path.toString()));
     }
 
     public void printHelp() {
@@ -84,21 +113,41 @@ public class Args {
                 + "  -pretrainedVectors  pretrained word vectors for supervised learning []");
     }
 
-    public void save(OutputStream ofs) throws IOException {
-        IOUtil ioutil = new IOUtil();
-        ofs.write(ioutil.intToByteArray(dim));
-        ofs.write(ioutil.intToByteArray(ws));
-        ofs.write(ioutil.intToByteArray(epoch));
-        ofs.write(ioutil.intToByteArray(minCount));
-        ofs.write(ioutil.intToByteArray(neg));
-        ofs.write(ioutil.intToByteArray(wordNgrams));
-        ofs.write(ioutil.intToByteArray(loss.value));
-        ofs.write(ioutil.intToByteArray(model.value));
-        ofs.write(ioutil.intToByteArray(bucket));
-        ofs.write(ioutil.intToByteArray(minn));
-        ofs.write(ioutil.intToByteArray(maxn));
-        ofs.write(ioutil.intToByteArray(lrUpdateRate));
-        ofs.write(ioutil.doubleToByteArray(t));
+    /**
+     * <pre>{@code
+     * void Args::save(std::ostream& out) {
+     *  out.write((char*) &(dim), sizeof(int));
+     *  out.write((char*) &(ws), sizeof(int));
+     *  out.write((char*) &(epoch), sizeof(int));
+     *  out.write((char*) &(minCount), sizeof(int));
+     *  out.write((char*) &(neg), sizeof(int));
+     *  out.write((char*) &(wordNgrams), sizeof(int));
+     *  out.write((char*) &(loss), sizeof(loss_name));
+     *  out.write((char*) &(model), sizeof(model_name));
+     *  out.write((char*) &(bucket), sizeof(int));
+     *  out.write((char*) &(minn), sizeof(int));
+     *  out.write((char*) &(maxn), sizeof(int));
+     *  out.write((char*) &(lrUpdateRate), sizeof(int));
+     *  out.write((char*) &(t), sizeof(double));
+     * }}</pre>
+     *
+     * @param out
+     * @throws IOException
+     */
+    public void save(FSOutputStream out) throws IOException {
+        out.writeInt(dim);
+        out.writeInt(ws);
+        out.writeInt(epoch);
+        out.writeInt(minCount);
+        out.writeInt(neg);
+        out.writeInt(wordNgrams);
+        out.writeInt(loss.value);
+        out.writeInt(model.value);
+        out.writeInt(bucket);
+        out.writeInt(minn);
+        out.writeInt(maxn);
+        out.writeInt(lrUpdateRate);
+        out.writeDouble(t);
     }
 
     public void load(InputStream input) throws IOException {
@@ -109,8 +158,8 @@ public class Args {
         minCount = ioutil.readInt(input);
         neg = ioutil.readInt(input);
         wordNgrams = ioutil.readInt(input);
-        loss = loss_name.fromValue(ioutil.readInt(input));
-        model = model_name.fromValue(ioutil.readInt(input));
+        loss = LossName.fromValue(ioutil.readInt(input));
+        model = ModelName.fromValue(ioutil.readInt(input));
         bucket = ioutil.readInt(input);
         minn = ioutil.readInt(input);
         maxn = ioutil.readInt(input);
@@ -121,14 +170,14 @@ public class Args {
     public void parseArgs(String[] args) {
         String command = args[0];
         if ("supervised".equalsIgnoreCase(command)) {
-            model = model_name.sup;
-            loss = loss_name.softmax;
+            model = ModelName.SUP;
+            loss = LossName.SOFTMAX;
             minCount = 1;
             minn = 0;
             maxn = 0;
             lr = 0.1;
         } else if ("cbow".equalsIgnoreCase(command)) {
-            model = model_name.cbow;
+            model = ModelName.CBOW;
         }
         int ai = 1;
         while (ai < args.length) {
@@ -167,11 +216,11 @@ public class Args {
                 wordNgrams = Integer.parseInt(args[ai + 1]);
             } else if ("-loss".equals(args[ai])) {
                 if ("hs".equalsIgnoreCase(args[ai + 1])) {
-                    loss = loss_name.hs;
+                    loss = LossName.HS;
                 } else if ("ns".equalsIgnoreCase(args[ai + 1])) {
-                    loss = loss_name.ns;
+                    loss = LossName.NS;
                 } else if ("softmax".equalsIgnoreCase(args[ai + 1])) {
-                    loss = loss_name.softmax;
+                    loss = LossName.SOFTMAX;
                 } else {
                     System.out.println("Unknown loss: " + args[ai + 1]);
                     printHelp();
@@ -212,97 +261,40 @@ public class Args {
 
     @Override
     public String toString() {
-        StringBuilder builder = new StringBuilder();
-        builder.append("Args [input=");
-        builder.append(input);
-        builder.append(", output=");
-        builder.append(output);
-        builder.append(", test=");
-        builder.append(test);
-        builder.append(", lr=");
-        builder.append(lr);
-        builder.append(", lrUpdateRate=");
-        builder.append(lrUpdateRate);
-        builder.append(", dim=");
-        builder.append(dim);
-        builder.append(", ws=");
-        builder.append(ws);
-        builder.append(", epoch=");
-        builder.append(epoch);
-        builder.append(", minCount=");
-        builder.append(minCount);
-        builder.append(", minCountLabel=");
-        builder.append(minCountLabel);
-        builder.append(", neg=");
-        builder.append(neg);
-        builder.append(", wordNgrams=");
-        builder.append(wordNgrams);
-        builder.append(", loss=");
-        builder.append(loss);
-        builder.append(", model=");
-        builder.append(model);
-        builder.append(", bucket=");
-        builder.append(bucket);
-        builder.append(", minn=");
-        builder.append(minn);
-        builder.append(", maxn=");
-        builder.append(maxn);
-        builder.append(", thread=");
-        builder.append(thread);
-        builder.append(", t=");
-        builder.append(t);
-        builder.append(", label=");
-        builder.append(label);
-        builder.append(", verbose=");
-        builder.append(verbose);
-        builder.append(", pretrainedVectors=");
-        builder.append(pretrainedVectors);
-        builder.append("]");
-        return builder.toString();
+        return String.format("Args [input=%s, output=%s, test=%s, lr=%s, lrUpdateRate=%d, dim=%d, " +
+                        "ws=%d, epoch=%d, minCount=%d, minCountLabel=%d, neg=%d, wordNgrams=%d, loss=%s, " +
+                        "model=%s, bucket=%d, minn=%d, maxn=%d, thread=%d, t=%s, label=%s, verbose=%d, pretrainedVectors=%s]",
+                input, output, test, lr, lrUpdateRate, dim,
+                ws, epoch, minCount, minCountLabel, neg, wordNgrams, loss,
+                model, bucket, minn, maxn, thread, t, label, verbose, pretrainedVectors);
     }
 
-    public enum model_name {
-        cbow(1), sg(2), sup(3);
+    public enum ModelName {
+        CBOW(1), SG(2), SUP(3);
 
         private int value;
 
-        private model_name(int value) {
+        ModelName(int value) {
             this.value = value;
         }
 
-        public static model_name fromValue(int value) throws IllegalArgumentException {
-            try {
-                value -= 1;
-                return model_name.values()[value];
-            } catch (ArrayIndexOutOfBoundsException e) {
-                throw new IllegalArgumentException("Unknown model_name enum value :" + value);
-            }
-        }
-
-        public int getValue() {
-            return this.value;
+        public static ModelName fromValue(int value) throws IllegalArgumentException {
+            return Arrays.stream(values()).filter(v -> v.value == value)
+                    .findFirst().orElseThrow(() -> new IllegalArgumentException("Unknown model_name enum value: " + value));
         }
     }
 
-    public enum loss_name {
-        hs(1), ns(2), softmax(3);
+    public enum LossName {
+        HS(1), NS(2), SOFTMAX(3);
         private int value;
 
-        private loss_name(int value) {
+        LossName(int value) {
             this.value = value;
         }
 
-        public static loss_name fromValue(int value) throws IllegalArgumentException {
-            try {
-                value -= 1;
-                return loss_name.values()[value];
-            } catch (ArrayIndexOutOfBoundsException e) {
-                throw new IllegalArgumentException("Unknown loss_name enum value :" + value);
-            }
-        }
-
-        public int getValue() {
-            return this.value;
+        public static LossName fromValue(final int value) throws IllegalArgumentException {
+            return Arrays.stream(values()).filter(v -> v.value == value)
+                    .findFirst().orElseThrow(() -> new IllegalArgumentException("Unknown loss_name enum value: " + value));
         }
     }
 
@@ -334,7 +326,7 @@ public class Args {
         @Override
         public OutputStreamSupplier createOutput(String output) {
             Path path = Paths.get(output);
-            return () -> Files.newOutputStream(path);
+            return () -> new BufferedOutputStream(Files.newOutputStream(path));
         }
 
         @Override

@@ -2,8 +2,9 @@ package cc.fasttext;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.Random;
+
+import ru.avicomp.io.FSOutputStream;
 
 public strictfp class Matrix {
 
@@ -93,13 +94,24 @@ public strictfp class Matrix {
         }
     }
 
-    public void save(OutputStream ofs) throws IOException {
-        IOUtil ioutil = new IOUtil();
-        ioutil.setFloatArrayBufferSize(n_);
-        ofs.write(ioutil.longToByteArray(m_));
-        ofs.write(ioutil.longToByteArray(n_));
+    /**
+     * <pre>{@code
+     * void Matrix::save(std::ostream& out) {
+     *  out.write((char*) &m_, sizeof(int64_t));
+     *  out.write((char*) &n_, sizeof(int64_t));
+     *  out.write((char*) data_, m_ * n_ * sizeof(real));
+     * }}</pre>
+     *
+     * @param out
+     * @throws IOException
+     */
+    public void save(FSOutputStream out) throws IOException {
+        out.writeLong(m_);
+        out.writeLong(n_);
         for (int i = 0; i < m_; i++) {
-            ofs.write(ioutil.floatToByteArray(data_[i]));
+            for (int j = 0; j < n_; j++) {
+                out.writeFloat(data_[i][j]);
+            }
         }
     }
 

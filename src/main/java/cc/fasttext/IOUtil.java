@@ -4,13 +4,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.Locale;
 
 /**
  * Read/write cpp primitive type
  *
  * @author Ivan
  */
+@Deprecated // todo: replace with com.google.common.io.LittleEndianData*Stream
 public class IOUtil {
 
     public IOUtil() {
@@ -142,10 +142,6 @@ public class IOUtil {
 
     public byte[] doubleToByteArray(double d) {
         return longToByteArray(Double.doubleToRawLongBits(d));
-    }
-
-    public static String formatNumber(double d) {
-        return String.format(Locale.US, "%g", d).replaceAll("0+($|e)", "$1");
     }
 
 }

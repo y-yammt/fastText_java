@@ -36,14 +36,16 @@ public class TrainModelTest {
 
         // validate bin:
         long expectedBinSize = 1_024_344_256;
-        long actualBinSize = Files.size(bin); // todo: the size should be exactly the same:
-        Assert.assertTrue("Incorrect bin size: " + actualBinSize, Math.abs(actualBinSize - expectedBinSize) < 100);
+        long actualBinSize = Files.size(bin);
+        Assert.assertEquals("Incorrect bin size: " + actualBinSize, expectedBinSize, actualBinSize);
 
         // validate vec:
-        long allowableDiff = 60_000;
+        int allowableDiffInPercents = 10;
         long expectedVecSize = 440_017;
         long actualVecSize = Files.size(vec);
-        Assert.assertTrue("Incorrect vec size: " + actualVecSize, actualVecSize > expectedVecSize - allowableDiff && actualVecSize < expectedVecSize + allowableDiff);
+        int actualDiffInPercents = (int) (200.0 * Math.abs(actualVecSize - expectedVecSize) / (actualVecSize + expectedVecSize));
+        System.out.println("Actual diff: " + actualDiffInPercents + "%");
+        Assert.assertTrue("Incorrect vec size: " + actualVecSize + ", diff: " + actualDiffInPercents, actualDiffInPercents <= allowableDiffInPercents);
         List<Word> words = collect(vec);
         System.out.println(toSet(words));
         int expectedDim = 128;
@@ -58,9 +60,9 @@ public class TrainModelTest {
     @Ignore // ignore since it requires preconfigured hadoop with test data inside fs
     @Test
     public void hadoopCboxThread4Dim128Ws5Epoch10MinCount5test() throws Exception {
-        String hadoopGome = Paths.get(TrainModelTest.class.getResource("/bin").toURI()).getParent().toString();
+        String hadoopHome = Paths.get(TrainModelTest.class.getResource("/bin").toURI()).getParent().toString();
         Map<String, String> props = new HashMap<>();
-        props.put("hadoop.home.dir", hadoopGome);
+        props.put("hadoop.home.dir", hadoopHome);
 
         IOStreams fs = HadoopMain.createHadoopFS("hdfs://172.16.35.1:54310", "hadoop", Collections.emptyMap(), props);
         System.out.println(fs);
