@@ -1,14 +1,18 @@
 package cc.fasttext;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Random;
 
+import ru.avicomp.io.FSInputStream;
 import ru.avicomp.io.FSOutputStream;
 
+/**
+ * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.cc'>matrix.cc</a> and
+ * <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.h'>matrix.h</a>
+ */
 public strictfp class Matrix {
 
-    public float[][] data_ = null;
+    public float[][] data_;
     public int m_ = 0; // vocabSize
     public int n_ = 0; // layer1Size
 
@@ -81,19 +85,6 @@ public strictfp class Matrix {
         }
     }
 
-    public void load(InputStream input) throws IOException {
-        IOUtil ioutil = new IOUtil();
-
-        m_ = (int) ioutil.readLong(input);
-        n_ = (int) ioutil.readLong(input);
-
-        ioutil.setFloatArrayBufferSize(n_);
-        data_ = new float[m_][n_];
-        for (int i = 0; i < m_; i++) {
-            ioutil.readFloat(input, data_[i]);
-        }
-    }
-
     /**
      * <pre>{@code
      * void Matrix::save(std::ostream& out) {
@@ -102,15 +93,38 @@ public strictfp class Matrix {
      *  out.write((char*) data_, m_ * n_ * sizeof(real));
      * }}</pre>
      *
-     * @param out
-     * @throws IOException
+     * @param out {@link FSOutputStream}
+     * @throws IOException if an I/O error occurs
      */
-    public void save(FSOutputStream out) throws IOException {
+    void save(FSOutputStream out) throws IOException {
         out.writeLong(m_);
         out.writeLong(n_);
         for (int i = 0; i < m_; i++) {
             for (int j = 0; j < n_; j++) {
                 out.writeFloat(data_[i][j]);
+            }
+        }
+    }
+
+    /**
+     * <pre>{@code void Matrix::load(std::istream& in) {
+     *  in.read((char*) &m_, sizeof(int64_t));
+     *  in.read((char*) &n_, sizeof(int64_t));
+     *  delete[] data_;
+     *  data_ = new real[m_ * n_];
+     *  in.read((char*) data_, m_ * n_ * sizeof(real));
+     * }}</pre>
+     *
+     * @param in {@link FSInputStream}
+     * @throws IOException if an I/O error occurs
+     */
+    void load(FSInputStream in) throws IOException {
+        m_ = (int) in.readLong();
+        n_ = (int) in.readLong();
+        data_ = new float[m_][n_];
+        for (int i = 0; i < m_; i++) {
+            for (int j = 0; j < m_; j++) {
+                data_[i][j] = in.readFloat();
             }
         }
     }

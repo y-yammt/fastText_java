@@ -48,7 +48,7 @@ public class Main {
             System.exit(1);
         }
         FastText fasttext = new FastText();
-        fasttext.loadModel(args[1]);
+        fasttext.loadModel(new Args().setInput(args[1]));
         String infile = args[2];
         if ("-".equals(infile)) {
             fasttext.test(System.in, k);
@@ -73,7 +73,7 @@ public class Main {
         }
         boolean print_prob = "predict-prob".equalsIgnoreCase(args[0]);
         FastText fasttext = new FastText();
-        fasttext.loadModel(args[1]);
+        fasttext.loadModel(new Args().setInput(args[1]));
 
         String infile = args[2];
         if ("-".equals(infile)) {
@@ -93,7 +93,7 @@ public class Main {
             System.exit(1);
         }
         FastText fasttext = new FastText();
-        fasttext.loadModel(args[1]);
+        fasttext.loadModel(new Args().setInput(args[1]));
         fasttext.printVectors();
     }
 

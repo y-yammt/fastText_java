@@ -1,7 +1,6 @@
 package cc.fasttext;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.Reader;
 import java.lang.reflect.InvocationTargetException;
 import java.math.BigInteger;
@@ -9,7 +8,7 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
 
-import cc.fasttext.Args.ModelName;
+import ru.avicomp.io.FSInputStream;
 import ru.avicomp.io.FSOutputStream;
 import ru.avicomp.io.FSReader;
 
@@ -96,23 +95,6 @@ public class Dictionary {
         return ntokens_;
     }
 
-    public final List<Integer> getNgrams(int i) {
-        Utils.checkArgument(i >= 0);
-        Utils.checkArgument(i < nwords_);
-        return words_.get(i).subwords;
-    }
-
-    public final List<Integer> getNgrams(final String word) {
-        List<Integer> ngrams = new ArrayList<Integer>();
-        int i = getId(word);
-        if (i >= 0) {
-            ngrams = words_.get(i).subwords;
-        } else {
-            computeNgrams(BOW + word + EOW, ngrams);
-        }
-        return ngrams;
-    }
-
     public int getId(final String w) {
         return word2int_.getOrDefault(find(w), WORDID_DEFAULT);
     }
@@ -168,15 +150,7 @@ public class Dictionary {
         return h & 0xffffffffL;
     }
 
-    private static boolean charMatches(char ch) {
-        if (ch == ' ' || ch == '\t' || ch == '\n' || ch == '\f' || ch == '\r') {
-            return true;
-        }
-        return false;
-    }
-
     /**
-     * TODO:
      * <pre>{@code
      * void Dictionary::initNgrams() {
      *  for (size_t i = 0; i < size_; i++) {
@@ -273,29 +247,6 @@ public class Dictionary {
             }
         }
         hashes.add(nwords_ + id);
-    }
-
-    @Deprecated
-    private void computeNgrams(final String word, List<Integer> ngrams) {
-        for (int i = 0; i < word.length(); i++) {
-            StringBuilder ngram = new StringBuilder();
-            if (charMatches(word.charAt(i))) {
-                continue;
-            }
-            for (int j = i, n = 1; j < word.length() && n <= args.maxn; n++) {
-                ngram.append(word.charAt(j++));
-                while (j < word.length() && charMatches(word.charAt(j))) {
-                    ngram.append(word.charAt(j++));
-                }
-                if (n >= args.minn && !(n == 1 && (i == 0 || j == word.length()))) {
-                    int h = (int) (nwords_ + (hash(ngram.toString()) % args.bucket));
-                    if (h < 0) {
-                        System.err.println("computeNgrams h<0: " + h + " on word: " + word);
-                    }
-                    ngrams.add(h);
-                }
-            }
-        }
     }
 
     /**
@@ -419,7 +370,16 @@ public class Dictionary {
         }
     }
 
-    public void initTableDiscard() {
+    /**
+     * <pre>{@code void Dictionary::initTableDiscard() {
+     *  pdiscard_.resize(size_);
+     *  for (size_t i = 0; i < size_; i++) {
+     *      real f = real(words_[i].count) / real(ntokens_);
+     *      pdiscard_[i] = std::sqrt(args_->t / f) + args_->t / f;
+     *  }
+     * }}</pre>
+     */
+    private void initTableDiscard() {
         pdiscard_ = new ArrayList<>(size_);
         for (int i = 0; i < size_; i++) {
             float f = (float) (words_.get(i).count) / (float) ntokens_;
@@ -770,6 +730,18 @@ public class Dictionary {
     }
 
     /**
+     * <pre>{@code bool isPruned() {
+     *  return pruneidx_size_ >= 0;
+     *  }
+     * }</pre>
+     *
+     * @return
+     */
+    public boolean isPruned() {
+        return pruneidx_size_ >= 0;
+    }
+
+    /**
      * <pre>{@code
      * void Dictionary::save(std::ostream& out) const {
      *  out.write((char*) &size_, sizeof(int32_t));
@@ -790,10 +762,10 @@ public class Dictionary {
      *  }
      * }}</pre>
      *
-     * @param out
-     * @throws IOException
+     * @param out {@link FSOutputStream}
+     * @throws IOException if an I/O error occurs
      */
-    public void save(FSOutputStream out) throws IOException {
+    void save(FSOutputStream out) throws IOException {
         out.writeInt(size_);
         out.writeInt(nwords_);
         out.writeInt(nlabels_);
@@ -810,27 +782,60 @@ public class Dictionary {
         }
     }
 
-    public void load(InputStream ifs) throws IOException {
-        // words_.clear();
-        // word2int_.clear();
-        IOUtil ioutil = new IOUtil();
-        size_ = ioutil.readInt(ifs);
-        nwords_ = ioutil.readInt(ifs);
-        nlabels_ = ioutil.readInt(ifs);
-        ntokens_ = ioutil.readLong(ifs);
-
+    /**
+     * <pre>{@code void Dictionary::load(std::istream& in) {
+     *  words_.clear();
+     *  std::fill(word2int_.begin(), word2int_.end(), -1);
+     *  in.read((char*) &size_, sizeof(int32_t));
+     *  in.read((char*) &nwords_, sizeof(int32_t));
+     *  in.read((char*) &nlabels_, sizeof(int32_t));
+     *  in.read((char*) &ntokens_, sizeof(int64_t));
+     *  in.read((char*) &pruneidx_size_, sizeof(int64_t));
+     *  for (int32_t i = 0; i < size_; i++) {
+     *      char c;
+     *      entry e;
+     *      while ((c = in.get()) != 0) {
+     *          e.word.push_back(c);
+     *      }
+     *      in.read((char*) &e.count, sizeof(int64_t));
+     *      in.read((char*) &e.type, sizeof(entry_type));
+     *      words_.push_back(e);
+     *      word2int_[find(e.word)] = i;
+     *  }
+     *  pruneidx_.clear();
+     *  for (int32_t i = 0; i < pruneidx_size_; i++) {
+     *      int32_t first;
+     *      int32_t second;
+     *      in.read((char*) &first, sizeof(int32_t));
+     *      in.read((char*) &second, sizeof(int32_t));
+     *      pruneidx_[first] = second;
+     *  }
+     *  initTableDiscard();
+     *  initNgrams();
+     * }}</pre>
+     *
+     * @param in {@link FSInputStream}
+     * @throws IOException if an I/O error occurs
+     */
+    void load(FSInputStream in) throws IOException {
+        size_ = in.readInt();
+        nwords_ = in.readInt();
+        nlabels_ = in.readInt();
+        ntokens_ = in.readLong();
+        pruneidx_size_ = in.readLong();
         word2int_ = new HashMap<>(size_);
         words_ = new ArrayList<>(size_);
-
         for (int i = 0; i < size_; i++) {
-            Entry e = new Entry(ioutil.readString(ifs), ioutil.readLong(ifs), EntryType.fromValue(ioutil.readByte(ifs)));
+            Entry e = new Entry(Utils.readString(in), in.readLong(), EntryType.fromValue(in.readByte()));
             words_.add(e);
             word2int_.put(find(e.word), i);
         }
-        initTableDiscard();
-        if (Args.ModelName.CBOW == args.model || ModelName.SG == args.model) {
-            initNgrams();
+        pruneidx_.clear();
+        for (int i = 0; i < pruneidx_size_; i++) {
+            pruneidx_.put(in.readInt(), in.readInt());
         }
+        initTableDiscard();
+        initNgrams();
     }
 
     @Override

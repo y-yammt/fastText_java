@@ -18,11 +18,14 @@ import cc.fasttext.Args.ModelName;
 import cc.fasttext.Dictionary.EntryType;
 import fasttext.io.BufferedLineReader;
 import fasttext.io.LineReader;
+import ru.avicomp.io.FSInputStream;
 import ru.avicomp.io.FSOutputStream;
 import ru.avicomp.io.FSReader;
 
 /**
  * FastText class, can be used as a lib in other projects
+ * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/fasttext.cc'>fasttext.cc</a> and
+ * <a href='https://github.com/facebookresearch/fastText/blob/master/src/fasttext.h'>fasttext.h</a>
  *
  * @author Ivan
  */
@@ -42,6 +45,7 @@ public class FastText {
     private AtomicLong tokenCount_;
     private long start_;
     private boolean quant_;
+    private int version;
 
     private Class<? extends LineReader> lineReaderClass_ = BufferedLineReader.class;
     private long threadFileSize;
@@ -136,7 +140,37 @@ public class FastText {
         }
     }
 
+    public void saveOutput() {
+        // TODO:
+    }
+
     /**
+     * Checks model versions.
+     * <pre>{@code bool FastText::checkModel(std::istream& in) {
+     *  int32_t magic;
+     *  in.read((char*)&(magic), sizeof(int32_t));
+     *  if (magic != FASTTEXT_FILEFORMAT_MAGIC_INT32) {
+     *      return false;
+     *  }
+     *  in.read((char*)&(version), sizeof(int32_t));
+     *  if (version > FASTTEXT_VERSION) {
+     *      return false;
+     *  }
+     *  return true;
+     * }}</pre>
+     *
+     * @param in {@link FSInputStream} binary just opened input stream
+     * @return true if version is okay
+     * @throws IOException if something is wrong
+     */
+    private boolean checkModel(FSInputStream in) throws IOException {
+        int magic = in.readInt();
+        int version = in.readInt();
+        return FASTTEXT_FILEFORMAT_MAGIC_INT32 == magic && (this.version = version) == FASTTEXT_VERSION;
+    }
+
+    /**
+     * Writes versions to the model.
      * <pre>{@code
      * void FastText::signModel(std::ostream& out) {
      *  const int32_t magic = FASTTEXT_FILEFORMAT_MAGIC_INT32;
@@ -145,7 +179,8 @@ public class FastText {
      *  out.write((char*)&(version), sizeof(int32_t));
      * }}</pre>
      *
-     * @param out
+     * @param out {@link FSOutputStream} binary just opened output stream
+     * @throws IOException if something is wrong
      */
     private void signModel(FSOutputStream out) throws IOException {
         out.writeInt(FASTTEXT_FILEFORMAT_MAGIC_INT32);
@@ -197,7 +232,7 @@ public class FastText {
             return;
         }
 
-        // validate and prepare:
+        // validate and prepare (todo: move to the beginning):
         Path file = Paths.get(args_.output + (quant_ ? ".ftz" : ".bin"));
         args_.getIOStreams().prepare(file.toString());
         if (!args_.getIOStreams().canWrite(file.toString())) {
@@ -228,56 +263,124 @@ public class FastText {
         }
     }
 
-    public void saveOutput() {
-        // TODO:
+    /**
+     * <pre>{@code
+     * void FastText::loadModel(const std::string& filename) {
+     *  std::ifstream ifs(filename, std::ifstream::binary);
+     *  if (!ifs.is_open()) {
+     *      std::cerr << "Model file cannot be opened for loading!" << std::endl;
+     *      exit(EXIT_FAILURE);
+     *  }
+     *  if (!checkModel(ifs)) {
+     *      std::cerr << "Model file has wrong file format!" << std::endl;
+     *      exit(EXIT_FAILURE);
+     *  }
+     *  loadModel(ifs);
+     *  ifs.close();
+     * }}</pre>
+     *
+     * @param args {@link Args}
+     * @throws IOException              if an I/O error occurs
+     * @throws IllegalArgumentException if model is wrong
+     */
+    public void loadModel(Args args) throws IOException, IllegalArgumentException {
+        this.args_ = args;
+        Path file = Paths.get(args_.input);
+        if (!args_.getIOStreams().canRead(file.toString())) {
+            throw new IOException("Model file cannot be opened for loading: <" + file.toAbsolutePath() + ">");
+        }
+        try (FSInputStream in = args_.createInputStream(file)) {
+            if (!checkModel(in)) throw new IllegalArgumentException("Model file has wrong format!");
+            loadModel(in);
+        }
     }
 
     /**
-     * Load binary model file.
+     * <pre>{@code
+     * void FastText::loadModel(std::istream& in) {
+     *  args_ = std::make_shared<Args>();
+     *  dict_ = std::make_shared<Dictionary>(args_);
+     *  input_ = std::make_shared<Matrix>();
+     *  output_ = std::make_shared<Matrix>();
+     *  qinput_ = std::make_shared<QMatrix>();
+     *  qoutput_ = std::make_shared<QMatrix>();
+     *  args_->load(in);
+     *  if (version == 11 && args_->model == model_name::sup) {
+     *      // backward compatibility: old supervised models do not use char ngrams.
+     *      args_->maxn = 0;
+     *  }
+     *  dict_->load(in);
+     *  bool quant_input;
+     *  in.read((char*) &quant_input, sizeof(bool));
+     *  if (quant_input) {
+     *      quant_ = true;
+     *      qinput_->load(in);
+     *  } else {
+     *      input_->load(in);
+     *  }
+     *  if (!quant_input && dict_->isPruned()) {
+     *      std::cerr << "Invalid model file.\n" << "Please download the updated model from www.fasttext.cc.\n" << "See issue #332 on Github for more information.\n";
+     *      exit(1);
+     *  }
+     *  in.read((char*) &args_->qout, sizeof(bool));
+     *  if (quant_ && args_->qout) {
+     *      qoutput_->load(in);
+     *  } else {
+     *      output_->load(in);
+     *  }
+     *  model_ = std::make_shared<Model>(input_, output_, args_, 0);
+     *  model_->quant_ = quant_;
+     *  model_->setQuantizePointer(qinput_, qoutput_, args_->qout);
+     *  if (args_->model == model_name::sup) {
+     *      model_->setTargetCounts(dict_->getCounts(entry_type::label));
+     *  } else {
+     *      model_->setTargetCounts(dict_->getCounts(entry_type::word));
+     *  }
+     * }}</pre>
      *
-     * @param filename
-     * @throws IOException
+     * @param in {@link FSInputStream}
+     * @throws IOException              io-error
+     * @throws IllegalArgumentException if wrong input
      */
-    public void loadModel(String filename) throws IOException {
-        DataInputStream dis = null;
-        BufferedInputStream bis = null;
-        try {
-            File file = new File(filename);
-            if (!file.exists()) {
-                throw new IOException("Model cannot be opened for loading: no such file <" + file + ">");
-            }
-            if (!file.isFile()) {
-                throw new IOException("Model cannot be opened for loading: no a file <" + file + ">");
-            }
-            if (!file.canRead()) {
-                throw new IOException("Model cannot be opened for loading: no access to <" + file + ">");
-            }
-            bis = new BufferedInputStream(new FileInputStream(file));
-            dis = new DataInputStream(bis);
+    private void loadModel(FSInputStream in) throws IOException {
+        args_.load(in);
+        input_ = new Matrix();
+        output_ = new Matrix();
+        qinput_ = new QMatrix();
+        qoutput_ = new QMatrix();
+        if (version == 11 && args_.model == ModelName.SUP) {
+            // backward compatibility: old supervised models do not use char ngrams.
+            args_.maxn = 0;
+        }
+        dict_ = new Dictionary(args_);
+        dict_.load(in);
+        boolean quant_input = in.readBoolean();
+        if (quant_input) {
+            quant_ = true;
+            qinput_.load(in);
+        } else {
+            input_.load(in);
+        }
 
-            args_ = new Args();
-            dict_ = new Dictionary(args_);
-            input_ = new Matrix();
-            output_ = new Matrix();
+        if (!quant_input && dict_.isPruned()) {
+            throw new IllegalArgumentException("Invalid model file.\n" +
+                    "Please download the updated model from www.fasttext.cc.\n" +
+                    "See issue #332 on Github for more information.\n");
+        }
+        args_.qout = in.readBoolean();
+        if (quant_ && args_.qout) {
+            qoutput_.load(in);
+        } else {
+            output_.load(in);
+        }
 
-            args_.load(dis);
-            dict_.load(dis);
-            input_.load(dis);
-            output_.load(dis);
-
-            model_ = new Model(input_, output_, args_, 0);
-            if (args_.model == Args.ModelName.SUP) {
-                model_.setTargetCounts(dict_.getCounts(EntryType.LABEL));
-            } else {
-                model_.setTargetCounts(dict_.getCounts(EntryType.WORD));
-            }
-        } finally {
-            if (bis != null) {
-                bis.close();
-            }
-            if (dis != null) {
-                dis.close();
-            }
+        model_ = new Model(input_, output_, args_, 0);
+        model_.quant_ = quant_;
+        model_.setQuantizePointer(qinput_, qoutput_, args_.qout);
+        if (args_.model == Args.ModelName.SUP) {
+            model_.setTargetCounts(dict_.getCounts(EntryType.LABEL));
+        } else {
+            model_.setTargetCounts(dict_.getCounts(EntryType.WORD));
         }
     }
 
@@ -582,7 +685,7 @@ public class FastText {
         }
     }
 
-    public void loadVectors(String filename) throws IOException {
+    private void loadVectors(String filename) throws IOException {
         List<String> words;
         Matrix mat; // temp. matrix for pretrained vectors
         int n, dim;
@@ -598,12 +701,11 @@ public class FastText {
             n = Integer.parseInt(lineParts[0]);
             dim = Integer.parseInt(lineParts[1]);
 
-            words = new ArrayList<String>(n);
+            words = new ArrayList<>(n);
 
             if (dim != args_.dim) {
-                throw new IllegalArgumentException(
-                        "Dimension of pretrained vectors does not match args -dim option, pretrain dim is " + dim
-                                + ", args dim is " + args_.dim);
+                throw new IllegalArgumentException(String.format("Dimension of pretrained vectors does not match args " +
+                        "-dim option, pretrain dim is %d, args dim is %d", dim, args_.dim));
             }
 
             mat = new Matrix(n, dim);
@@ -644,6 +746,8 @@ public class FastText {
     }
 
     /**
+     * Trains.
+     *
      * @param args
      * @throws Exception
      */
@@ -769,11 +873,11 @@ public class FastText {
      * @param threadId
      * @throws IOException
      */
-    protected void trainThread(int threadId) throws IOException {
+    private void trainThread(int threadId) throws IOException {
         try (FSReader r = args_.createReader()) {
             long skip = threadId * threadFileSize / args_.thread;
             r.skipBytes(skip);
-            Model model = new Model(input_, output_, args_, threadId);
+            Model model = new Model(input_, output_, args_, args_.thread > 1 ? -1 : threadId);
             if (args_.model == Args.ModelName.SUP) {
                 model.setTargetCounts(dict_.getCounts(EntryType.LABEL));
             } else {

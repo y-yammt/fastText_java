@@ -13,6 +13,10 @@ public strictfp class Model {
     static final int LOG_TABLE_SIZE = 512;
 
     static final int NEGATIVE_TABLE_SIZE = 10_000_000;
+    // todo: new
+    public boolean quant_;
+    public QMatrix qwi_;
+    public QMatrix qwo_;
 
     public class Node {
         int parent;
@@ -51,8 +55,7 @@ public strictfp class Model {
         output_ = new Vector(wo.m_);
         grad_ = new Vector(args.dim);
 
-        rng = ThreadLocalRandom.current();
-        //new Random(seed);
+        rng = seed > 0 ? new Random(seed) : ThreadLocalRandom.current();
 
         wi_ = wi;
         wo_ = wo;
@@ -65,6 +68,28 @@ public strictfp class Model {
         nexamples_ = 1L;
         initSigmoid();
         initLog();
+    }
+
+    /**
+     * <pre>{@code
+     * void Model::setQuantizePointer(std::shared_ptr<QMatrix> qwi, std::shared_ptr<QMatrix> qwo, bool qout) {
+     *  qwi_ = qwi;
+     *  qwo_ = qwo;
+     *  if (qout) {
+     *      osz_ = qwo_->getM();
+     *  }
+     * }}</pre>
+     *
+     * @param qwi
+     * @param qwo
+     * @param qout
+     */
+    public void setQuantizePointer(QMatrix qwi, QMatrix qwo, boolean qout) {
+        this.qwi_ = qwi;
+        this.qwo_ = qwo;
+        if (qout) {
+            osz_ = qwo_.getM();
+        }
     }
 
     public float binaryLogistic(int target, boolean label, float lr) {

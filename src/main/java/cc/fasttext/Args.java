@@ -11,6 +11,11 @@ import java.util.Objects;
 
 import ru.avicomp.io.*;
 
+/**
+ * See:
+ * <a href='https://github.com/facebookresearch/fastText/blob/master/src/args.cc'>args.cc</a> and
+ * <a href='https://github.com/facebookresearch/fastText/blob/master/src/args.h'>args.h</a>
+ */
 public class Args {
 
     public String input;
@@ -42,13 +47,23 @@ public class Args {
     Charset charset = StandardCharsets.UTF_8;
     private IOStreams factory = new LocalFileSystem();
 
-    public IOStreams getIOStreams() {
-        return factory;
+    public Args setInput(String input) {
+        this.input = Objects.requireNonNull(input, "Null input");
+        return this;
     }
 
-    public void setIOStreams(IOStreams factory) {
-        Objects.requireNonNull(factory, "Null factory");
-        this.factory = factory;
+    public Args setCharset(Charset charset) {
+        this.charset = Objects.requireNonNull(charset, "Null charset");
+        return this;
+    }
+
+    public Args setIOStreams(IOStreams factory) {
+        this.factory = Objects.requireNonNull(factory, "Null factory");
+        return this;
+    }
+
+    public IOStreams getIOStreams() {
+        return factory;
     }
 
     public FSReader createReader() {
@@ -131,10 +146,10 @@ public class Args {
      *  out.write((char*) &(t), sizeof(double));
      * }}</pre>
      *
-     * @param out
-     * @throws IOException
+     * @param out {@link FSOutputStream}
+     * @throws IOException if an I/O error occurs
      */
-    public void save(FSOutputStream out) throws IOException {
+    void save(FSOutputStream out) throws IOException {
         out.writeInt(dim);
         out.writeInt(ws);
         out.writeInt(epoch);
@@ -150,21 +165,40 @@ public class Args {
         out.writeDouble(t);
     }
 
-    public void load(InputStream input) throws IOException {
-        IOUtil ioutil = new IOUtil();
-        dim = ioutil.readInt(input);
-        ws = ioutil.readInt(input);
-        epoch = ioutil.readInt(input);
-        minCount = ioutil.readInt(input);
-        neg = ioutil.readInt(input);
-        wordNgrams = ioutil.readInt(input);
-        loss = LossName.fromValue(ioutil.readInt(input));
-        model = ModelName.fromValue(ioutil.readInt(input));
-        bucket = ioutil.readInt(input);
-        minn = ioutil.readInt(input);
-        maxn = ioutil.readInt(input);
-        lrUpdateRate = ioutil.readInt(input);
-        t = ioutil.readDouble(input);
+    /**
+     * <pre>{@code void Args::load(std::istream& in) {
+     *  in.read((char*) &(dim), sizeof(int));
+     *  in.read((char*) &(ws), sizeof(int));
+     *  in.read((char*) &(epoch), sizeof(int));
+     *  in.read((char*) &(minCount), sizeof(int));
+     *  in.read((char*) &(neg), sizeof(int));
+     *  in.read((char*) &(wordNgrams), sizeof(int));
+     *  in.read((char*) &(loss), sizeof(loss_name));
+     *  in.read((char*) &(model), sizeof(model_name));
+     *  in.read((char*) &(bucket), sizeof(int));
+     *  in.read((char*) &(minn), sizeof(int));
+     *  in.read((char*) &(maxn), sizeof(int));
+     *  in.read((char*) &(lrUpdateRate), sizeof(int));
+     *  in.read((char*) &(t), sizeof(double));
+     * }}</pre>
+     *
+     * @param in {@link FSInputStream}
+     * @throws IOException if an I/O error occurs
+     */
+    void load(FSInputStream in) throws IOException {
+        dim = in.readInt();
+        ws = in.readInt();
+        epoch = in.readInt();
+        minCount = in.readInt();
+        neg = in.readInt();
+        wordNgrams = in.readInt();
+        loss = LossName.fromValue(in.readInt());
+        model = ModelName.fromValue(in.readInt());
+        bucket = in.readInt();
+        minn = in.readInt();
+        maxn = in.readInt();
+        lrUpdateRate = in.readInt();
+        t = in.readDouble();
     }
 
     public void parseArgs(String[] args) {

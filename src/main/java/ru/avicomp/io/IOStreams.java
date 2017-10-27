@@ -31,6 +31,13 @@ public interface IOStreams {
         return true;
     }
 
+    /**
+     * Prepares file to write.
+     * Usually for creating parent directories
+     *
+     * @param path String, path identifier
+     * @throws IOException if something goes wrong while preparation.
+     */
     default void prepare(String path) throws IOException {
 
     }

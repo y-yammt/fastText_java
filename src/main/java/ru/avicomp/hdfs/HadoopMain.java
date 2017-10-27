@@ -63,8 +63,7 @@ public class HadoopMain {
         System.out.println("Rest args: " + list);
         IOStreams fs = createHadoopFS(hadoopURL, hadoopUser, hadoopSettings, properties);
 
-        Args args = new Args();
-        args.setIOStreams(fs);
+        Args args = new Args().setIOStreams(fs);
         args.parseArgs(list.toArray(new String[list.size()]));
         FastText fasttext = new FastText();
         fasttext.train(args);
