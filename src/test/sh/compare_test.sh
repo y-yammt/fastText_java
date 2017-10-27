@@ -16,7 +16,7 @@ max_bytes=$((${max_gb} * 1024 * 1024 * 1024))
 suffix=""
 size=""
 bytes=0
-if [[ ${arg} =~ ^[0-9]+(g|G)*$ ]]
+if [[ ${arg} =~ ^[0-9]+((g|G)(b|B)*)*$ ]]
 then
     size=${arg//[^0-9]/}
     bytes=$((1024 * 1024 * 1024 * ${size}))
@@ -33,7 +33,7 @@ fi
 if (( $bytes > $max_bytes ))
 then
     echo "Too big file size specified"
-    exit $arg
+    exit -1
 fi
 
 echo "Input file size ${bytes}b (${size}${suffix})"

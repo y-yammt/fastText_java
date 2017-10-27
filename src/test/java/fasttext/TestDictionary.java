@@ -4,27 +4,27 @@ import java.util.Map;
 
 import org.junit.Test;
 
-import cc.fasttext.Args;
 import cc.fasttext.Dictionary;
+import cc.fasttext.Main;
 
 import static org.junit.Assert.assertEquals;
 
 public class TestDictionary {
 
-	Dictionary dictionary = new Dictionary(new Args());
+	private Dictionary dictionary = new Dictionary(Main.createArgs());
 
 	@Test
 	public void testHash() {
-		assertEquals(dictionary.hash(","), 688690635l);
-		assertEquals(dictionary.hash("is"), 1312329493l);
-		assertEquals(dictionary.hash("</s>"), 3617362777l);
+		assertEquals(dictionary.hash(","), 688690635L);
+		assertEquals(dictionary.hash("is"), 1312329493L);
+		assertEquals(dictionary.hash("</s>"), 3617362777L);
 	}
 
 	@Test
 	public void testFind() {
-		assertEquals(dictionary.find(","), 28690635l);
-		assertEquals(dictionary.find("is"), 22329493l);
-		assertEquals(dictionary.find("</s>"), 17362777l);
+		assertEquals(dictionary.find(","), 28690635L);
+		assertEquals(dictionary.find("is"), 22329493L);
+		assertEquals(dictionary.find("</s>"), 17362777L);
 	}
 
 	@Test

@@ -1,6 +1,5 @@
 package ru.avicomp.io;
 
-import javax.annotation.Nonnull;
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -32,7 +31,7 @@ public class FSOutputStream extends FilterOutputStream {
     }
 
     @Override
-    public void write(@Nonnull byte[] b, int off, int len) throws IOException {
+    public void write(byte[] b, int off, int len) throws IOException {
         out.write(b, off, len);
     }
 

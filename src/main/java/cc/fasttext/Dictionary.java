@@ -2,7 +2,6 @@ package cc.fasttext;
 
 import java.io.IOException;
 import java.io.Reader;
-import java.lang.reflect.InvocationTargetException;
 import java.math.BigInteger;
 import java.util.*;
 import java.util.function.Function;
@@ -254,12 +253,8 @@ public class Dictionary {
      *
      * @param args
      * @throws IOException
-     * @throws NoSuchMethodException
-     * @throws IllegalAccessException
-     * @throws InvocationTargetException
-     * @throws InstantiationException
      */
-    public void readFromFile(Args args) throws IOException, NoSuchMethodException, IllegalAccessException, InvocationTargetException, InstantiationException {
+    public void readFromFile(Args args) throws IOException {
         long minThreshold = 1;
         try (FSReader r = args.createReader()) {
             String word;

@@ -34,7 +34,7 @@ public class FastText {
     public static final int FASTTEXT_VERSION = 12;
     public static final int FASTTEXT_FILEFORMAT_MAGIC_INT32 = 793712314;
 
-    private Args args_;
+    private final Args args_;
     private Dictionary dict_;
     private Matrix input_;
     private QMatrix qinput_;
@@ -46,6 +46,10 @@ public class FastText {
     private long start_;
     private boolean quant_;
     private int version;
+
+    public FastText(Args args) {
+        this.args_ = args;
+    }
 
     private Class<? extends LineReader> lineReaderClass_ = BufferedLineReader.class;
     private long threadFileSize;
@@ -279,17 +283,16 @@ public class FastText {
      *  ifs.close();
      * }}</pre>
      *
-     * @param args {@link Args}
+     * @param file, String, path to model
      * @throws IOException              if an I/O error occurs
      * @throws IllegalArgumentException if model is wrong
      */
-    public void loadModel(Args args) throws IOException, IllegalArgumentException {
-        this.args_ = args;
-        Path file = Paths.get(args_.input);
-        if (!args_.getIOStreams().canRead(file.toString())) {
-            throw new IOException("Model file cannot be opened for loading: <" + file.toAbsolutePath() + ">");
+    public void loadModel(String file) throws IOException, IllegalArgumentException {
+        Path path = Paths.get(file);
+        if (!args_.getIOStreams().canRead(path.toString())) {
+            throw new IOException("Model file cannot be opened for loading: <" + path.toAbsolutePath() + ">");
         }
-        try (FSInputStream in = args_.createInputStream(file)) {
+        try (FSInputStream in = args_.createInputStream(path)) {
             if (!checkModel(in)) throw new IllegalArgumentException("Model file has wrong format!");
             loadModel(in);
         }
@@ -618,6 +621,18 @@ public class FastText {
         }
     }
 
+    public void predict(String file, int k, boolean print_prob) throws IOException {
+        Path path = Paths.get(file);
+        if (!args_.getIOStreams().canRead(path.toString())) {
+            throw new IOException("Input file cannot be opened!");
+        }
+        try (InputStream in = args_.getIOStreams().open(path.toString())) {
+            // TODO: implement correct way
+            //predict(in, k, print_prob);
+        }
+    }
+
+
     public void wordVectors() {
         LineReader lineReader = null;
         try {
@@ -748,11 +763,10 @@ public class FastText {
     /**
      * Trains.
      *
-     * @param args
-     * @throws Exception
+     * @throws IOException
+     * @throws ExecutionException
      */
-    public void train(Args args) throws Exception {
-        args_ = args;
+    public void train() throws IOException, ExecutionException {
         dict_ = new Dictionary(args_);
 
         if ("-".equals(args_.input)) {
@@ -814,7 +828,7 @@ public class FastText {
         }
         model_ = new Model(input_, output_, args_, 0);
 
-        if (args.verbose > 1) {
+        if (args_.verbose > 1) {
             long trainTime = (System.currentTimeMillis() - start_) / 1000;
             System.out.printf("\nTrain time used: %d sec\n", trainTime);
         }
@@ -870,8 +884,8 @@ public class FastText {
      * }
      * }</pre>
      *
-     * @param threadId
-     * @throws IOException
+     * @param threadId, int thread identifier
+     * @throws IOException if an I/O error occurs
      */
     private void trainThread(int threadId) throws IOException {
         try (FSReader r = args_.createReader()) {
@@ -914,10 +928,6 @@ public class FastText {
 
     public Args getArgs() {
         return args_;
-    }
-
-    public void setArgs(Args args) {
-        this.args_ = args;
     }
 
     public Dictionary getDict() {

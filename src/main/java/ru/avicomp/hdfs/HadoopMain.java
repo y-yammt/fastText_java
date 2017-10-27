@@ -23,6 +23,7 @@ import org.apache.hadoop.fs.Path;
 
 import cc.fasttext.Args;
 import cc.fasttext.FastText;
+import cc.fasttext.Main;
 import ru.avicomp.io.IOStreams;
 import ru.avicomp.io.InputStreamSupplier;
 import ru.avicomp.io.OutputStreamSupplier;
@@ -63,10 +64,9 @@ public class HadoopMain {
         System.out.println("Rest args: " + list);
         IOStreams fs = createHadoopFS(hadoopURL, hadoopUser, hadoopSettings, properties);
 
-        Args args = new Args().setIOStreams(fs);
-        args.parseArgs(list.toArray(new String[list.size()]));
-        FastText fasttext = new FastText();
-        fasttext.train(args);
+        Args args = Main.parseArgs(list.toArray(new String[list.size()])).setIOStreams(fs);
+        FastText fasttext = new FastText(args);
+        fasttext.train();
         Instant t1 = Instant.now();
         Duration duration = Duration.between(t0, t1);
         float seconds = duration.get(ChronoUnit.SECONDS) + duration.get(ChronoUnit.NANOS) / 1_000_000_000f;

@@ -4,6 +4,14 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 
+import ru.avicomp.io.IOStreams;
+import ru.avicomp.io.InputStreamSupplier;
+import ru.avicomp.io.OutputStreamSupplier;
+
+/**
+ * <a href='https://github.com/facebookresearch/fastText/blob/master/src/main.cc'>main.cc</a>
+ * <a href='https://github.com/facebookresearch/fastText/blob/master/src/main.h'>main.h</a>
+ */
 public class Main {
 
     public static void printUsage() {
@@ -37,6 +45,27 @@ public class Main {
                 + " <model> model filename\n");
     }
 
+    /**
+     * Creates an empty Args
+     *
+     * @return {@link Args}
+     */
+    public static Args createArgs() {
+        return new Args();
+    }
+
+    /**
+     * Parses input to Args
+     *
+     * @param args Array, input
+     * @return {@link Args}
+     */
+    public static Args parseArgs(String... args) {
+        Args res = new Args();
+        res.parseArgs(args);
+        return res;
+    }
+
     public void test(String[] args) throws IOException, Exception {
         int k = 1;
         if (args.length == 3) {
@@ -47,8 +76,8 @@ public class Main {
             printTestUsage();
             System.exit(1);
         }
-        FastText fasttext = new FastText();
-        fasttext.loadModel(new Args().setInput(args[1]));
+        FastText fasttext = new FastText(createArgs());
+        fasttext.loadModel(args[1]);
         String infile = args[2];
         if ("-".equals(infile)) {
             fasttext.test(System.in, k);
@@ -72,10 +101,38 @@ public class Main {
             System.exit(1);
         }
         boolean print_prob = "predict-prob".equalsIgnoreCase(args[0]);
-        FastText fasttext = new FastText();
-        fasttext.loadModel(new Args().setInput(args[1]));
+        FastText fasttext = new FastText(createArgs());
+        fasttext.loadModel(args[1]);
+        IOStreams fs = fasttext.getArgs().getIOStreams();
+        fasttext.getArgs().setIOStreams(new IOStreams() {
+            @Override
+            public InputStreamSupplier createInput(String path) {
+                return "-".equals(path) ? () -> System.in : fs.createInput(path);
+            }
 
+            @Override
+            public OutputStreamSupplier createOutput(String path) {
+                return fs.createOutput(path);
+            }
+
+            @Override
+            public boolean canRead(String path) {
+                return "-".equals(path) || fs.canRead(path);
+            }
+
+            @Override
+            public boolean canWrite(String path) {
+                return fs.canRead(path);
+            }
+
+            @Override
+            public void prepare(String path) throws IOException {
+                fs.prepare(path);
+            }
+        });
         String infile = args[2];
+        //if (fasttext.getArgs().getIOStreams().canRead(infile)) {}
+        // TODO: implement correct way
         if ("-".equals(infile)) {
             fasttext.predict(System.in, k, print_prob);
         } else {
@@ -92,16 +149,13 @@ public class Main {
             printPrintVectorsUsage();
             System.exit(1);
         }
-        FastText fasttext = new FastText();
-        fasttext.loadModel(new Args().setInput(args[1]));
+        FastText fasttext = new FastText(createArgs());
+        fasttext.loadModel(args[1]);
         fasttext.printVectors();
     }
 
-    public void train(String[] args) throws IOException, Exception {
-        Args a = new Args();
-        a.parseArgs(args);
-        FastText fasttext = new FastText();
-        fasttext.train(a);
+    public void train(String[] args) throws Exception {
+        new FastText(parseArgs(args)).train();
     }
 
     public static void main(String... args) {

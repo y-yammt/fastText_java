@@ -72,11 +72,9 @@ public class TrainModelTest {
         String output = String.format("%s/junit.%s.d128.w5.hs", dir, file);
 
         String[] cmd = TestsBase.cmd("cbow -thread 4 -dim 128 -ws 5 -epoch 10 -minCount 5 -verbose 2 -input %s -output %s", input, output);
-        Args args = new Args();
-        args.setIOStreams(fs);
-        args.parseArgs(cmd);
-        FastText fasttext = new FastText();
-        fasttext.train(args);
+        Args args = Main.parseArgs(cmd).setIOStreams(fs);
+        FastText fasttext = new FastText(args);
+        fasttext.train();
     }
 
     private static class Word implements Comparable<Word> {

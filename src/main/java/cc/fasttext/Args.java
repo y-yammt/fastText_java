@@ -47,6 +47,9 @@ public class Args {
     Charset charset = StandardCharsets.UTF_8;
     private IOStreams factory = new LocalFileSystem();
 
+    Args() {
+    }
+
     public Args setInput(String input) {
         this.input = Objects.requireNonNull(input, "Null input");
         return this;
