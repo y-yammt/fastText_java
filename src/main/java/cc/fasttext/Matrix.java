@@ -137,7 +137,7 @@ public strictfp class Matrix {
         n_ = (int) in.readLong();
         data_ = new float[m_][n_];
         for (int i = 0; i < m_; i++) {
-            for (int j = 0; j < m_; j++) {
+            for (int j = 0; j < n_; j++) {
                 data_[i][j] = in.readFloat();
             }
         }

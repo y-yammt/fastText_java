@@ -16,6 +16,7 @@ import ru.avicomp.io.IOStreams;
 import ru.avicomp.io.impl.LocalIOStreams;
 
 /**
+ * TODO: make immutable
  * See:
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/args.cc'>args.cc</a> and
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/args.h'>args.h</a>
@@ -73,6 +74,12 @@ public class Args {
         return factory;
     }
 
+    /**
+     * TODO: remove
+     *
+     * @return
+     * @throws IOException
+     */
     public FTReader createReader() throws IOException {
         return new FTReader(getIOStreams().openScrollable(input), charset);
     }

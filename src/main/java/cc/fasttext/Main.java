@@ -126,18 +126,18 @@ public class Main {
             printPredictUsage();
             System.exit(1);
         }
-        boolean print_prob = "predict-prob".equalsIgnoreCase(args[0]);
+        boolean printProb = "predict-prob".equalsIgnoreCase(args[0]);
         FastText fasttext = new FastText(createArgs());
         fasttext.loadModel(args[1]);
         String infile = args[2];
         if ("-".equals(infile)) {
-            fasttext.predict(System.in, k, print_prob);
+            fasttext.predict(System.in, k, printProb);
         } else {
-            if (fasttext.getArgs().getIOStreams().canRead(infile)) {
+            if (!fasttext.getArgs().getIOStreams().canRead(infile)) {
                 throw new IOException("Input file cannot be opened!");
             }
             try (InputStream in = fasttext.getArgs().getIOStreams().openInput(infile)) {
-                fasttext.predict(in, k, print_prob);
+                fasttext.predict(in, k, printProb);
             }
         }
     }

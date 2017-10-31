@@ -30,7 +30,7 @@ public class HadoopTest {
         props.put("hadoop.home.dir", hadoopHome);
 
         IOStreams fs = HadoopMain.createHadoopFS("hdfs://172.16.35.1:54310", "hadoop", Collections.emptyMap(), props);
-        System.out.println(fs);
+        TestsBase.LOGGER.info("{}", fs);
         String file = "raw-text-data.txt";
         String dir = "/tmp/out";
         String input = String.format("%s/%s", dir, file);
@@ -40,6 +40,6 @@ public class HadoopTest {
         Args args = Main.parseArgs(cmd).setIOStreams(fs);
         FastText fasttext = new FastText(args);
         fasttext.train();
-        System.out.println("Size:" + fs.size(output + ".bin"));
+        TestsBase.LOGGER.info("Size: {}", fs.size(output + ".bin"));
     }
 }

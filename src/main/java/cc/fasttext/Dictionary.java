@@ -16,6 +16,7 @@ public class Dictionary {
     private static final int MAX_VOCAB_SIZE = 30000000;
     private static final int MAX_LINE_SIZE = 1024;
     private static final Integer WORDID_DEFAULT = -1;
+    private static final Integer PRUNE_IDX_SIZE_DEFAULT = -1;
 
     private static final String EOS = "</s>";
     private static final String BOW = "<";
@@ -29,7 +30,7 @@ public class Dictionary {
     private int nwords_;
     private int nlabels_;
     private long ntokens_;
-    private long pruneidx_size_;
+    private long pruneidx_size_ = PRUNE_IDX_SIZE_DEFAULT;
     private Map<Integer, Integer> pruneidx_ = new HashMap<>();
     private Args args;
 
@@ -249,7 +250,7 @@ public class Dictionary {
     }
 
     /**
-     * TODO:
+     * TODO: change signature
      *
      * @param args
      * @throws IOException
@@ -438,18 +439,14 @@ public class Dictionary {
     public int getLine(FTReader in, List<Integer> words, List<Integer> labels) throws IOException {
         List<Long> word_hashes = new ArrayList<>();
         int ntokens = 0;
-
         reset(in);
-
         words.clear();
         labels.clear();
-
         String token;
         while ((token = readWord(in)) != null) {
             long h = hash(token);
             int wid = getId(token, h);
             EntryType type = wid < 0 ? getType(token) : getType(wid);
-
             ntokens++;
             if (EntryType.WORD == type) {
                 addSubwords(words, token, wid);
@@ -488,7 +485,7 @@ public class Dictionary {
      * @param in
      * @param words
      * @param rng
-     * @return
+     * @return int
      */
     public int getLine(FTReader in, List<Integer> words, Random rng) throws IOException {
         int ntokens = 0;
@@ -499,7 +496,6 @@ public class Dictionary {
             long h = hash(token);
             int wid = getId(token, h);
             if (wid < 0) continue;
-
             ntokens++;
             if (getType(wid) == EntryType.WORD && !discard(wid, rng.nextFloat())) {
                 words.add(wid);
@@ -706,7 +702,7 @@ public class Dictionary {
      * }
      * }</pre>
      *
-     * @param in
+     * @param r
      */
     public void reset(FTReader in) throws IOException {
         if (!in.end()) {
