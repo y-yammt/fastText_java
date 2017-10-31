@@ -5,29 +5,41 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
-import cc.fasttext.Args;
-import cc.fasttext.FastText;
 import cc.fasttext.Main;
-import ru.avicomp.hdfs.HadoopMain;
-import ru.avicomp.io.IOStreams;
 
 /**
  * Created by @szuev on 20.10.2017.
  */
+@RunWith(Parameterized.class)
 public class TrainModelTest {
 
+    private final Data data;
+
+    public TrainModelTest(Data data) {
+        this.data = data;
+    }
+
+    @Parameterized.Parameters(name = "{0}")
+    public static List<Data> getData() {
+        return Arrays.asList(Data.values());
+    }
+
     @Test
-    public void cboxThread4Dim128Ws5Epoch10MinCount5test() throws Exception {
-        Path input = Paths.get(TrainModelTest.class.getResource("/text-data.txt").toURI());
-        Path output = TestsBase.DESTINATION_DIR.resolve("junit.test-data.cbox.d128.w5.hs");
-        new Main().train(TestsBase.cmd("cbow -thread 4 -dim 128 -ws 5 -epoch 10 -minCount 5 -input %s -output %s", input, output));
+    public void test() throws Exception {
+        Path input = Paths.get(TrainModelTest.class.getResource(data.input()).toURI());
+        Path output = TestsBase.DESTINATION_DIR.resolve(data.model());
+        new Main().train(TestsBase.cmd(data.cmd(), input, output));
 
         Path bin = Paths.get(output.toString() + ".bin");
         Path vec = Paths.get(output.toString() + ".vec");
@@ -35,47 +47,110 @@ public class TrainModelTest {
         Assert.assertTrue("No .vec", Files.exists(vec));
 
         // validate bin:
-        long expectedBinSize = 1_024_344_256;
         long actualBinSize = Files.size(bin);
-        Assert.assertEquals("Incorrect bin size: " + actualBinSize, expectedBinSize, actualBinSize);
+        Assert.assertEquals("Incorrect bin size: " + actualBinSize, data.binSize(), actualBinSize);
 
         // validate vec:
         int allowableDiffInPercents = 10;
-        long expectedVecSize = 391_799; //440_017;
         long actualVecSize = Files.size(vec);
-        int actualDiffInPercents = (int) (200.0 * Math.abs(actualVecSize - expectedVecSize) / (actualVecSize + expectedVecSize));
-        System.out.printf("Actual diff: %d%% (size: %d)%n", actualDiffInPercents, actualVecSize);
-        Assert.assertTrue("Incorrect vec size: " + actualVecSize + ", diff: " + actualDiffInPercents, actualDiffInPercents <= allowableDiffInPercents);
+        double actualDiffInPercents = 200.0 * (actualVecSize - data.vecSize()) / (actualVecSize + data.vecSize());
+        System.out.printf("Actual vec diff: %.2f%% (size: %d)%n", actualDiffInPercents, actualVecSize);
+        Assert.assertTrue("Incorrect vec size: " + actualVecSize + ", diff: " + actualDiffInPercents, Math.abs(actualDiffInPercents) <= allowableDiffInPercents);
         List<Word> words = collect(vec);
         System.out.println(toSet(words));
-        int expectedDim = 128;
-        int expectedSize = 331;
-        Assert.assertEquals("Wrong size", expectedSize, words.size());
-        Assert.assertTrue("Wrong dim inside file", toMap(words).values().stream().allMatch(floats -> floats.size() == expectedDim));
+        Assert.assertEquals("Wrong size", data.vecWords(), words.size());
+        Assert.assertTrue("Wrong dim inside file", toMap(words).values().stream().allMatch(floats -> floats.size() == data.vecDim()));
         try (BufferedReader r = Files.newBufferedReader(vec)) {
-            Assert.assertEquals("Wrong first line", expectedSize + " " + expectedDim, r.lines().findFirst().orElseThrow(AssertionError::new));
+            Assert.assertEquals("Wrong first line", data.vecWords() + " " + data.vecDim(), r.lines().findFirst().orElseThrow(AssertionError::new));
         }
     }
 
-    @Ignore // ignore since it requires preconfigured hadoop with test data inside fs
-    @Test
-    public void hadoopCboxThread4Dim128Ws5Epoch10MinCount5test() throws Exception {
-        String hadoopHome = Paths.get(TrainModelTest.class.getResource("/bin").toURI()).getParent().toString();
-        Map<String, String> props = new HashMap<>();
-        props.put("hadoop.home.dir", hadoopHome);
+    private enum Data {
+        CBOX_THREAD4_DIM128_WS5_EPOCH10_MINCOUNT5 {
+            @Override
+            public String input() {
+                return "/text-data.txt";
+            }
 
-        IOStreams fs = HadoopMain.createHadoopFS("hdfs://172.16.35.1:54310", "hadoop", Collections.emptyMap(), props);
-        System.out.println(fs);
-        String file = "raw-text-data.txt";
-        String dir = "/tmp/out";
-        String input = String.format("%s/%s", dir, file);
-        String output = String.format("%s/junit.%s.d128.w5.hs", dir, file);
+            @Override
+            public String cmd() {
+                return "cbow -thread 4 -dim 128 -ws 5 -epoch 10 -minCount 5 -input %s -output %s";
+            }
 
-        String[] cmd = TestsBase.cmd("cbow -thread 4 -dim 128 -ws 5 -epoch 10 -minCount 5 -verbose 2 -input %s -output %s", input, output);
-        Args args = Main.parseArgs(cmd).setIOStreams(fs);
-        FastText fasttext = new FastText(args);
-        fasttext.train();
-        System.out.println("Size:" + fs.size(output + ".bin"));
+            @Override
+            public long binSize() {
+                return 1_024_344_256;
+            }
+
+            @Override
+            public long vecSize() {
+                return 391_799;
+            }
+
+            @Override
+            public int vecDim() {
+                return 128;
+            }
+
+            @Override
+            public int vecWords() {
+                return 331;
+            }
+
+            public String model() {
+                return "junit.text-data.cbox.t4.d128.w5.e10.m5";
+            }
+        },
+        SUPERVISED_THREAD4_DIM10_LR01_NGRAMS2_BUCKET1E7_EPOCH5 {
+            @Override
+            public String input() {
+                return "/dbpedia.cut.train";
+            }
+
+            @Override
+            public String cmd() {
+                return "supervised -dim 10 -lr 0.1 -wordNgrams 2 -minCount 1 -bucket 10000000 -epoch 5 -thread 4 -input %s -output %s";
+            }
+
+            @Override
+            public long binSize() {
+                return 400_154_095;
+            }
+
+            @Override
+            public long vecSize() {
+                return 279_763;
+            }
+
+            @Override
+            public int vecDim() {
+                return 10;
+            }
+
+            @Override
+            public int vecWords() {
+                return 2695;
+            }
+
+            @Override
+            public String model() {
+                return "junit.dbpedia.suprerbised.t4.d10.lr01.wn2.b1e7.e5.m1";
+            }
+        };
+
+        public abstract String input();
+
+        public abstract String cmd();
+
+        public abstract long binSize();
+
+        public abstract long vecSize();
+
+        public abstract int vecDim();
+
+        public abstract int vecWords();
+
+        public abstract String model();
     }
 
     private static class Word implements Comparable<Word> {

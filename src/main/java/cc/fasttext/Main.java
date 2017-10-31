@@ -3,6 +3,7 @@ package cc.fasttext;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 
 /**
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/main.cc'>main.cc</a>
@@ -86,13 +87,42 @@ public class Main {
         }
     }
 
+    /**
+     * <pre>{@code void predict(const std::vector<std::string>& args) {
+     *  if (args.size() < 4 || args.size() > 5) {
+     *      printPredictUsage();
+     *      exit(EXIT_FAILURE);
+     *  }
+     *  int32_t k = 1;
+     *  if (args.size() >= 5) {
+     *      k = std::stoi(args[4]);
+     *  }
+     *  bool print_prob = args[1] == "predict-prob";
+     *  FastText fasttext;
+     *  fasttext.loadModel(std::string(args[2]));
+     *  std::string infile(args[3]);
+     *  if (infile == "-") {
+     *      fasttext.predict(std::cin, k, print_prob);
+     *  } else {
+     *      std::ifstream ifs(infile);
+     *      if (!ifs.is_open()) {
+     *          std::cerr << "Input file cannot be opened!" << std::endl;
+     *          exit(EXIT_FAILURE);
+     *      }
+     *      fasttext.predict(ifs, k, print_prob);
+     *      ifs.close();
+     *  }
+     *  exit(0);
+     * }}</pre>
+     *
+     * @param args
+     * @throws Exception
+     */
     public void predict(String[] args) throws Exception {
         int k = 1;
-        if (args.length == 3) {
-            k = 1;
-        } else if (args.length == 4) {
+        if (args.length == 4) {
             k = Integer.parseInt(args[3]);
-        } else {
+        } else if (args.length != 3) {
             printPredictUsage();
             System.exit(1);
         }
@@ -100,16 +130,15 @@ public class Main {
         FastText fasttext = new FastText(createArgs());
         fasttext.loadModel(args[1]);
         String infile = args[2];
-        //if (fasttext.getArgs().getIOStreams().canRead(infile)) {}
-        // TODO: implement correct way
         if ("-".equals(infile)) {
             fasttext.predict(System.in, k, print_prob);
         } else {
-            File file = new File(infile);
-            if (!(file.exists() && file.isFile() && file.canRead())) {
+            if (fasttext.getArgs().getIOStreams().canRead(infile)) {
                 throw new IOException("Input file cannot be opened!");
             }
-            fasttext.predict(new FileInputStream(file), k, print_prob);
+            try (InputStream in = fasttext.getArgs().getIOStreams().openInput(infile)) {
+                fasttext.predict(in, k, print_prob);
+            }
         }
     }
 

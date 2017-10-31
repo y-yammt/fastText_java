@@ -76,6 +76,20 @@ public strictfp class Matrix {
         return d;
     }
 
+    /**
+     * <pre>{@code void Matrix::addRow(const Vector& vec, int64_t i, real a) {
+     *  assert(i >= 0);
+     *  assert(i < m_);
+     *  assert(vec.size() == n_);
+     *  for (int64_t j = 0; j < n_; j++) {
+     *      data_[i * n_ + j] += a * vec.data_[j];
+     *  }
+     * }}</pre>
+     *
+     * @param vec
+     * @param i
+     * @param a
+     */
     public void addRow(final Vector vec, int i, float a) {
         Utils.checkArgument(i >= 0);
         Utils.checkArgument(i < m_);

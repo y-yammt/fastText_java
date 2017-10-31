@@ -627,17 +627,39 @@ public class FastText {
         }
     }
 
-    public void predict(String file, int k, boolean print_prob) throws IOException {
-        Path path = Paths.get(file);
-        if (!args_.getIOStreams().canRead(path.toString())) {
-            throw new IOException("Input file cannot be opened!");
-        }
-        try (InputStream in = args_.getIOStreams().openInput(path.toString())) {
-            // TODO: implement correct way
-            //predict(in, k, print_prob);
-        }
+    /**
+     * TODO:
+     * <pre>{@code void FastText::predict(std::istream& in, int32_t k, bool print_prob) {
+     *  std::vector<std::pair<real,std::string>> predictions;
+     *  while (in.peek() != EOF) {
+     *      predictions.clear();
+     *      predict(in, k, predictions);
+     *      if (predictions.empty()) {
+     *          std::cout << std::endl;
+     *          continue;
+     *      }
+     *      for (auto it = predictions.cbegin(); it != predictions.cend(); it++) {
+     *          if (it != predictions.cbegin()) {
+     *              std::cout << " ";
+     *          }
+     *          std::cout << it->second;
+     *          if (print_prob) {
+     *              std::cout << " " << exp(it->first);
+     *          }
+     *      }
+     *      std::cout << std::endl;
+     *  }
+     * }}</pre>
+     *
+     * @param in
+     * @param k
+     * @param print_prob
+     * @throws IOException
+     */
+    public void _predict(InputStream in, int k, boolean print_prob) throws IOException {
+        //FTReader r = new FTReader()
+        List<Pair<Float, String>> predictions = new ArrayList<>(k);
     }
-
 
     public void wordVectors() {
         LineReader lineReader = null;

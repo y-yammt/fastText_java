@@ -17,17 +17,10 @@ public strictfp class Model {
     public boolean quant_;
     public QMatrix qwi_;
     public QMatrix qwo_;
-
-    public class Node {
-        int parent;
-        int left;
-        int right;
-        long count;
-        boolean binary;
-    }
-
+    public Random rng = ThreadLocalRandom.current();
     private Matrix wi_; // input
     private Matrix wo_; // output
+
     private Args args_;
     private Vector hidden_;
     private Vector output_;
@@ -47,8 +40,13 @@ public strictfp class Model {
     private List<List<Integer>> paths;
     private List<List<Boolean>> codes;
     private List<Node> tree;
+    private Comparator<Pair<Float, Integer>> comparePairs = new Comparator<Pair<Float, Integer>>() {
 
-    public Random rng = ThreadLocalRandom.current();
+        @Override
+        public int compare(Pair<Float, Integer> o1, Pair<Float, Integer> o2) {
+            return o2.getKey().compareTo(o1.getKey());
+        }
+    };
 
     public Model(Matrix wi, Matrix wo, Args args, int seed) {
         hidden_ = new Vector(args.dim);
@@ -104,6 +102,24 @@ public strictfp class Model {
         }
     }
 
+    /**
+     * <pre>{@code real Model::negativeSampling(int32_t target, real lr) {
+     *  real loss = 0.0;
+     *  grad_.zero();
+     *  for (int32_t n = 0; n <= args_->neg; n++) {
+     *      if (n == 0) {
+     *          loss += binaryLogistic(target, true, lr);
+     *      } else {
+     *          loss += binaryLogistic(getNegative(target), false, lr);
+     *      }
+     *  }
+     *  return loss;
+     * }}</pre>
+     *
+     * @param target
+     * @param lr
+     * @return
+     */
     public float negativeSampling(int target, float lr) {
         float loss = 0.0f;
         grad_.zero();
@@ -117,11 +133,27 @@ public strictfp class Model {
         return loss;
     }
 
+    /**
+     * <pre>{@code real Model::hierarchicalSoftmax(int32_t target, real lr) {
+     *  real loss = 0.0;
+     *  grad_.zero();
+     *  const std::vector<bool>& binaryCode = codes[target];
+     *  const std::vector<int32_t>& pathToRoot = paths[target];
+     *  for (int32_t i = 0; i < pathToRoot.size(); i++) {
+     *      loss += binaryLogistic(pathToRoot[i], binaryCode[i], lr);
+     *  }
+     *  return loss;
+     * }}</pre>
+     *
+     * @param target
+     * @param lr
+     * @return
+     */
     public float hierarchicalSoftmax(int target, float lr) {
         float loss = 0.0f;
         grad_.zero();
-        final List<Boolean> binaryCode = codes.get(target);
-        final List<Integer> pathToRoot = paths.get(target);
+        List<Boolean> binaryCode = codes.get(target);
+        List<Integer> pathToRoot = paths.get(target);
         for (int i = 0; i < pathToRoot.size(); i++) {
             loss += binaryLogistic(pathToRoot.get(i), binaryCode.get(i), lr);
         }
@@ -147,6 +179,23 @@ public strictfp class Model {
         computeOutputSoftmax(hidden_, output_);
     }
 
+    /**
+     * <pre>{@code real Model::softmax(int32_t target, real lr) {
+     *  grad_.zero();
+     *  computeOutputSoftmax();
+     *  for (int32_t i = 0; i < osz_; i++) {
+     *      real label = (i == target) ? 1.0 : 0.0;
+     *      real alpha = lr * (label - output_[i]);
+     *      grad_.addRow(*wo_, i, alpha);
+     *      wo_->addRow(hidden_, i, alpha);
+     *  }
+     *  return -log(output_[target]);
+     * }}</pre>
+     *
+     * @param target
+     * @param lr
+     * @return
+     */
     public float softmax(int target, float lr) {
         grad_.zero();
         computeOutputSoftmax();
@@ -159,22 +208,36 @@ public strictfp class Model {
         return -log(output_.get(target));
     }
 
+    /**
+     * <pre>{@code void Model::computeHidden(const std::vector<int32_t>& input, Vector& hidden) const {
+     *  assert(hidden.size() == hsz_);
+     *  hidden.zero();
+     *  for (auto it = input.cbegin(); it != input.cend(); ++it) {
+     *      if(quant_) {
+     *          hidden.addRow(*qwi_, *it);
+     *      } else {
+     *          hidden.addRow(*wi_, *it);
+     *      }
+     *  }
+     *  hidden.mul(1.0 / input.size());
+     * }}</pre>
+     * TODO
+     *
+     * @param input
+     * @param hidden
+     */
     public void computeHidden(final List<Integer> input, Vector hidden) {
         Utils.checkArgument(hidden.size() == hsz_);
         hidden.zero();
         for (Integer it : input) {
-            hidden.addRow(wi_, it);
+            if (quant_) {
+                hidden.addRow(qwi_, it);
+            } else {
+                hidden.addRow(wi_, it);
+            }
         }
         hidden.mul(1.0f / input.size());
     }
-
-    private Comparator<Pair<Float, Integer>> comparePairs = new Comparator<Pair<Float, Integer>>() {
-
-        @Override
-        public int compare(Pair<Float, Integer> o1, Pair<Float, Integer> o2) {
-            return o2.getKey().compareTo(o1.getKey());
-        }
-    };
 
     public void predict(final List<Integer> input, int k, List<Pair<Float, Integer>> heap, Vector hidden,
                         Vector output) {
@@ -230,6 +293,32 @@ public strictfp class Model {
         dfs(k, tree.get(node).right, score + log(f), heap, hidden);
     }
 
+    /**
+     * <pre>{@code void Model::update(const std::vector<int32_t>& input, int32_t target, real lr) {
+     *  assert(target >= 0);
+     *  assert(target < osz_);
+     *  if (input.size() == 0) return;
+     *  computeHidden(input, hidden_);
+     *  if (args_->loss == loss_name::ns) {
+     *      loss_ += negativeSampling(target, lr);
+     *  } else if (args_->loss == loss_name::hs) {
+     *      loss_ += hierarchicalSoftmax(target, lr);
+     *  } else {
+     *      loss_ += softmax(target, lr);
+     *  }
+     *  nexamples_ += 1;
+     *  if (args_->model == model_name::sup) {
+     *      grad_.mul(1.0 / input.size());
+     *  }
+     *  for (auto it = input.cbegin(); it != input.cend(); ++it) {
+     *      wi_->addRow(grad_, *it, 1.0);
+     *  }
+     * }}</pre>
+     *
+     * @param input
+     * @param target
+     * @param lr
+     */
     public void update(final List<Integer> input, int target, float lr) {
         Utils.checkArgument(target >= 0);
         Utils.checkArgument(target < osz_);
@@ -237,7 +326,6 @@ public strictfp class Model {
             return;
         }
         computeHidden(input, hidden_);
-
         if (args_.loss == LossName.NS) {
             loss_ += negativeSampling(target, lr);
         } else if (args_.loss == Args.LossName.HS) {
@@ -246,7 +334,6 @@ public strictfp class Model {
             loss_ += softmax(target, lr);
         }
         nexamples_ += 1;
-
         if (args_.model == ModelName.SUP) {
             grad_.mul(1.0f / input.size());
         }
@@ -411,5 +498,13 @@ public strictfp class Model {
             int i = (int) ((x + MAX_SIGMOID) * SIGMOID_TABLE_SIZE / MAX_SIGMOID / 2);
             return t_sigmoid[i];
         }
+    }
+
+    public class Node {
+        int parent;
+        int left;
+        int right;
+        long count;
+        boolean binary;
     }
 }

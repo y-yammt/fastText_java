@@ -516,6 +516,7 @@ public class Dictionary {
      * @param urd
      * @return
      */
+    @Deprecated
     public int getLine(String[] tokens, List<Integer> words, List<Integer> labels, Random urd) {
         int ntokens = 0;
         words.clear();
@@ -596,7 +597,7 @@ public class Dictionary {
         for (int i = 0; i < hashes.size(); i++) {
             BigInteger h = BigInteger.valueOf(hashes.get(i));
             for (int j = i + 1; j < hashes.size() && j < i + n; j++) {
-                h = h.multiply(ADD_WORDS_NGRAMS_FACTOR).add(BigInteger.valueOf(line.get(j)));
+                h = h.multiply(ADD_WORDS_NGRAMS_FACTOR).add(BigInteger.valueOf(hashes.get(j)));
                 pushHash(line, h.remainder(b).intValue());
             }
         }
@@ -627,11 +628,11 @@ public class Dictionary {
      *      computeSubwords(BOW + token + EOW, line);
      *  } else {
      *      if (args_->maxn <= 0) { // in vocab w/o subwords
-     *      line.push_back(wid);
-     *  } else { // in vocab w/ subwords
-     *      const std::vector<int32_t>& ngrams = getSubwords(wid);
-     *      line.insert(line.end(), ngrams.cbegin(), ngrams.cend());
-     *  }
+     *          line.push_back(wid);
+     *      } else { // in vocab w/ subwords
+     *          const std::vector<int32_t>& ngrams = getSubwords(wid);
+     *          line.insert(line.end(), ngrams.cbegin(), ngrams.cend());
+     *      }
      * }
      * }}</pre>
      *
@@ -648,8 +649,6 @@ public class Dictionary {
             } else { // in vocab w/ subwords
                 List<Integer> ngrams = getSubwords(wid);
                 line.addAll(ngrams);
-                //
-                //line.insert(line.end(), ngrams.cbegin(), ngrams.cend());
             }
         }
     }
