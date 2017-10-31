@@ -43,7 +43,9 @@ public class PredictTest {
             System.setOut(out);
         }
         List<String> res = Arrays.stream(array.toString(StandardCharsets.UTF_8.name()).split("\n")).collect(Collectors.toList());
-        res.stream().distinct().limit(10).forEach(s -> TestsBase.LOGGER.debug("{}", s));
+        res.stream()
+                .distinct().limit(10)
+                .forEach(s -> TestsBase.LOGGER.debug("{}", s));
         TestsBase.LOGGER.info("Size: {}", res.size());
     }
 }

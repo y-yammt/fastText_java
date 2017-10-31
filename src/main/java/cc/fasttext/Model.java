@@ -1,7 +1,6 @@
 package cc.fasttext;
 
 import java.util.*;
-import java.util.concurrent.ThreadLocalRandom;
 
 import cc.fasttext.Args.LossName;
 import cc.fasttext.Args.ModelName;
@@ -17,7 +16,7 @@ public strictfp class Model {
     public boolean quant_;
     public QMatrix qwi_;
     public QMatrix qwo_;
-    public Random rng = ThreadLocalRandom.current();
+    public Random rng;
     private Matrix wi_; // input
     private Matrix wo_; // output
 
@@ -40,13 +39,8 @@ public strictfp class Model {
     private List<List<Integer>> paths;
     private List<List<Boolean>> codes;
     private List<Node> tree;
-    private Comparator<Pair<Float, Integer>> comparePairs = new Comparator<Pair<Float, Integer>>() {
 
-        @Override
-        public int compare(Pair<Float, Integer> o1, Pair<Float, Integer> o2) {
-            return o2.getKey().compareTo(o1.getKey());
-        }
-    };
+    private static final Comparator<Pair<Float, Integer>> COMPARE_PAIRS = (l, r) -> r.first().compareTo(l.first());
 
     public Model(Matrix wi, Matrix wo, Args args, int seed) {
         hidden_ = new Vector(args.dim);
@@ -221,7 +215,6 @@ public strictfp class Model {
      *  }
      *  hidden.mul(1.0 / input.size());
      * }}</pre>
-     * TODO
      *
      * @param input
      * @param hidden
@@ -239,11 +232,30 @@ public strictfp class Model {
         hidden.mul(1.0f / input.size());
     }
 
-    public void predict(final List<Integer> input, int k, List<Pair<Float, Integer>> heap, Vector hidden,
-                        Vector output) {
+    /**
+     * <pre>{@code
+     * void Model::predict(const std::vector<int32_t>& input, int32_t k, std::vector<std::pair<real, int32_t>>& heap, Vector& hidden, Vector& output) const {
+     *  assert(k > 0);
+     *  heap.reserve(k + 1);
+     *  computeHidden(input, hidden);
+     *  if (args_->loss == loss_name::hs) {
+     *      dfs(k, 2 * osz_ - 2, 0.0, heap, hidden);
+     *  } else {
+     *      findKBest(k, heap, hidden, output);
+     *  }
+     *  std::sort_heap(heap.begin(), heap.end(), comparePairs);
+     * }}</pre>
+     *
+     * @param input
+     * @param k
+     * @param heap
+     * @param hidden
+     * @param output
+     */
+    public void predict(final List<Integer> input, int k, List<Pair<Float, Integer>> heap, Vector hidden, Vector output) {
         Utils.checkArgument(k > 0);
         if (heap instanceof ArrayList) {
-            ((ArrayList<Pair<Float, Integer>>) heap).ensureCapacity(k + 1);
+            ((ArrayList) heap).ensureCapacity(k + 1);
         }
         computeHidden(input, hidden);
         if (args_.loss == Args.LossName.HS) {
@@ -251,44 +263,102 @@ public strictfp class Model {
         } else {
             findKBest(k, heap, hidden, output);
         }
-        Collections.sort(heap, comparePairs);
+        heap.sort(COMPARE_PAIRS);
     }
 
     public void predict(final List<Integer> input, int k, List<Pair<Float, Integer>> heap) {
         predict(input, k, heap, hidden_, output_);
     }
 
+    /**
+     * <pre>{@code
+     * void Model::findKBest(int32_t k, std::vector<std::pair<real, int32_t>>& heap, Vector& hidden, Vector& output) const {
+     *  computeOutputSoftmax(hidden, output);
+     *  for (int32_t i = 0; i < osz_; i++) {
+     *      if (heap.size() == k && log(output[i]) < heap.front().first) {
+     *          continue;
+     *      }
+     *      heap.push_back(std::make_pair(log(output[i]), i));
+     *      std::push_heap(heap.begin(), heap.end(), comparePairs);
+     *      if (heap.size() > k) {
+     *          std::pop_heap(heap.begin(), heap.end(), comparePairs);
+     *          heap.pop_back();
+     *      }
+     *  }
+     * }}</pre>
+     *
+     * @param k
+     * @param heap
+     * @param hidden
+     * @param output
+     */
     public void findKBest(int k, List<Pair<Float, Integer>> heap, Vector hidden, Vector output) {
         computeOutputSoftmax(hidden, output);
         for (int i = 0; i < osz_; i++) {
-            if (heap.size() == k && log(output.get(i)) < heap.get(heap.size() - 1).getKey()) {
+            if (heap.size() == k && log(output.get(i)) < heap.get(heap.size() - 1).first()) {
                 continue;
             }
-            heap.add(new Pair<Float, Integer>(log(output.get(i)), i));
-            Collections.sort(heap, comparePairs);
+            heap.add(new Pair<>(log(output.get(i)), i));
+
+            // TODO: is it correct ? does it make sense?
+            heap.sort(COMPARE_PAIRS);
             if (heap.size() > k) {
-                Collections.sort(heap, comparePairs);
+                heap.sort(COMPARE_PAIRS);
                 heap.remove(heap.size() - 1); // pop last
             }
         }
     }
 
+    /**
+     * <pre>{@code
+     * void Model::dfs(int32_t k, int32_t node, real score, std::vector<std::pair<real, int32_t>>& heap, Vector& hidden) const {
+     *  if (heap.size() == k && score < heap.front().first) {
+     *      return;
+     *  }
+     *  if (tree[node].left == -1 && tree[node].right == -1) {
+     *      heap.push_back(std::make_pair(score, node));
+     *      std::push_heap(heap.begin(), heap.end(), comparePairs);
+     *      if (heap.size() > k) {
+     *          std::pop_heap(heap.begin(), heap.end(), comparePairs);
+     *          heap.pop_back();
+     *      }
+     *      return;
+     *  }
+     *  real f;
+     *  if (quant_ && args_->qout) {
+     *      f = sigmoid(qwo_->dotRow(hidden, node - osz_));
+     *  } else {
+     *      f = sigmoid(wo_->dotRow(hidden, node - osz_));
+     *  }
+     *  dfs(k, tree[node].left, score + log(1.0 - f), heap, hidden);
+     *  dfs(k, tree[node].right, score + log(f), heap, hidden);
+     * }}</pre>
+     *
+     * @param k
+     * @param node
+     * @param score
+     * @param heap
+     * @param hidden
+     */
     public void dfs(int k, int node, float score, List<Pair<Float, Integer>> heap, Vector hidden) {
-        if (heap.size() == k && score < heap.get(heap.size() - 1).getKey()) {
+        if (heap.size() == k && score < heap.get(heap.size() - 1).first()) {
             return;
         }
-
         if (tree.get(node).left == -1 && tree.get(node).right == -1) {
-            heap.add(new Pair<Float, Integer>(score, node));
-            Collections.sort(heap, comparePairs);
+            heap.add(new Pair<>(score, node));
+            heap.sort(COMPARE_PAIRS);
             if (heap.size() > k) {
-                Collections.sort(heap, comparePairs);
+                heap.sort(COMPARE_PAIRS);
                 heap.remove(heap.size() - 1); // pop last
             }
             return;
         }
-
-        float f = sigmoid(wo_.dotRow(hidden, node - osz_));
+        float f;
+        if (quant_ && args_.qout) {
+            f = sigmoid(qwo_.dotRow(hidden, node - osz_));
+        } else {
+            f = sigmoid(wo_.dotRow(hidden, node - osz_));
+        }
         dfs(k, tree.get(node).left, score + log(1.0f - f), heap, hidden);
         dfs(k, tree.get(node).right, score + log(f), heap, hidden);
     }
@@ -465,22 +535,52 @@ public strictfp class Model {
         return loss_ / nexamples_;
     }
 
+    /**
+     * <pre>{@code void Model::initSigmoid() {
+     *  t_sigmoid = new real[SIGMOID_TABLE_SIZE + 1];
+     *  for (int i = 0; i < SIGMOID_TABLE_SIZE + 1; i++) {
+     *      real x = real(i * 2 * MAX_SIGMOID) / SIGMOID_TABLE_SIZE - MAX_SIGMOID;
+     *      t_sigmoid[i] = 1.0 / (1.0 + std::exp(-x));
+     *  }
+     * }}</pre>
+     */
     private void initSigmoid() {
         t_sigmoid = new float[SIGMOID_TABLE_SIZE + 1];
         for (int i = 0; i < SIGMOID_TABLE_SIZE + 1; i++) {
-            float x = (float) (i * 2 * MAX_SIGMOID) / SIGMOID_TABLE_SIZE - MAX_SIGMOID;
-            t_sigmoid[i] = (float) (1.0f / (1.0f + Math.exp(-x)));
+            float x = i * 2f * MAX_SIGMOID / SIGMOID_TABLE_SIZE - MAX_SIGMOID;
+            t_sigmoid[i] = (float) (1 / (1 + Math.exp(-x)));
         }
     }
 
+    /**
+     * <pre>{@code void Model::initLog() {
+     *  t_log = new real[LOG_TABLE_SIZE + 1];
+     *  for (int i = 0; i < LOG_TABLE_SIZE + 1; i++) {
+     *      real x = (real(i) + 1e-5) / LOG_TABLE_SIZE;
+     *      t_log[i] = std::log(x);
+     *  }
+     * }}</pre>
+     */
     private void initLog() {
         t_log = new float[LOG_TABLE_SIZE + 1];
         for (int i = 0; i < LOG_TABLE_SIZE + 1; i++) {
-            float x = (float) (((float) (i) + 1e-5f) / LOG_TABLE_SIZE);
+            float x = (i + 1e-5f) / LOG_TABLE_SIZE;
             t_log[i] = (float) Math.log(x);
         }
     }
 
+    /**
+     * <pre>{@code real Model::log(real x) const {
+     *  if (x > 1.0) {
+     *      return 0.0;
+     *  }
+     *  int i = int(x * LOG_TABLE_SIZE);
+     *  return t_log[i];
+     * }}</pre>
+     *
+     * @param x
+     * @return
+     */
     public float log(float x) {
         if (x > 1.0f) {
             return 0.0f;

@@ -3,7 +3,9 @@ package cc.fasttext;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
+import java.io.PrintStream;
+
+import ru.avicomp.io.FTReader;
 
 /**
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/main.cc'>main.cc</a>
@@ -115,29 +117,31 @@ public class Main {
      *  exit(0);
      * }}</pre>
      *
-     * @param args
+     * @param input
      * @throws Exception
      */
-    public void predict(String[] args) throws Exception {
+    public void predict(String[] input) throws Exception {
         int k = 1;
-        if (args.length == 4) {
-            k = Integer.parseInt(args[3]);
-        } else if (args.length != 3) {
+        if (input.length == 4) {
+            k = Integer.parseInt(input[3]);
+        } else if (input.length != 3) {
             printPredictUsage();
             System.exit(1);
         }
-        boolean printProb = "predict-prob".equalsIgnoreCase(args[0]);
-        FastText fasttext = new FastText(createArgs());
-        fasttext.loadModel(args[1]);
-        String infile = args[2];
+        boolean printProb = "predict-prob".equalsIgnoreCase(input[0]);
+        Args args = createArgs();
+        FastText fasttext = new FastText(args);
+        fasttext.loadModel(input[1]);
+        String infile = input[2];
+        PrintStream out = System.out;
         if ("-".equals(infile)) {
             fasttext.predict(System.in, k, printProb);
         } else {
-            if (!fasttext.getArgs().getIOStreams().canRead(infile)) {
+            if (!args.getIOStreams().canRead(infile)) {
                 throw new IOException("Input file cannot be opened!");
             }
-            try (InputStream in = fasttext.getArgs().getIOStreams().openInput(infile)) {
-                fasttext.predict(in, k, printProb);
+            try (FTReader in = new FTReader(args.getIOStreams().openInput(infile), args.getCharset())) {
+                fasttext._predict(in, out, k, printProb);
             }
         }
     }

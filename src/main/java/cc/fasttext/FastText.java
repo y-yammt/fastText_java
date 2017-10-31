@@ -4,6 +4,7 @@ import java.io.*;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -516,7 +517,7 @@ public class FastText {
                     List<Pair<Float, Integer>> modelPredictions = new ArrayList<Pair<Float, Integer>>();
                     model_.predict(line, k, modelPredictions);
                     for (Pair<Float, Integer> pair : modelPredictions) {
-                        if (labels.contains(pair.getValue())) {
+                        if (labels.contains(pair.second())) {
                             precision += 1.0f;
                         }
                     }
@@ -545,6 +546,7 @@ public class FastText {
      * @param k
      * @return
      */
+    @Deprecated
     public List<Pair<Float, String>> predict(String[] lineTokens, int k) {
         List<Integer> words = new ArrayList<Integer>();
         List<Integer> labels = new ArrayList<Integer>();
@@ -563,11 +565,12 @@ public class FastText {
 
         List<Pair<Float, String>> predictions = new ArrayList<Pair<Float, String>>(k);
         for (Pair<Float, Integer> pair : modelPredictions) {
-            predictions.add(new Pair<Float, String>(pair.getKey(), dict_.getLabel(pair.getValue())));
+            predictions.add(new Pair<Float, String>(pair.first(), dict_.getLabel(pair.second())));
         }
         return predictions;
     }
 
+    @Deprecated
     public void predict(String[] lineTokens, int k, List<Pair<Float, String>> predictions) throws IOException {
         List<Integer> words = new ArrayList<Integer>();
         List<Integer> labels = new ArrayList<Integer>();
@@ -581,7 +584,7 @@ public class FastText {
         model_.predict(words, k, modelPredictions);
         predictions.clear();
         for (Pair<Float, Integer> pair : modelPredictions) {
-            predictions.add(new Pair<Float, String>(pair.getKey(), dict_.getLabel(pair.getValue())));
+            predictions.add(new Pair<Float, String>(pair.first(), dict_.getLabel(pair.second())));
         }
     }
 
@@ -594,6 +597,7 @@ public class FastText {
      * @throws IOException
      * @throws Exception
      */
+    @Deprecated
     public void predict(InputStream in, int k, boolean print_prob) throws IOException, Exception {
         List<Pair<Float, String>> predictions = new ArrayList<Pair<Float, String>>(k);
 
@@ -613,9 +617,9 @@ public class FastText {
                     continue;
                 }
                 for (Pair<Float, String> pair : predictions) {
-                    System.out.print(pair.getValue());
+                    System.out.print(pair.second());
                     if (print_prob) {
-                        System.out.printf(" %f", Math.exp(pair.getKey()));
+                        System.out.printf(" %f", Math.exp(pair.first()));
                     }
                 }
                 System.out.println();
@@ -652,13 +656,63 @@ public class FastText {
      * }}</pre>
      *
      * @param in
+     * @param out
      * @param k
-     * @param print_prob
+     * @param printProb
      * @throws IOException
      */
-    public void _predict(InputStream in, int k, boolean print_prob) throws IOException {
-        //FTReader r = new FTReader()
-        List<Pair<Float, String>> predictions = new ArrayList<>(k);
+    public void _predict(FTReader in, PrintStream out, int k, boolean printProb) throws IOException {
+        while (!in.end()) {
+            List<Pair<Float, String>> predictions = _predict(in, k);
+            if (predictions.isEmpty()) continue;
+            for (Pair<Float, String> pair : predictions) {
+                out.print(pair.second());
+                if (printProb) {
+                    out.printf(" %f", Math.exp(pair.first()));
+                }
+            }
+            out.println();
+        }
+    }
+
+    /**
+     * <pre>{@code
+     * void FastText::predict(std::istream& in, int32_t k, std::vector<std::pair<real,std::string>>& predictions) const {
+     *  std::vector<int32_t> words, labels;
+     *  predictions.clear();
+     *  dict_->getLine(in, words, labels, model_->rng);
+     *  predictions.clear();
+     *  if (words.empty()) return;
+     *  Vector hidden(args_->dim);
+     *  Vector output(dict_->nlabels());
+     *  std::vector<std::pair<real,int32_t>> modelPredictions;
+     *  model_->predict(words, k, modelPredictions, hidden, output);
+     *  for (auto it = modelPredictions.cbegin(); it != modelPredictions.cend(); it++) {
+     *      predictions.push_back(std::make_pair(it->first, dict_->getLabel(it->second)));
+     *  }
+     * }}</pre>
+     *
+     * @param in
+     * @param k
+     * @return
+     * @throws IOException
+     */
+    private List<Pair<Float, String>> _predict(FTReader in, int k) throws IOException {
+        List<Integer> words = new ArrayList<>();
+        List<Integer> labels = new ArrayList<>();
+        dict_.getLine(in, words, labels);
+        if (words.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Vector hidden = new Vector(args_.dim);
+        Vector output = new Vector(dict_.nlabels());
+        List<Pair<Float, Integer>> modelPredictions = new ArrayList<Pair<Float, Integer>>(k + 1);
+        model_.predict(words, k, modelPredictions, hidden, output);
+        List<Pair<Float, String>> res = new ArrayList<>(k);
+        for (Pair<Float, Integer> pair : modelPredictions) {
+            res.add(new Pair<>(pair.first(), dict_.getLabel(pair.second())));
+        }
+        return res;
     }
 
     public void wordVectors() {

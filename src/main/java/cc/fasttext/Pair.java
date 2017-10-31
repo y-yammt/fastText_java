@@ -1,29 +1,23 @@
 package cc.fasttext;
 
-public class Pair<K, V> {
+import java.util.Objects;
+
+public final class Pair<K, V> {
 
     private K key_;
     private V value_;
 
     public Pair(K key, V value) {
-        this.key_ = key;
-        this.value_ = value;
+        this.key_ = Objects.requireNonNull(key, "Null key");
+        this.value_ = Objects.requireNonNull(value, "Null value");
     }
 
-    public K getKey() {
+    public K first() {
         return key_;
     }
 
-    public V getValue() {
+    public V second() {
         return value_;
-    }
-
-    public void setKey(K key) {
-        this.key_ = key;
-    }
-
-    public void setValue(V value) {
-        this.value_ = value;
     }
 
 }

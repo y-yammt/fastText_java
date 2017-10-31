@@ -74,6 +74,10 @@ public class Args {
         return factory;
     }
 
+    public Charset getCharset() {
+        return charset;
+    }
+
     /**
      * TODO: remove
      *

@@ -9,21 +9,21 @@ import java.util.Objects;
  * <p>
  * Created by @szuev on 23.10.2017.
  */
-@SuppressWarnings({"WeakerAccess", "UnusedReturnValue", "NullableProblems"})
+@SuppressWarnings({"WeakerAccess", "UnusedReturnValue", "NullableProblems", "SameParameterValue"})
 public class FTReader extends Reader {
     private static final int DEFAULT_CHAR_BUFFER_LENGTH = 8192;
     private static final int UNKNOWN_POSITION = -2;
 
     private BufferedReader reader;
-    private ScrollableInputStream stream;
+    private InputStream stream;
     private long bytes;
     private int last;
 
-    public FTReader(ScrollableInputStream stream, Charset charset) {
+    public FTReader(InputStream stream, Charset charset) {
         this(stream, charset, DEFAULT_CHAR_BUFFER_LENGTH);
     }
 
-    public FTReader(ScrollableInputStream stream, Charset charset, int bufferSize) {
+    public FTReader(InputStream stream, Charset charset, int bufferSize) {
         Objects.requireNonNull(charset, "Null encoding");
         if (bufferSize <= 0)
             throw new IllegalArgumentException("Buffer size <= 0");
@@ -120,14 +120,23 @@ public class FTReader extends Reader {
     /**
      * Resets stream to the initial position.
      *
-     * @throws IOException if an I/O error occurs
+     * @throws IOException                   if an I/O error occurs
+     * @throws UnsupportedOperationException if this operation is not supported on underling stream
      */
     public void rewind() throws IOException {
         try {
-            stream.seek(0);
+            seek(0);
         } finally {
             last = UNKNOWN_POSITION;
         }
+    }
+
+    protected void seek(int position) throws IOException, UnsupportedOperationException {
+        if (stream instanceof ScrollableInputStream) {
+            ((ScrollableInputStream) stream).seek(position);
+            return;
+        }
+        throw new UnsupportedOperationException("Seek not supported");
     }
 
     /**
@@ -137,20 +146,40 @@ public class FTReader extends Reader {
      */
     public boolean end() throws IOException {
         if (last == -1) return true;
-        if (stream.isEnd()) {
+        if (last == UNKNOWN_POSITION && isEnd()) {
             last = -1;
             return true;
         }
         return false;
     }
 
+    protected boolean isEnd() throws IOException {
+        if (stream instanceof ScrollableInputStream) {
+            return ((ScrollableInputStream) stream).isEnd();
+        }
+        try {
+            mark(1);
+            return read() == -1;
+        } finally {
+            reset();
+        }
+    }
+
     /**
      * Retrieves the size of source in bytes.
      *
      * @return long. the size of source in bytes.
-     * @throws IOException some I/O error occurs
+     * @throws IOException                   some I/O error occurs
+     * @throws UnsupportedOperationException if this operation is not supported on underling stream
      */
-    public long size() throws IOException {
-        return bytes == 0 ? bytes = stream.getLen() : bytes;
+    public long size() throws IOException, UnsupportedOperationException {
+        return bytes == 0 ? bytes = calcSize() : bytes;
+    }
+
+    protected long calcSize() throws IOException, UnsupportedOperationException {
+        if (stream instanceof ScrollableInputStream) {
+            return ((ScrollableInputStream) stream).getLen();
+        }
+        throw new UnsupportedOperationException("Getting size is not supported");
     }
 }
