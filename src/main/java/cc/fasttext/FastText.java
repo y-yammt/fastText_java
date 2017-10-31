@@ -14,13 +14,16 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import cc.fasttext.Args.ModelName;
 import cc.fasttext.Dictionary.EntryType;
 import fasttext.io.BufferedLineReader;
 import fasttext.io.LineReader;
-import ru.avicomp.io.FSInputStream;
-import ru.avicomp.io.FSOutputStream;
-import ru.avicomp.io.FSReader;
+import ru.avicomp.io.FTInputStream;
+import ru.avicomp.io.FTOutputStream;
+import ru.avicomp.io.FTReader;
 
 /**
  * FastText class, can be used as a lib in other projects
@@ -33,6 +36,8 @@ public class FastText {
 
     public static final int FASTTEXT_VERSION = 12;
     public static final int FASTTEXT_FILEFORMAT_MAGIC_INT32 = 793712314;
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(FastText.class);
 
     private final Args args_;
     private Dictionary dict_;
@@ -121,14 +126,14 @@ public class FastText {
         }
         // validate and prepare:
         Path file = Paths.get(args_.output + ".vec");
-        args_.getIOStreams().prepare(file.toString());
+        args_.getIOStreams().prepareParent(file.toString());
         if (!args_.getIOStreams().canWrite(file.toString())) {
             throw new IOException("Can't write to " + file);
         }
         if (args_.verbose > 1) {
             System.out.println("Saving Vectors to " + file.toAbsolutePath());
         }
-        try (Writer writer = args_.createWriter(file)) {
+        try (Writer writer = new BufferedWriter(new OutputStreamWriter(args_.getIOStreams().createOutput(file.toString()), args_.charset))) {
             writer.write(dict_.nwords() + " " + args_.dim + "\n");
             for (int i = 0; i < dict_.nwords(); i++) {
                 String word = dict_.getWord(i);
@@ -163,11 +168,11 @@ public class FastText {
      *  return true;
      * }}</pre>
      *
-     * @param in {@link FSInputStream} binary just opened input stream
+     * @param in {@link FTInputStream} binary just opened input stream
      * @return true if version is okay
      * @throws IOException if something is wrong
      */
-    private boolean checkModel(FSInputStream in) throws IOException {
+    private boolean checkModel(FTInputStream in) throws IOException {
         int magic = in.readInt();
         int version = in.readInt();
         return FASTTEXT_FILEFORMAT_MAGIC_INT32 == magic && (this.version = version) == FASTTEXT_VERSION;
@@ -183,10 +188,10 @@ public class FastText {
      *  out.write((char*)&(version), sizeof(int32_t));
      * }}</pre>
      *
-     * @param out {@link FSOutputStream} binary just opened output stream
+     * @param out {@link FTOutputStream} binary just opened output stream
      * @throws IOException if something is wrong
      */
-    private void signModel(FSOutputStream out) throws IOException {
+    private void signModel(FTOutputStream out) throws IOException {
         out.writeInt(FASTTEXT_FILEFORMAT_MAGIC_INT32);
         out.writeInt(FASTTEXT_VERSION);
     }
@@ -238,7 +243,7 @@ public class FastText {
 
         // validate and prepare (todo: move to the beginning):
         Path file = Paths.get(args_.output + (quant_ ? ".ftz" : ".bin"));
-        args_.getIOStreams().prepare(file.toString());
+        args_.getIOStreams().prepareParent(file.toString());
         if (!args_.getIOStreams().canWrite(file.toString())) {
             throw new IOException("Can't write to " + file);
         }
@@ -246,7 +251,7 @@ public class FastText {
             System.out.println("Saving model to " + file.toAbsolutePath());
         }
 
-        try (FSOutputStream out = args_.createOutputStream(file)) {
+        try (FTOutputStream out = new FTOutputStream(new BufferedOutputStream(args_.getIOStreams().createOutput(file.toString())))) {
             signModel(out);
             args_.save(out);
             dict_.save(out);
@@ -292,7 +297,7 @@ public class FastText {
         if (!args_.getIOStreams().canRead(path.toString())) {
             throw new IOException("Model file cannot be opened for loading: <" + path.toAbsolutePath() + ">");
         }
-        try (FSInputStream in = args_.createInputStream(path)) {
+        try (FTInputStream in = new FTInputStream(new BufferedInputStream(args_.getIOStreams().openInput(path.toString())))) {
             if (!checkModel(in)) throw new IllegalArgumentException("Model file has wrong format!");
             loadModel(in);
         }
@@ -341,11 +346,11 @@ public class FastText {
      *  }
      * }}</pre>
      *
-     * @param in {@link FSInputStream}
+     * @param in {@link FTInputStream}
      * @throws IOException              io-error
      * @throws IllegalArgumentException if wrong input
      */
-    private void loadModel(FSInputStream in) throws IOException {
+    private void loadModel(FTInputStream in) throws IOException {
         args_.load(in);
         input_ = new Matrix();
         output_ = new Matrix();
@@ -446,8 +451,9 @@ public class FastText {
      * @param line
      */
     public void cbow(Model model, float lr, final List<Integer> line) {
+        List<Integer> bow = new ArrayList<>();
         for (int w = 0; w < line.size(); w++) {
-            List<Integer> bow = new ArrayList<>();
+            bow.clear(); // don't create new one to work with encapsulated big array inside list
             int boundary = Utils.nextInt(model.rng, 1, args_.ws);
             for (int c = -boundary; c <= boundary; c++) {
                 if (c != 0 && w + c >= 0 && w + c < line.size()) {
@@ -626,7 +632,7 @@ public class FastText {
         if (!args_.getIOStreams().canRead(path.toString())) {
             throw new IOException("Input file cannot be opened!");
         }
-        try (InputStream in = args_.getIOStreams().open(path.toString())) {
+        try (InputStream in = args_.getIOStreams().openInput(path.toString())) {
             // TODO: implement correct way
             //predict(in, k, print_prob);
         }
@@ -776,10 +782,9 @@ public class FastText {
         if (!args_.getIOStreams().canRead(args_.input)) {
             throw new IOException("Input file cannot be opened! " + args_.input);
         }
-
+        LOGGER.warn("Read dictionary");
         dict_.readFromFile(args_);
-
-        try (FSReader r = args_.createReader()) {
+        try (FTReader r = args_.createReader()) {
             threadFileSize = r.size();
         }
 
@@ -796,6 +801,7 @@ public class FastText {
             output_ = new Matrix(dict_.nwords(), args_.dim);
         }
 
+        LOGGER.warn("Start train");
         start_ = System.currentTimeMillis();
         tokenCount_ = new AtomicLong(0);
         if (args_.thread > 1) {
@@ -833,11 +839,14 @@ public class FastText {
             System.out.printf("\nTrain time used: %d sec\n", trainTime);
         }
 
+        LOGGER.warn("Save model");
         saveModel();
+        LOGGER.warn("Save vectors");
         saveVectors();
         if (args_.saveOutput > 0) {
             saveOutput();
         }
+        LOGGER.warn("Fin");
     }
 
     /**
@@ -888,10 +897,10 @@ public class FastText {
      * @throws IOException if an I/O error occurs
      */
     private void trainThread(int threadId) throws IOException {
-        try (FSReader r = args_.createReader()) {
+        try (FTReader r = args_.createReader()) {
             long skip = threadId * threadFileSize / args_.thread;
             r.skipBytes(skip);
-            Model model = new Model(input_, output_, args_, args_.thread > 1 ? -1 : threadId);
+            Model model = new Model(input_, output_, args_, threadId);
             if (args_.model == Args.ModelName.SUP) {
                 model.setTargetCounts(dict_.getCounts(EntryType.LABEL));
             } else {

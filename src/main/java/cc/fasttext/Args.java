@@ -1,15 +1,19 @@
 package cc.fasttext;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Objects;
 
-import ru.avicomp.io.*;
+import ru.avicomp.io.FTInputStream;
+import ru.avicomp.io.FTOutputStream;
+import ru.avicomp.io.FTReader;
+import ru.avicomp.io.IOStreams;
+import ru.avicomp.io.impl.LocalIOStreams;
 
 /**
  * See:
@@ -45,7 +49,7 @@ public class Args {
     //TODO:
     public boolean qout;
     Charset charset = StandardCharsets.UTF_8;
-    private IOStreams factory = new LocalFileSystem();
+    private IOStreams factory = new LocalIOStreams();
 
     Args() {
     }
@@ -69,41 +73,44 @@ public class Args {
         return factory;
     }
 
-    public FSReader createReader() {
-        return new FSReader(getIOStreams().createInput(input), charset);
+    public FTReader createReader() throws IOException {
+        return new FTReader(getIOStreams().openScrollable(input), charset);
     }
 
     /**
+     * TODO: remove?
      * Creates a writer for the specified path to write character data.
      *
      * @param path {@link Path} the path to write
-     * @return {@link FSOutputStream}
+     * @return {@link FTOutputStream}
      * @throws IOException if something is wrong
      */
     public Writer createWriter(Path path) throws IOException {
-        return new OutputStreamWriter(getIOStreams().create(path.toString()), charset);
+        return new OutputStreamWriter(getIOStreams().createOutput(path.toString()), charset);
     }
 
     /**
+     * TODO: remove?
      * Creates a FS OutputStream for specified path to write binary data in cpp style.
      *
      * @param path {@link Path} the path to write
-     * @return {@link FSOutputStream}
+     * @return {@link FTOutputStream}
      * @throws IOException if something is wrong
      */
-    public FSOutputStream createOutputStream(Path path) throws IOException {
-        return new FSOutputStream(getIOStreams().create(path.toString()));
+    public FTOutputStream createOutputStream(Path path) throws IOException {
+        return new FTOutputStream(getIOStreams().createOutput(path.toString()));
     }
 
     /**
+     * TODO: remove?
      * Creates a FS InputStream for specified path to read binary data in cpp (little endian) style.
      *
      * @param path {@link Path} the path to read.
-     * @return {@link FSOutputStream}
+     * @return {@link FTOutputStream}
      * @throws IOException if something is wrong
      */
-    public FSInputStream createInputStream(Path path) throws IOException {
-        return new FSInputStream(getIOStreams().open(path.toString()));
+    public FTInputStream createInputStream(Path path) throws IOException {
+        return new FTInputStream(getIOStreams().openInput(path.toString()));
     }
 
     public void printHelp() {
@@ -149,10 +156,10 @@ public class Args {
      *  out.write((char*) &(t), sizeof(double));
      * }}</pre>
      *
-     * @param out {@link FSOutputStream}
+     * @param out {@link FTOutputStream}
      * @throws IOException if an I/O error occurs
      */
-    void save(FSOutputStream out) throws IOException {
+    void save(FTOutputStream out) throws IOException {
         out.writeInt(dim);
         out.writeInt(ws);
         out.writeInt(epoch);
@@ -185,10 +192,10 @@ public class Args {
      *  in.read((char*) &(t), sizeof(double));
      * }}</pre>
      *
-     * @param in {@link FSInputStream}
+     * @param in {@link FTInputStream}
      * @throws IOException if an I/O error occurs
      */
-    void load(FSInputStream in) throws IOException {
+    void load(FTInputStream in) throws IOException {
         dim = in.readInt();
         ws = in.readInt();
         epoch = in.readInt();
@@ -335,65 +342,4 @@ public class Args {
         }
     }
 
-    /**
-     * Default factory witch works with the local file system.
-     */
-    public static class LocalFileSystem implements IOStreams {
-
-        @Override
-        public InputStreamSupplier createInput(String input) {
-            Path path = Paths.get(input);
-            return new InputStreamSupplier() {
-                @Override
-                public InputStream open() throws IOException {
-                    return Files.newInputStream(path);
-                }
-
-                @Override
-                public long bytes() throws IOException {
-                    return Files.size(path);
-                }
-            };
-        }
-
-        /**
-         * @param output String, path to file
-         * @return {@link OutputStreamSupplier} the provider
-         */
-        @Override
-        public OutputStreamSupplier createOutput(String output) {
-            Path path = Paths.get(output);
-            return () -> new BufferedOutputStream(Files.newOutputStream(path));
-        }
-
-        @Override
-        public boolean canRead(String path) {
-            Path file = Paths.get(path);
-            return Files.isRegularFile(file) && Files.isReadable(file);
-        }
-
-        @Override
-        public boolean canWrite(String path) {
-            Path parent = getParent(path);
-            return parent != null && Files.isWritable(parent);
-        }
-
-        private Path getParent(String path) {
-            Path file = Paths.get(path);
-            Path res = file.getParent();
-            if (res == null) {
-                res = file.toAbsolutePath().getParent();
-            }
-            return res;
-        }
-
-        @Override
-        public void prepare(String path) throws IOException {
-            Path parent = getParent(path);
-            if (parent == null) throw new IOException("No parent for " + path);
-            Files.createDirectories(parent);
-            Files.deleteIfExists(parent.resolve(path));
-        }
-
-    }
 }

@@ -74,6 +74,12 @@ public class Vector {
         data_[i] = value;
     }
 
+    /**
+     * todo: fix.
+     * see {@link Utils#formatNumber(float)}
+     *
+     * @return
+     */
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();

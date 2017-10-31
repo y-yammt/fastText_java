@@ -3,8 +3,8 @@ package cc.fasttext;
 import java.io.IOException;
 import java.util.Random;
 
-import ru.avicomp.io.FSInputStream;
-import ru.avicomp.io.FSOutputStream;
+import ru.avicomp.io.FTInputStream;
+import ru.avicomp.io.FTOutputStream;
 
 /**
  * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.cc'>matrix.cc</a> and
@@ -93,10 +93,10 @@ public strictfp class Matrix {
      *  out.write((char*) data_, m_ * n_ * sizeof(real));
      * }}</pre>
      *
-     * @param out {@link FSOutputStream}
+     * @param out {@link FTOutputStream}
      * @throws IOException if an I/O error occurs
      */
-    void save(FSOutputStream out) throws IOException {
+    void save(FTOutputStream out) throws IOException {
         out.writeLong(m_);
         out.writeLong(n_);
         for (int i = 0; i < m_; i++) {
@@ -115,10 +115,10 @@ public strictfp class Matrix {
      *  in.read((char*) data_, m_ * n_ * sizeof(real));
      * }}</pre>
      *
-     * @param in {@link FSInputStream}
+     * @param in {@link FTInputStream}
      * @throws IOException if an I/O error occurs
      */
-    void load(FSInputStream in) throws IOException {
+    void load(FTInputStream in) throws IOException {
         m_ = (int) in.readLong();
         n_ = (int) in.readLong();
         data_ = new float[m_][n_];

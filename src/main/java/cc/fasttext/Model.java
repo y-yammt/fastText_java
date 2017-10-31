@@ -55,7 +55,7 @@ public strictfp class Model {
         output_ = new Vector(wo.m_);
         grad_ = new Vector(args.dim);
 
-        rng = seed > 0 ? new Random(seed) : ThreadLocalRandom.current();
+        rng = new Random(seed);
 
         wi_ = wi;
         wo_ = wo;

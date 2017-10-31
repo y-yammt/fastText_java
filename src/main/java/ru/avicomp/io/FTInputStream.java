@@ -8,15 +8,17 @@ import java.util.Objects;
 import com.google.common.io.LittleEndianDataInputStream;
 
 /**
+ * FastText InputStream.
+ *
  * To read byte data in cpp little endian style.
  * Covers only primitives.
  *
  * @see com.google.common.io.LittleEndianDataInputStream
  * Created by @szuev on 26.10.2017.
  */
-public class FSInputStream extends FilterInputStream {
+public class FTInputStream extends FilterInputStream {
 
-    public FSInputStream(InputStream in) {
+    public FTInputStream(InputStream in) {
         super(wrap(in));
     }
 

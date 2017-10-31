@@ -2,8 +2,8 @@ package cc.fasttext;
 
 import java.io.IOException;
 
-import ru.avicomp.io.FSInputStream;
-import ru.avicomp.io.FSOutputStream;
+import ru.avicomp.io.FTInputStream;
+import ru.avicomp.io.FTOutputStream;
 
 /**
  * TODO: implement
@@ -74,11 +74,11 @@ public class QMatrix extends Matrix {
      *  }
      * }}</pre>
      *
-     * @param out {@link FSOutputStream}
+     * @param out {@link FTOutputStream}
      * @throws IOException if an I/O error occurs
      */
     @Override
-    void save(FSOutputStream out) throws IOException {
+    void save(FTOutputStream out) throws IOException {
         //TODO:
     }
 
@@ -102,11 +102,11 @@ public class QMatrix extends Matrix {
      * }
      * }</pre>
      *
-     * @param in {@link FSInputStream}
+     * @param in {@link FTInputStream}
      * @throws IOException if an I/O error occurs
      */
     @Override
-    void load(FSInputStream in) throws IOException {
+    void load(FTInputStream in) throws IOException {
         //TODO:
     }
 }

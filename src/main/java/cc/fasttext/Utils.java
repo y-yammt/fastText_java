@@ -97,7 +97,21 @@ public class Utils {
         return new String(readUpToByte(in, (byte) 0), StandardCharsets.UTF_8);
     }
 
-    public static String formatNumber(double d) {
-        return String.format(Locale.US, "%g", d).replaceAll("0+($|e)", "$1");
+    /**
+     * TODO:
+     * vector.cc
+     * <pre>{@code std::ostream& operator<<(std::ostream& os, const Vector& v) {
+     *  os << std::setprecision(5);
+     *  for (int64_t j = 0; j < v.m_; j++) {
+     *      os << v.data_[j] << ' ';
+     *  }
+     *  return os;
+     * }}</pre>
+     *
+     * @param d
+     * @return
+     */
+    public static String formatNumber(float d) {
+        return String.format(Locale.US, "%.5g", d).replaceAll("0+($|e)", "$1");
     }
 }

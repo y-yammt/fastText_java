@@ -9,15 +9,16 @@ import com.google.common.io.LittleEndianDataOutputStream;
 
 
 /**
+ * FastText output stream.
  * To write byte data in c++(linux) little endian order.
  * Covers only primitives.
  *
  * @see com.google.common.io.LittleEndianDataOutputStream
  * Created by @szuev on 26.10.2017.
  */
-public class FSOutputStream extends FilterOutputStream {
+public class FTOutputStream extends FilterOutputStream {
 
-    public FSOutputStream(OutputStream out) {
+    public FTOutputStream(OutputStream out) {
         super(wrap(out));
     }
 

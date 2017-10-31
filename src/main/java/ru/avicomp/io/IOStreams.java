@@ -5,23 +5,15 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 /**
- * Factory to create {@link java.io.InputStream} and {@link java.io.OutputStream} with the same nature, depending on file System.
+ * Factory to create {@link java.io.InputStream} and {@link java.io.OutputStream} with the same nature depending on file System.
  * <p>
  * Created by @szuev on 24.10.2017.
  */
 public interface IOStreams {
 
-    InputStreamSupplier createInput(String path);
+    OutputStream createOutput(String path) throws IOException;
 
-    OutputStreamSupplier createOutput(String path);
-
-    default OutputStream create(String path) throws IOException {
-        return createOutput(path).open();
-    }
-
-    default InputStream open(String path) throws IOException {
-        return createInput(path).open();
-    }
+    InputStream openInput(String path) throws IOException;
 
     default boolean canRead(String path) {
         return true;
@@ -32,13 +24,36 @@ public interface IOStreams {
     }
 
     /**
-     * Prepares file to write.
+     * Prepares the file to write.
      * Usually for creating parent directories
      *
-     * @param path String, path identifier
+     * @param path String, path identifier to file entity.
      * @throws IOException if something goes wrong while preparation.
      */
-    default void prepare(String path) throws IOException {
+    default void prepareParent(String path) throws IOException {
 
     }
+
+    /**
+     * @param path
+     * @return
+     * @throws IOException
+     * @throws UnsupportedOperationException
+     */
+    default ScrollableInputStream openScrollable(String path) throws IOException, UnsupportedOperationException {
+        // TODO: add default impl
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * @param path
+     * @return
+     * @throws IOException
+     * @throws UnsupportedOperationException
+     */
+    default long size(String path) throws IOException, UnsupportedOperationException {
+        // TODO: add default impl
+        throw new UnsupportedOperationException();
+    }
+
 }

@@ -7,9 +7,9 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
 
-import ru.avicomp.io.FSInputStream;
-import ru.avicomp.io.FSOutputStream;
-import ru.avicomp.io.FSReader;
+import ru.avicomp.io.FTInputStream;
+import ru.avicomp.io.FTOutputStream;
+import ru.avicomp.io.FTReader;
 
 public class Dictionary {
 
@@ -256,7 +256,7 @@ public class Dictionary {
      */
     public void readFromFile(Args args) throws IOException {
         long minThreshold = 1;
-        try (FSReader r = args.createReader()) {
+        try (FTReader r = args.createReader()) {
             String word;
             while ((word = readWord(r)) != null) {
                 add(word);
@@ -288,9 +288,7 @@ public class Dictionary {
 
     /**
      * Original code:
-     * <pre>{@code
-     * bool Dictionary::readWord(std::istream& in, std::string& word) const
-     * {
+     * <pre>{@code bool Dictionary::readWord(std::istream& in, std::string& word) const {
      *  char c;
      *  std::streambuf& sb = *in.rdbuf();
      *  word.clear();
@@ -310,14 +308,13 @@ public class Dictionary {
      *      }
      *      word.push_back(c);
      *  }
-     *  // trigger eofbit
      *  in.get();
      *  return !word.empty();
      * }
      * }</pre>
      *
      * @param reader, {@link Reader} markSupported = true.
-     * @return String or null if end of stream
+     * @return String or null if the end of stream
      * @throws IOException if something is wrong
      */
     public static String readWord(Reader reader) throws IOException {
@@ -436,8 +433,9 @@ public class Dictionary {
      * @param words
      * @param labels
      * @return
+     * @throws IOException
      */
-    public int getLine(FSReader in, List<Integer> words, List<Integer> labels) throws IOException {
+    public int getLine(FTReader in, List<Integer> words, List<Integer> labels) throws IOException {
         List<Long> word_hashes = new ArrayList<>();
         int ntokens = 0;
 
@@ -492,7 +490,7 @@ public class Dictionary {
      * @param rng
      * @return
      */
-    public int getLine(FSReader in, List<Integer> words, Random rng) throws IOException {
+    public int getLine(FTReader in, List<Integer> words, Random rng) throws IOException {
         int ntokens = 0;
         reset(in);
         words.clear();
@@ -711,7 +709,7 @@ public class Dictionary {
      *
      * @param in
      */
-    public void reset(FSReader in) throws IOException {
+    public void reset(FTReader in) throws IOException {
         if (!in.end()) {
             return;
         }
@@ -757,10 +755,10 @@ public class Dictionary {
      *  }
      * }}</pre>
      *
-     * @param out {@link FSOutputStream}
+     * @param out {@link FTOutputStream}
      * @throws IOException if an I/O error occurs
      */
-    void save(FSOutputStream out) throws IOException {
+    void save(FTOutputStream out) throws IOException {
         out.writeInt(size_);
         out.writeInt(nwords_);
         out.writeInt(nlabels_);
@@ -809,10 +807,10 @@ public class Dictionary {
      *  initNgrams();
      * }}</pre>
      *
-     * @param in {@link FSInputStream}
+     * @param in {@link FTInputStream}
      * @throws IOException if an I/O error occurs
      */
-    void load(FSInputStream in) throws IOException {
+    void load(FTInputStream in) throws IOException {
         size_ = in.readInt();
         nwords_ = in.readInt();
         nlabels_ = in.readInt();

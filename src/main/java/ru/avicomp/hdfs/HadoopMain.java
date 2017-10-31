@@ -1,7 +1,6 @@
 package ru.avicomp.hdfs;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -19,14 +18,12 @@ import java.util.stream.Collectors;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
 
 import cc.fasttext.Args;
 import cc.fasttext.FastText;
 import cc.fasttext.Main;
+import ru.avicomp.hdfs.io.HadoopIOStreams;
 import ru.avicomp.io.IOStreams;
-import ru.avicomp.io.InputStreamSupplier;
-import ru.avicomp.io.OutputStreamSupplier;
 
 /**
  * TODO: for now it is just test (train model).
@@ -96,32 +93,12 @@ public class HadoopMain {
         props.forEach(System::setProperty);
 
         FileSystem fs = FileSystem.get(URI.create(url), conf);
-        return new IOStreams() {
+        return new HadoopIOStreams(fs) {
             @Override
             public String toString() {
                 return String.format("Hadoop-FS: %s@<%s>%s%s", user, url, settings, props);
             }
 
-            @Override
-            public InputStreamSupplier createInput(String path) {
-                Path in = new Path(path);
-                return new InputStreamSupplier() {
-                    @Override
-                    public InputStream open() throws IOException {
-                        return fs.open(in);
-                    }
-
-                    @Override
-                    public long bytes() throws IOException, UnsupportedOperationException {
-                        return fs.getFileStatus(in).getLen();
-                    }
-                };
-            }
-
-            @Override
-            public OutputStreamSupplier createOutput(String path) {
-                return () -> fs.create(new Path(path));
-            }
         };
     }
 

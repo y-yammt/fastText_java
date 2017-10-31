@@ -4,10 +4,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 
-import ru.avicomp.io.IOStreams;
-import ru.avicomp.io.InputStreamSupplier;
-import ru.avicomp.io.OutputStreamSupplier;
-
 /**
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/main.cc'>main.cc</a>
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/main.h'>main.h</a>
@@ -103,33 +99,6 @@ public class Main {
         boolean print_prob = "predict-prob".equalsIgnoreCase(args[0]);
         FastText fasttext = new FastText(createArgs());
         fasttext.loadModel(args[1]);
-        IOStreams fs = fasttext.getArgs().getIOStreams();
-        fasttext.getArgs().setIOStreams(new IOStreams() {
-            @Override
-            public InputStreamSupplier createInput(String path) {
-                return "-".equals(path) ? () -> System.in : fs.createInput(path);
-            }
-
-            @Override
-            public OutputStreamSupplier createOutput(String path) {
-                return fs.createOutput(path);
-            }
-
-            @Override
-            public boolean canRead(String path) {
-                return "-".equals(path) || fs.canRead(path);
-            }
-
-            @Override
-            public boolean canWrite(String path) {
-                return fs.canRead(path);
-            }
-
-            @Override
-            public void prepare(String path) throws IOException {
-                fs.prepare(path);
-            }
-        });
         String infile = args[2];
         //if (fasttext.getArgs().getIOStreams().canRead(infile)) {}
         // TODO: implement correct way

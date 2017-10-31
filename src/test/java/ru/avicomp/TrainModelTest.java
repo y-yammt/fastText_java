@@ -41,10 +41,10 @@ public class TrainModelTest {
 
         // validate vec:
         int allowableDiffInPercents = 10;
-        long expectedVecSize = 440_017;
+        long expectedVecSize = 391_799; //440_017;
         long actualVecSize = Files.size(vec);
         int actualDiffInPercents = (int) (200.0 * Math.abs(actualVecSize - expectedVecSize) / (actualVecSize + expectedVecSize));
-        System.out.println("Actual diff: " + actualDiffInPercents + "%");
+        System.out.printf("Actual diff: %d%% (size: %d)%n", actualDiffInPercents, actualVecSize);
         Assert.assertTrue("Incorrect vec size: " + actualVecSize + ", diff: " + actualDiffInPercents, actualDiffInPercents <= allowableDiffInPercents);
         List<Word> words = collect(vec);
         System.out.println(toSet(words));
@@ -75,6 +75,7 @@ public class TrainModelTest {
         Args args = Main.parseArgs(cmd).setIOStreams(fs);
         FastText fasttext = new FastText(args);
         fasttext.train();
+        System.out.println("Size:" + fs.size(output + ".bin"));
     }
 
     private static class Word implements Comparable<Word> {
