@@ -702,7 +702,7 @@ public class Dictionary {
      * }
      * }</pre>
      *
-     * @param r
+     * @param in
      */
     public void reset(FTReader in) throws IOException {
         if (!in.end()) {

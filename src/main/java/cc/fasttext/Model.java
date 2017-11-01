@@ -7,11 +7,13 @@ import cc.fasttext.Args.ModelName;
 
 public strictfp class Model {
 
+
     static final int SIGMOID_TABLE_SIZE = 512;
     static final int MAX_SIGMOID = 8;
     static final int LOG_TABLE_SIZE = 512;
-
     static final int NEGATIVE_TABLE_SIZE = 10_000_000;
+    public static final Comparator<Pair<Float, Integer>> COMPARE_PAIRS = (l, r) -> r.first().compareTo(l.first());
+    public static final Comparator<Float> HEAP_COMPARATOR = Comparator.reverseOrder();
     // todo: new
     public boolean quant_;
     public QMatrix qwi_;
@@ -19,7 +21,6 @@ public strictfp class Model {
     public Random rng;
     private Matrix wi_; // input
     private Matrix wo_; // output
-
     private Args args_;
     private Vector hidden_;
     private Vector output_;
@@ -39,8 +40,6 @@ public strictfp class Model {
     private List<List<Integer>> paths;
     private List<List<Boolean>> codes;
     private List<Node> tree;
-
-    private static final Comparator<Pair<Float, Integer>> COMPARE_PAIRS = (l, r) -> r.first().compareTo(l.first());
 
     public Model(Matrix wi, Matrix wo, Args args, int seed) {
         hidden_ = new Vector(args.dim);
@@ -154,10 +153,37 @@ public strictfp class Model {
         return loss;
     }
 
+    /**
+     * <pre>{@code void Model::computeOutputSoftmax(Vector& hidden, Vector& output) const {
+     *  if (quant_ && args_->qout) {
+     *      output.mul(*qwo_, hidden);
+     *  } else {
+     *      output.mul(*wo_, hidden);
+     *  }
+     *  real max = output[0], z = 0.0;
+     *  for (int32_t i = 0; i < osz_; i++) {
+     *      max = std::max(output[i], max);
+     *  }
+     *  for (int32_t i = 0; i < osz_; i++) {
+     *      output[i] = exp(output[i] - max);
+     *      z += output[i];
+     *  }
+     *  for (int32_t i = 0; i < osz_; i++) {
+     *      output[i] /= z;
+     *  }
+     * }}</pre>
+     *
+     * @param hidden
+     * @param output
+     */
     public void computeOutputSoftmax(Vector hidden, Vector output) {
-        output.mul(wo_, hidden);
+        if (quant_ && args_.qout) {
+            output.mul(qwo_, hidden);
+        } else {
+            output.mul(wo_, hidden);
+        }
         float max = output.get(0), z = 0.0f;
-        for (int i = 1; i < osz_; i++) {
+        for (int i = 0; i < osz_; i++) {
             max = Math.max(output.get(i), max);
         }
         for (int i = 0; i < osz_; i++) {
@@ -252,7 +278,7 @@ public strictfp class Model {
      * @param hidden
      * @param output
      */
-    public void predict(final List<Integer> input, int k, List<Pair<Float, Integer>> heap, Vector hidden, Vector output) {
+    public void predict(List<Integer> input, int k, List<Pair<Float, Integer>> heap, Vector hidden, Vector output) {
         Utils.checkArgument(k > 0);
         if (heap instanceof ArrayList) {
             ((ArrayList) heap).ensureCapacity(k + 1);
@@ -264,6 +290,119 @@ public strictfp class Model {
             findKBest(k, heap, hidden, output);
         }
         heap.sort(COMPARE_PAIRS);
+    }
+
+    public Map<Float, Integer> _predict(List<Integer> input, int k, Vector hidden, Vector output) {
+        NavigableMap<Float, Integer> heap = new TreeMap<>(HEAP_COMPARATOR);
+        computeHidden(input, hidden);
+        if (args_.loss == Args.LossName.HS) {
+            _dfs(k, 2 * osz_ - 2, 0.0f, heap, hidden);
+        } else {
+            _findKBest(k, heap, hidden, output);
+        }
+        return heap;
+    }
+
+    /**
+     * <pre>{@code
+     * void Model::predict(const std::vector<int32_t>& input, int32_t k, std::vector<std::pair<real, int32_t>>& heap) {
+     *  predict(input, k, heap, hidden_, output_);
+     * }}</pre>
+     *
+     * @param input
+     * @param k
+     * @return
+     */
+    public Map<Float, Integer> _predict(final List<Integer> input, int k) {
+        return _predict(input, k, hidden_, output_);
+    }
+
+    /**
+     * <pre>{@code
+     * void Model::findKBest(int32_t k, std::vector<std::pair<real, int32_t>>& heap, Vector& hidden, Vector& output) const {
+     *  computeOutputSoftmax(hidden, output);
+     *  for (int32_t i = 0; i < osz_; i++) {
+     *  if (heap.size() == k && log(output[i]) < heap.front().first) {
+     *      continue;
+     *  }
+     *  heap.push_back(std::make_pair(log(output[i]), i));
+     *  std::push_heap(heap.begin(), heap.end(), comparePairs);
+     *  if (heap.size() > k) {
+     *      std::pop_heap(heap.begin(), heap.end(), comparePairs);
+     *      heap.pop_back();
+     *  }
+     * }
+     * }}</pre>
+     *
+     * @param k
+     * @param heap
+     * @param hidden
+     * @param output
+     */
+    private void _findKBest(int k, NavigableMap<Float, Integer> heap, Vector hidden, Vector output) {
+        computeOutputSoftmax(hidden, output);
+        for (int i = 0; i < osz_; i++) {
+            float key = log(output.get(i));
+            if (heap.size() == k && key < heap.firstKey()) {
+                continue;
+            }
+            heap.put(key, i);
+            if (heap.size() > k) {
+                heap.remove(heap.lastKey());
+            }
+        }
+    }
+
+    /**
+     * <pre>{@code
+     * void Model::dfs(int32_t k, int32_t node, real score, std::vector<std::pair<real, int32_t>>& heap, Vector& hidden) const {
+     *  if (heap.size() == k && score < heap.front().first) {
+     *      return;
+     *  }
+     *  if (tree[node].left == -1 && tree[node].right == -1) {
+     *      heap.push_back(std::make_pair(score, node));
+     *      std::push_heap(heap.begin(), heap.end(), comparePairs);
+     *      if (heap.size() > k) {
+     *          std::pop_heap(heap.begin(), heap.end(), comparePairs);
+     *          heap.pop_back();
+     *      }
+     *      return;
+     *  }
+     *  real f;
+     *  if (quant_ && args_->qout) {
+     *      f = sigmoid(qwo_->dotRow(hidden, node - osz_));
+     *  } else {
+     *      f = sigmoid(wo_->dotRow(hidden, node - osz_));
+     *  }
+     *  dfs(k, tree[node].left, score + log(1.0 - f), heap, hidden);
+     *  dfs(k, tree[node].right, score + log(f), heap, hidden);
+     * }}</pre>
+     *
+     * @param k
+     * @param node
+     * @param score
+     * @param heap
+     * @param hidden
+     */
+    private void _dfs(int k, int node, float score, NavigableMap<Float, Integer> heap, Vector hidden) {
+        if (heap.size() == k && score < heap.firstKey()) {
+            return;
+        }
+        if (tree.get(node).left == -1 && tree.get(node).right == -1) {
+            heap.put(score, node);
+            if (heap.size() > k) {
+                heap.remove(heap.lastKey());
+            }
+            return;
+        }
+        float f;
+        if (quant_ && args_.qout) {
+            f = sigmoid(qwo_.dotRow(hidden, node - osz_));
+        } else {
+            f = sigmoid(wo_.dotRow(hidden, node - osz_));
+        }
+        _dfs(k, tree.get(node).left, score + log(1.0f - f), heap, hidden);
+        _dfs(k, tree.get(node).right, score + log(f), heap, hidden);
     }
 
     public void predict(final List<Integer> input, int k, List<Pair<Float, Integer>> heap) {

@@ -1,65 +1,39 @@
-#include <iostream>     // std::cout
-#include <algorithm>    // std::make_heap, std::pop_heap, std::push_heap, std::sort_heap
-#include <vector>       // std::vector
+#include <string>
+#include <vector>
+#include <iostream>
+#include <algorithm>
 
-
-class TestClass {
-public:
-  TestClass();
-  static bool comparePairs(const std::pair<float, int32_t>&, const std::pair<float, int32_t>&);
-};
-
-TestClass::TestClass() {
-}
-
-bool TestClass::comparePairs(const std::pair<float, int32_t> &l, const std::pair<float, int32_t> &r) {
-    return l.first > r.first;
-}
-
-int main() {
-    TestClass _t;
-
-    std::vector<std::pair<float, int>> heap;
-
-    heap.push_back(std::make_pair(float(1.1), 1));
-    heap.push_back(std::make_pair(float(1.2), 2));
-    heap.push_back(std::make_pair(float(1.2), 3));
-    heap.push_back(std::make_pair(float(-1.2), 4));
-    heap.push_back(std::make_pair(float(5), 5));
-    heap.push_back(std::make_pair(float(6), 6));
-    heap.push_back(std::make_pair(float(6), 6));
-    heap.push_back(std::make_pair(float(-10), 7));
-    heap.push_back(std::make_pair(float(5), 8));
-    heap.push_back(std::make_pair(float(9), 9));
-    heap.push_back(std::make_pair(float(-8.8), 10));
-    heap.push_back(std::make_pair(float(-8.8), 11));
-
-    for (auto it = heap.cbegin(); it != heap.cend(); it++) {
-        std::cout << it->first << "\t" << it->second << "\n";
+int main (int argc, char** argv)
+{
+    std::vector<std::string> args(argv, argv + argc);
+    std::vector<float> input;
+    int32_t k = std::stoi(args[1]);
+    for (int i = 2; i < args.size(); i++) {
+        float num = std::stof(args[i]);
+        input.push_back(num);
     }
 
-    std::cout << "\npush_heap:\n";
-    std::push_heap(heap.begin(), heap.end(), _t.comparePairs);
-    for (auto it = heap.cbegin(); it != heap.cend(); it++) {
-        std::cout << it->first << "\t" << it->second << "\n";
+    std::cout << "k=" << k << "\ninput=";
+    for (int i = 0; i < input.size(); i++) {
+        std::cout << input[i] << " ";
     }
+    std::cout << "\n";
 
-    std::cout << "\nagain.push_heap:\n";
-    std::push_heap(heap.begin(), heap.end(), _t.comparePairs);
-    for (auto it = heap.cbegin(); it != heap.cend(); it++) {
-        std::cout << it->first << "\t" << it->second << "\n";
+    std::vector<float> heap;
+    for (int i = 0; i < input.size(); i++) {
+        heap.push_back(input[i]);
+        std::push_heap(heap.begin(), heap.end());
+        if (heap.size() > k) {
+            std::pop_heap(heap.begin(), heap.end());
+            heap.pop_back();
+        }
     }
+    std::sort_heap(heap.begin(), heap.end());
 
-    std::cout << "\npop_heap:\n";
-    std::pop_heap(heap.begin(), heap.end(), _t.comparePairs);
-    for (auto it = heap.cbegin(); it != heap.cend(); it++) {
-        std::cout << it->first << "\t" << it->second << "\n";
+    std::cout << "result=";
+    for (int i = 0; i < heap.size(); i++) {
+        std::cout << heap[i] << " ";
     }
-
-    std::cout << "\nsort_heap:\n";
-    std::sort_heap(heap.begin(), heap.end(), _t.comparePairs);
-    for (auto it = heap.cbegin(); it != heap.cend(); it++) {
-        std::cout << it->first << "\t" << it->second << "\n";
-    }
+    std::cout << "\n";
     return 0;
 }

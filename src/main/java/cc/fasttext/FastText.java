@@ -3,10 +3,7 @@ package cc.fasttext;
 import java.io.*;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -706,11 +703,15 @@ public class FastText {
         }
         Vector hidden = new Vector(args_.dim);
         Vector output = new Vector(dict_.nlabels());
-        List<Pair<Float, Integer>> modelPredictions = new ArrayList<Pair<Float, Integer>>(k + 1);
-        model_.predict(words, k, modelPredictions, hidden, output);
         List<Pair<Float, String>> res = new ArrayList<>(k);
+        /*List<Pair<Float, Integer>> modelPredictions = new ArrayList<Pair<Float, Integer>>(k + 1);
+        model_.predict(words, k, modelPredictions, hidden, output);
         for (Pair<Float, Integer> pair : modelPredictions) {
             res.add(new Pair<>(pair.first(), dict_.getLabel(pair.second())));
+        }*/
+        Map<Float, Integer> map = model_._predict(words, k, hidden, output);
+        for (Float key : map.keySet()) {
+            res.add(new Pair<>(key, dict_.getLabel(map.get(key))));
         }
         return res;
     }

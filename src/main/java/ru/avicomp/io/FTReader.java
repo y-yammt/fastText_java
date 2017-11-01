@@ -157,11 +157,11 @@ public class FTReader extends Reader {
         if (stream instanceof ScrollableInputStream) {
             return ((ScrollableInputStream) stream).isEnd();
         }
-        try {
-            mark(1);
-            return read() == -1;
+        try { // todo:
+            reader.mark(1);
+            return reader.read() == -1;
         } finally {
-            reset();
+            reader.reset();
         }
     }
 
