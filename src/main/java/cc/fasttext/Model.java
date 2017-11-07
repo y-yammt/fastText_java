@@ -2,11 +2,14 @@ package cc.fasttext;
 
 import java.util.*;
 
+import org.apache.commons.math3.random.RandomAdaptor;
+import org.apache.commons.math3.random.RandomGenerator;
+import org.apache.commons.math3.util.FastMath;
+
 import cc.fasttext.Args.LossName;
 import cc.fasttext.Args.ModelName;
 
 public strictfp class Model {
-
 
     static final int SIGMOID_TABLE_SIZE = 512;
     static final int MAX_SIGMOID = 8;
@@ -18,7 +21,7 @@ public strictfp class Model {
     public boolean quant_;
     public QMatrix qwi_;
     public QMatrix qwo_;
-    public Random rng;
+    public RandomGenerator rng;
     private Matrix wi_; // input
     private Matrix wo_; // output
     private Args args_;
@@ -26,8 +29,6 @@ public strictfp class Model {
     private Vector output_;
     private Vector grad_;
     private int hsz_; // dim
-    @SuppressWarnings("unused")
-    private int isz_; // input vocabSize
     private int osz_; // output vocabSize
     private float loss_;
     private long nexamples_;
@@ -45,13 +46,10 @@ public strictfp class Model {
         hidden_ = new Vector(args.dim);
         output_ = new Vector(wo.m_);
         grad_ = new Vector(args.dim);
-
-        rng = new Random(seed);
-
+        rng = args.getRandomFactory().apply(seed);
         wi_ = wi;
         wo_ = wo;
         args_ = args;
-        isz_ = wi.m_;
         osz_ = wo.m_;
         hsz_ = args.dim;
         negpos = 0;
@@ -187,7 +185,7 @@ public strictfp class Model {
             max = Math.max(output.get(i), max);
         }
         for (int i = 0; i < osz_; i++) {
-            output.set(i, (float) Math.exp(output.get(i) - max));
+            output.set(i, (float) FastMath.exp(output.get(i) - max));
             z += output.get(i);
         }
         for (int i = 0; i < osz_; i++) {
@@ -245,7 +243,7 @@ public strictfp class Model {
      * @param input
      * @param hidden
      */
-    public void computeHidden(final List<Integer> input, Vector hidden) {
+    public void computeHidden(List<Integer> input, Vector hidden) {
         Utils.checkArgument(hidden.size() == hsz_);
         hidden.zero();
         for (Integer it : input) {
@@ -348,7 +346,8 @@ public strictfp class Model {
             }
             heap.put(key, i);
             if (heap.size() > k) {
-                heap.remove(heap.lastKey());
+                float l = heap.lastKey();
+                heap.remove(l);
             }
         }
     }
@@ -595,21 +594,19 @@ public strictfp class Model {
      *
      * @param counts
      */
-    public void initTableNegatives(final List<Long> counts) {
-        if (negatives == null) {
-            negatives = new ArrayList<>(counts.size());
-        }
-        float z = 0.0f;
+    public void initTableNegatives(List<Long> counts) {
+        negatives = new ArrayList<>(counts.size());
+        double z = 0.0;
         for (Long count : counts) {
-            z += (float) Math.pow(count, 0.5f);
+            z += Math.sqrt(count);
         }
         for (int i = 0; i < counts.size(); i++) {
-            float c = (float) Math.pow(counts.get(i), 0.5f);
+            double c = Math.sqrt(counts.get(i));
             for (int j = 0; j < c * NEGATIVE_TABLE_SIZE / z; j++) {
                 negatives.add(i);
             }
         }
-        Collections.shuffle(negatives, rng);
+        Collections.shuffle(negatives, new RandomAdaptor(rng));
     }
 
     public int getNegative(int target) {
@@ -692,7 +689,8 @@ public strictfp class Model {
     }
 
     /**
-     * <pre>{@code void Model::initLog() {
+     * <pre>{@code
+     * void Model::initLog() {
      *  t_log = new real[LOG_TABLE_SIZE + 1];
      *  for (int i = 0; i < LOG_TABLE_SIZE + 1; i++) {
      *      real x = (real(i) + 1e-5) / LOG_TABLE_SIZE;
@@ -704,7 +702,7 @@ public strictfp class Model {
         t_log = new float[LOG_TABLE_SIZE + 1];
         for (int i = 0; i < LOG_TABLE_SIZE + 1; i++) {
             float x = (i + 1e-5f) / LOG_TABLE_SIZE;
-            t_log[i] = (float) Math.log(x);
+            t_log[i] = (float) FastMath.log(x); //(float) Math.log(x);
         }
     }
 
@@ -721,13 +719,28 @@ public strictfp class Model {
      * @return
      */
     public float log(float x) {
-        if (x > 1.0f) {
+        if (x > 1.0) {
             return 0.0f;
         }
         int i = (int) (x * LOG_TABLE_SIZE);
         return t_log[i];
     }
 
+    /**
+     * <pre>{@code real Model::sigmoid(real x) const {
+     *  if (x < -MAX_SIGMOID) {
+     *      return 0.0;
+     *  } else if (x > MAX_SIGMOID) {
+     *      return 1.0;
+     *  } else {
+     *      int i = int((x + MAX_SIGMOID) * SIGMOID_TABLE_SIZE / MAX_SIGMOID / 2);
+     *      return t_sigmoid[i];
+     *  }
+     * }}</pre>
+     *
+     * @param x
+     * @return
+     */
     public float sigmoid(float x) {
         if (x < -MAX_SIGMOID) {
             return 0.0f;

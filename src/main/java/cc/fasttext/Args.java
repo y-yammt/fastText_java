@@ -8,6 +8,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.function.IntFunction;
+
+import org.apache.commons.math3.random.JDKRandomGenerator;
+import org.apache.commons.math3.random.RandomGenerator;
 
 import ru.avicomp.io.FTInputStream;
 import ru.avicomp.io.FTOutputStream;
@@ -21,13 +25,12 @@ import ru.avicomp.io.impl.LocalIOStreams;
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/args.cc'>args.cc</a> and
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/args.h'>args.h</a>
  */
-public class Args {
+public strictfp class Args {
 
     public String input;
     public String output;
     public String test;
     public double lr = 0.05;
-    public int lrUpdateRate = 100;
     public int dim = 100;
     public int ws = 5;
     public int epoch = 5;
@@ -37,11 +40,12 @@ public class Args {
     public int wordNgrams = 1;
     public LossName loss = LossName.NS;
     public ModelName model = ModelName.SG;
-    public int bucket = 2000000;
+    public int bucket = 2_000_000;
     public int minn = 3;
     public int maxn = 6;
-    public int thread = 1;
+    public int thread = 1; // todo: = 12
     public double t = 1e-4;
+    public int lrUpdateRate = 100;
     public String label = "__label__";
     public int verbose = 2;
     public String pretrainedVectors = "";
@@ -49,8 +53,13 @@ public class Args {
     public int saveOutput;
     //TODO:
     public boolean qout;
+
+
     Charset charset = StandardCharsets.UTF_8;
     private IOStreams factory = new LocalIOStreams();
+
+    //RandomGenerator res = new Well19937c();
+    private IntFunction<RandomGenerator> randomFactory = JDKRandomGenerator::new;
 
     Args() {
     }
@@ -74,18 +83,22 @@ public class Args {
         return factory;
     }
 
+    public IntFunction<RandomGenerator> getRandomFactory() {
+        return randomFactory;
+    }
+
     public Charset getCharset() {
         return charset;
     }
 
     /**
-     * TODO: remove
+     * TODO: move or delete
      *
      * @return
      * @throws IOException
      */
-    public FTReader createReader() throws IOException {
-        return new FTReader(getIOStreams().openScrollable(input), charset);
+    public FTReader createReader() throws IOException { // todo: buff size is experimental
+        return new FTReader(getIOStreams().openScrollable(input), charset, 100 * 1024);
     }
 
     /**

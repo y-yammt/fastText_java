@@ -14,7 +14,7 @@ public class FTReader extends Reader {
     private static final int DEFAULT_CHAR_BUFFER_LENGTH = 8192;
     private static final int UNKNOWN_POSITION = -2;
 
-    private BufferedReader reader;
+    protected BufferedReader reader;
     private InputStream stream;
     private long bytes;
     private int last;
@@ -28,7 +28,8 @@ public class FTReader extends Reader {
         if (bufferSize <= 0)
             throw new IllegalArgumentException("Buffer size <= 0");
         this.stream = Objects.requireNonNull(stream, "Null InputStream Supplier");
-        this.reader = new BufferedReader(new InputStreamReader(stream, charset), bufferSize);
+        this.lock = new InputStreamReader(stream, charset);
+        this.reader = new BufferedReader((Reader) lock, bufferSize);
     }
 
     @Override
@@ -59,6 +60,11 @@ public class FTReader extends Reader {
         } finally {
             last = UNKNOWN_POSITION;
         }
+    }
+
+    @Override
+    public int read() throws IOException {
+        return last = reader.read();
     }
 
     @Override
@@ -157,11 +163,14 @@ public class FTReader extends Reader {
         if (stream instanceof ScrollableInputStream) {
             return ((ScrollableInputStream) stream).isEnd();
         }
-        try { // todo:
-            reader.mark(1);
-            return reader.read() == -1;
-        } finally {
-            reader.reset();
+        //noinspection SynchronizeOnNonFinalField
+        synchronized (lock) {
+            try {
+                reader.mark(1);
+                return reader.read() == -1;
+            } finally {
+                reader.reset();
+            }
         }
     }
 

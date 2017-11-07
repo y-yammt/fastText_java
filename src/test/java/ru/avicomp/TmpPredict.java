@@ -32,7 +32,7 @@ public class TmpPredict {
     public void testDBPediaPredict() throws Exception {
         Path root = Paths.get("../");
         List<String> actual = predict(root.resolve("dbpedia.bin").toRealPath(), root.resolve("dbpedia.test").toRealPath());
-        List<String> expected = Files.lines(root.resolve("dbpedia.predict.result.txt").toRealPath())
+        List<String> expected = Files.lines(root.resolve("dbpedia.test.predict").toRealPath())
                 .map(String::trim).collect(Collectors.toList());
         Assert.assertEquals("wrong size", expected.size(), actual.size());
         List<String> errors = new ArrayList<>();

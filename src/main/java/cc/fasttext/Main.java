@@ -140,6 +140,7 @@ public class Main {
             if (!args.getIOStreams().canRead(infile)) {
                 throw new IOException("Input file cannot be opened!");
             }
+            //fasttext.predict(args.getIOStreams().openInput(infile), k, printProb);
             try (FTReader in = new FTReader(args.getIOStreams().openInput(infile), args.getCharset())) {
                 fasttext._predict(in, out, k, printProb);
             }

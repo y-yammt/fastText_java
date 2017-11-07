@@ -1,6 +1,6 @@
 package cc.fasttext;
 
-public class Vector {
+public strictfp class Vector {
 
     public int m_;
     public float[] data_;
@@ -19,12 +19,35 @@ public class Vector {
         //for (int i = 0; i < m_; i++) data_[i] = 0;
     }
 
+    /**
+     * <pre>{@code
+     * void Vector::mul(real a) {
+     *  for (int64_t i = 0; i < m_; i++) {
+     *      data_[i] *= a;
+     *  }
+     * }}</pre>
+     *
+     * @param a
+     */
     public void mul(float a) {
         for (int i = 0; i < m_; i++) {
             data_[i] *= a;
         }
     }
 
+    /**
+     * <pre>{@code void Vector::addRow(const Matrix& A, int64_t i) {
+     *  assert(i >= 0);
+     *  assert(i < A.m_);
+     *  assert(m_ == A.n_);
+     *  for (int64_t j = 0; j < A.n_; j++) {
+     *      data_[j] += A.at(i, j);
+     *  }
+     * }}</pre>
+     *
+     * @param A
+     * @param i
+     */
     public void addRow(final Matrix A, int i) {
         Utils.checkArgument(i >= 0);
         Utils.checkArgument(i < A.m_);

@@ -35,6 +35,15 @@ int main()
   test.push_back("Šis ir daži pārbaudes teikumi.");
   test.push_back("Тестовое предложение");
   test.push_back("Получение положительного заключения испытательной лаборатории по результатам сертификационных испытаний ИСУ ОПК на соответствие требованиям информационной безопасности.");
+  test.push_back("梁文博");
+  test.push_back("சுள்ளி");
+  test.push_back("豐胸秘cup");
+  test.push_back("يال");
+  test.push_back("センコロール");
+  test.push_back("عليسرا‎");
+  test.push_back("కత్తి");
+  test.push_back("珍寶王國");
+
 
   for (int i = 0; i < test.size(); ++i) {
     std::string w = test[i];

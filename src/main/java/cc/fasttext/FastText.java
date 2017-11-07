@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.apache.commons.math3.distribution.UniformIntegerDistribution;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,7 +31,7 @@ import ru.avicomp.io.FTReader;
  *
  * @author Ivan
  */
-public class FastText {
+public strictfp class FastText {
 
     public static final int FASTTEXT_VERSION = 12;
     public static final int FASTTEXT_FILEFORMAT_MAGIC_INT32 = 793712314;
@@ -420,8 +421,8 @@ public class FastText {
     public void supervised(Model model, float lr, final List<Integer> line, final List<Integer> labels) {
         if (labels.size() == 0 || line.size() == 0)
             return;
-        //int i = Utils.randomInt(model.rng, 1, labels.size()) - 1;
-        int i = Utils.nextInt(model.rng, 0, labels.size() - 1);
+        UniformIntegerDistribution uniform = new UniformIntegerDistribution(model.rng, 0, labels.size() - 1);
+        int i = uniform.sample();
         model.update(line, labels.get(i), lr);
     }
 
@@ -450,9 +451,10 @@ public class FastText {
      */
     public void cbow(Model model, float lr, final List<Integer> line) {
         List<Integer> bow = new ArrayList<>();
+        UniformIntegerDistribution uniform = new UniformIntegerDistribution(model.rng, 1, args_.ws);
         for (int w = 0; w < line.size(); w++) {
             bow.clear(); // don't create new one to work with encapsulated big array inside list
-            int boundary = Utils.nextInt(model.rng, 1, args_.ws);
+            int boundary = uniform.sample();
             for (int c = -boundary; c <= boundary; c++) {
                 if (c != 0 && w + c >= 0 && w + c < line.size()) {
                     List<Integer> ngrams = dict_.getSubwords(line.get(w + c));
@@ -483,8 +485,9 @@ public class FastText {
      * @param line
      */
     public void skipgram(Model model, float lr, final List<Integer> line) {
+        UniformIntegerDistribution uniform = new UniformIntegerDistribution(model.rng, 1, args_.ws);
         for (int w = 0; w < line.size(); w++) {
-            int boundary = Utils.nextInt(model.rng, 1, args_.ws);
+            int boundary = uniform.sample();
             List<Integer> ngrams = dict_.getSubwords(line.get(w));
             for (int c = -boundary; c <= boundary; c++) {
                 if (c != 0 && w + c >= 0 && w + c < line.size()) {
@@ -704,12 +707,8 @@ public class FastText {
         Vector hidden = new Vector(args_.dim);
         Vector output = new Vector(dict_.nlabels());
         List<Pair<Float, String>> res = new ArrayList<>(k);
-        /*List<Pair<Float, Integer>> modelPredictions = new ArrayList<Pair<Float, Integer>>(k + 1);
-        model_.predict(words, k, modelPredictions, hidden, output);
-        for (Pair<Float, Integer> pair : modelPredictions) {
-            res.add(new Pair<>(pair.first(), dict_.getLabel(pair.second())));
-        }*/
         Map<Float, Integer> map = model_._predict(words, k, hidden, output);
+
         for (Float key : map.keySet()) {
             res.add(new Pair<>(key, dict_.getLabel(map.get(key))));
         }
@@ -820,7 +819,7 @@ public class FastText {
 
             dict_.threshold(1, 0);
             input_ = new Matrix(dict_.nwords() + args_.bucket, args_.dim);
-            input_.uniform(1.0f / args_.dim);
+            input_.uniform(args_.getRandomFactory().apply(1), 1.0f / args_.dim);
             for (int i = 0; i < n; i++) {
                 int idx = dict_.getId(words.get(i));
                 if (idx < 0 || idx >= dict_.nwords())
@@ -869,7 +868,7 @@ public class FastText {
             loadVectors(args_.pretrainedVectors);
         } else {
             input_ = new Matrix(dict_.nwords() + args_.bucket, args_.dim);
-            input_.uniform(1.0f / args_.dim);
+            input_.uniform(args_.getRandomFactory().apply(1), 1.0f / args_.dim);
         }
 
         if (args_.model == Args.ModelName.SUP) {
@@ -916,6 +915,7 @@ public class FastText {
             System.out.printf("\nTrain time used: %d sec\n", trainTime);
         }
 
+        LOGGER.warn("Rewinds: {}", dict_.debug_rewind_count.intValue());
         LOGGER.warn("Save model");
         saveModel();
         LOGGER.warn("Save vectors");

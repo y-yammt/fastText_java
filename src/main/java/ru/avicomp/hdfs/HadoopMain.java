@@ -79,6 +79,9 @@ public class HadoopMain {
         conf.set("fs.defaultFS", url);
         conf.set("fs.hdfs.impl", org.apache.hadoop.hdfs.DistributedFileSystem.class.getName());
         conf.set("fs.file.impl", org.apache.hadoop.fs.LocalFileSystem.class.getName());
+        // todo: test
+        conf.setInt("io.file.buffer.size", 1024 * 1024);
+
         settings.forEach(conf::set);
         System.setProperty("HADOOP_USER_NAME", user);
         String home;
