@@ -7,6 +7,7 @@ class TestClass {
 public:
   TestClass();
   uint32_t hash(const std::string& str) const;
+  void printChars(const std::string& str) const;
 };
 
 TestClass::TestClass() {
@@ -20,6 +21,15 @@ uint32_t TestClass::hash(const std::string& str) const
     h = h * 16777619;
   }
   return h;
+}
+
+void TestClass::printChars(const std::string& str) const {
+  for (size_t i = 0; i < str.size(); i++) {
+    std::cout << uint32_t(str[i]);
+    if (i != (str.size() - 1)) {
+        std::cout << "|";
+    }
+  }
 }
 
 int main()
@@ -48,7 +58,9 @@ int main()
   for (int i = 0; i < test.size(); ++i) {
     std::string w = test[i];
     uint32_t h = tester.hash(w);
-    std::cout << "" << h << "\t'" << w << "'\n";
+    std::cout << "" << h << "\t";
+    tester.printChars(w);
+    std::cout << "\t'" << w << "'\n\n";
   }
   return 0;
 }

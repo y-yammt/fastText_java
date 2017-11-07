@@ -3,6 +3,7 @@ package cc.fasttext;
 import java.io.IOException;
 import java.io.Reader;
 import java.math.BigInteger;
+import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -55,6 +56,19 @@ public strictfp class Dictionary {
         return find(w, hash(w));
     }
 
+    /**
+     * <pre>{@code int32_t Dictionary::find(const std::string& w, uint32_t h) const {
+     *  int32_t id = h % MAX_VOCAB_SIZE;
+     *  while (word2int_[id] != -1 && words_[word2int_[id]].word != w) {
+     *      id = (id + 1) % MAX_VOCAB_SIZE;
+     *  }
+     *  return id;
+     * }}</pre>
+     *
+     * @param w
+     * @param h
+     * @return
+     */
     public long find(String w, long h) {
         long id = h % MAX_VOCAB_SIZE;
         while (!Objects.equals(word2int_.getOrDefault(id, WORDID_DEFAULT), WORDID_DEFAULT) &&
@@ -175,12 +189,16 @@ public strictfp class Dictionary {
      * @param str Sting
      * @return hash as long
      */
-    public long hash(String str) {
-        int h = (int) 2_166_136_261L;// 0xffffffc5;
-        for (int strByte : str.getBytes()) {
-            h = (h ^ strByte) * 16_777_619; // FNV-1a
+    public static long hash(String str, Charset charset) {
+        long h = 2_166_136_261L;// 0xffffffc5;
+        for (long b : str.getBytes(charset)) {
+            h = (h ^ b) * 16_777_619; // FNV-1a
         }
-        return h & 0xff_fff_fffL;
+        return h & 0xffff_ffffL;
+    }
+
+    public long hash(String str) {
+        return hash(str, args.charset);
     }
 
     /**
@@ -512,7 +530,7 @@ public strictfp class Dictionary {
      * @throws IOException
      */
     public int getLine(FTReader in, List<Integer> words, List<Integer> labels) throws IOException {
-        List<Long> word_hashes = new ArrayList<>();
+        List<Integer> word_hashes = new ArrayList<>();
         int ntokens = 0;
         reset(in);
         words.clear();
@@ -525,7 +543,7 @@ public strictfp class Dictionary {
             ntokens++;
             if (EntryType.WORD == type) {
                 addSubwords(words, token, wid);
-                word_hashes.add(h);
+                word_hashes.add((int) h);
             } else if (type == EntryType.LABEL && wid >= 0) {
                 labels.add(wid - nwords_);
             }
@@ -661,12 +679,12 @@ public strictfp class Dictionary {
      * @param hashes
      * @param n
      */
-    public void addWordNgrams(List<Integer> line, List<Long> hashes, int n) {
+    public void addWordNgrams(List<Integer> line, List<Integer> hashes, int n) {
         UnsignedLong bucket = UnsignedLong.valueOf(args.bucket);
         for (int i = 0; i < hashes.size(); i++) { // int32_t
-            UnsignedLong h = UnsignedLong.valueOf(hashes.get(i)); // uint64_t
+            UnsignedLong h = UnsignedLong.fromLongBits(hashes.get(i)); // uint64_t
             for (int j = i + 1; j < hashes.size() && j < i + n; j++) { // h = h * 116049371 + hashes[j] :
-                h = h.times(ADD_WORDS_NGRAMS_FACTOR_UNSIGNED_LONG).plus(UnsignedLong.valueOf(hashes.get(j)));
+                h = h.times(ADD_WORDS_NGRAMS_FACTOR_UNSIGNED_LONG).plus(UnsignedLong.fromLongBits(hashes.get(j)));
                 pushHash(line, h.mod(bucket).intValue()); // h % args_->bucket
             }
         }
