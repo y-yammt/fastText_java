@@ -3,6 +3,7 @@ package ru.avicomp.io.impl;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Path;
+import java.util.Objects;
 
 import ru.avicomp.io.ScrollableInputStream;
 
@@ -10,6 +11,7 @@ import ru.avicomp.io.ScrollableInputStream;
  * The simple version of {@link org.apache.hadoop.fs.RawLocalFileSystem.LocalFSFileInputStream}
  * Created by @szuev on 30.10.2017.
  */
+@SuppressWarnings("WeakerAccess")
 public class LocalInputStream extends ScrollableInputStream {
 
     private final RandomAccessFile rfa;
@@ -60,9 +62,10 @@ public class LocalInputStream extends ScrollableInputStream {
         return rfa.read();
     }
 
+    @SuppressWarnings("NullableProblems")
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
-        return rfa.read(b, off, len);
+        return rfa.read(Objects.requireNonNull(b, "Null buff"), off, len);
     }
 
     @Override

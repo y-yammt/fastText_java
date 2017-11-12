@@ -4,14 +4,8 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -511,46 +505,75 @@ public strictfp class FastText {
         }
     }
 
-    public void test(InputStream in, int k) throws IOException, Exception {
+    /**
+     * Tests.
+     * <pre>{@code void FastText::test(std::istream& in, int32_t k) {
+     *  int32_t nexamples = 0, nlabels = 0;
+     *  double precision = 0.0;
+     *  std::vector<int32_t> line, labels;
+     *  while (in.peek() != EOF) {
+     *      dict_->getLine(in, line, labels, model_->rng);
+     *      if (labels.size() > 0 && line.size() > 0) {
+     *          std::vector<std::pair<real, int32_t>> modelPredictions;
+     *          model_->predict(line, k, modelPredictions);
+     *          for (auto it = modelPredictions.cbegin(); it != modelPredictions.cend(); it++) {
+     *              if (std::find(labels.begin(), labels.end(), it->second) != labels.end()) {
+     *                  precision += 1.0;
+     *              }
+     *          }
+     *          nexamples++;
+     *          nlabels += labels.size();
+     *      }
+     *  }
+     *  std::cout << "N" << "\t" << nexamples << std::endl;
+     *  std::cout << std::setprecision(3);
+     *  std::cout << "P@" << k << "\t" << precision / (k * nexamples) << std::endl;
+     *  std::cout << "R@" << k << "\t" << precision / nlabels << std::endl;
+     *  std::cerr << "Number of examples: " << nexamples << std::endl;
+     * }
+     * }</pre>
+     *
+     * @param in  {@link InputStream} to read data
+     * @param out {@link PrintStream} to write data
+     * @param k   the number of result labels
+     * @throws IOException if something wrong while reading/writing
+     */
+    public void test(InputStream in, PrintStream out, int k) throws IOException {
+        Objects.requireNonNull(in, "Null input");
+        Objects.requireNonNull(out, "Null output");
+        if (k <= 0) throw new IllegalArgumentException("Negative factor");
+        Objects.requireNonNull(model_, "No model: please load or train it before");
+
         int nexamples = 0, nlabels = 0;
-        double precision = 0.0f;
-        List<Integer> line = new ArrayList<Integer>();
-        List<Integer> labels = new ArrayList<Integer>();
-
-        LineReader lineReader = null;
-        try {
-            lineReader = lineReaderClass_.getConstructor(InputStream.class, String.class).newInstance(in, args_.charset.name());
-            String[] lineTokens;
-            while ((lineTokens = lineReader.readLineTokens()) != null) {
-                if (lineTokens.length == 1 && "quit".equals(lineTokens[0])) {
-                    break;
-                }
-                dict_.getLine(lineTokens, line, labels, model_.rng);
-                dict_.addNgrams(line, args_.wordNgrams);
-                if (labels.size() > 0 && line.size() > 0) {
-                    List<Pair<Float, Integer>> modelPredictions = new ArrayList<Pair<Float, Integer>>();
-                    model_.predict(line, k, modelPredictions);
-                    for (Pair<Float, Integer> pair : modelPredictions) {
-                        if (labels.contains(pair.second())) {
-                            precision += 1.0f;
-                        }
-                    }
-                    nexamples++;
-                    nlabels += labels.size();
-                    // } else {
-                    // out.println("FAIL Test line: " + lineTokens +
-                    // "labels: " + labels + " line: " + line);
-                }
+        double precision = 0.0;
+        List<Integer> line = new ArrayList<>();
+        List<Integer> labels = new ArrayList<>();
+        FTReader reader = new FTReader(in, args_.getCharset());
+        while (!reader.end()) {
+            dict_.getLine(reader, line, labels);
+            if (labels.isEmpty() || line.isEmpty()) {
+                continue;
             }
-        } finally {
-            if (lineReader != null) {
-                lineReader.close();
-            }
+            TreeMultimap<Float, Integer> modelPredictions = model_.predict(line, k);
+            precision += modelPredictions.values().stream().filter(labels::contains).count();
+            nexamples++;
+            nlabels += labels.size();
         }
+        out.printf("N\t%d%n", nexamples);
+        out.printf(Locale.US, "P@%d: %.3f%n", k, precision / (k * nexamples));
+        out.printf(Locale.US, "R@%d: %.3f%n", k, precision / nlabels);
+        out.printf(Locale.US, "Number of examples: %d%n", nexamples);
+    }
 
-        out.printf("P@%d: %.3f%n", k, precision / (k * nexamples));
-        out.printf("R@%d: %.3f%n", k, precision / nlabels);
-        out.println("Number of examples: " + nexamples);
+    /**
+     * Tests and prints to standard output
+     *
+     * @param in {@link InputStream} to read data
+     * @param k  int, positive
+     * @throws IOException if wrong i/o
+     */
+    public void test(InputStream in, int k) throws IOException {
+        test(in, this.out, k);
     }
 
     /**
@@ -584,7 +607,7 @@ public strictfp class FastText {
         }
         Vector hidden = new Vector(args_.dim);
         Vector output = new Vector(dict_.nlabels());
-        TreeMultimap<Float, Integer> map = model_._predict(words, k, hidden, output);
+        TreeMultimap<Float, Integer> map = model_.predict(words, k, hidden, output);
         @SuppressWarnings("ConstantConditions")
         Multimap<String, Float> res = TreeMultimap.create(this::compareLabels, map.keySet().comparator());
         map.forEach((f, i) -> res.put(dict_.getLabel(i), f));
@@ -641,6 +664,7 @@ public strictfp class FastText {
         Objects.requireNonNull(in, "Null input");
         Objects.requireNonNull(out, "Null output");
         if (k <= 0) throw new IllegalArgumentException("Negative factor");
+        Objects.requireNonNull(model_, "No model: please load or train it before");
         FTReader reader = new FTReader(in, args_.getCharset());
         while (!reader.end()) {
             Multimap<String, Float> predictions = predict(reader, k);
@@ -811,6 +835,35 @@ public strictfp class FastText {
 
     /**
      * Trains.
+     * <pre>{@code void FastText::train(std::shared_ptr<Args> args) {
+     *  args_ = args;
+     *  dict_ = std::make_shared<Dictionary>(args_);
+     *  if (args_->input == "-") {
+     *      std::cerr << "Cannot use stdin for training!" << std::endl;
+     *      exit(EXIT_FAILURE);
+     *  }
+     *  std::ifstream ifs(args_->input);
+     *  if (!ifs.is_open()) {
+     *      std::cerr << "Input file cannot be opened!" << std::endl;
+     *      exit(EXIT_FAILURE);
+     *  }
+     *  dict_->readFromFile(ifs);
+     *  ifs.close();
+     *  if (args_->pretrainedVectors.size() != 0) {
+     *      loadVectors(args_->pretrainedVectors);
+     *  } else {
+     *      input_ = std::make_shared<Matrix>(dict_->nwords()+args_->bucket, args_->dim);
+     *      input_->uniform(1.0 / args_->dim);
+     *  }
+     *  if (args_->model == model_name::sup) {
+     *      output_ = std::make_shared<Matrix>(dict_->nlabels(), args_->dim);
+     *  } else {
+     *      output_ = std::make_shared<Matrix>(dict_->nwords(), args_->dim);
+     *  }
+     *  output_->zero();
+     *  startThreads();
+     *  model_ = std::make_shared<Model>(input_, output_, args_, 0);
+     * }}</pre>
      *
      * @throws IOException
      * @throws ExecutionException
@@ -842,48 +895,74 @@ public strictfp class FastText {
         } else {
             output_ = new Matrix(dict_.nwords(), args_.dim);
         }
-
-        start_ = System.currentTimeMillis();
-        tokenCount_ = new AtomicLong(0);
-        if (args_.thread > 1) {
-            ExecutorService service = //Executors.newFixedThreadPool(args_.thread);
-                    Executors.newFixedThreadPool(args_.thread,
-                            r -> {
-                                Thread t = Executors.defaultThreadFactory().newThread(r);
-                                t.setDaemon(true);
-                                return t;
-                            });
-            Set<Future<Integer>> res = IntStream.range(0, args_.thread)
-                    .mapToObj(id -> service.submit(() -> {
-                        Thread.currentThread().setName("FT-TrainThread-" + id);
-                        trainThread(id);
-                        return id;
-                    })).collect(Collectors.toSet());
-            service.shutdown();
-            for (Future<Integer> f : res) {
-                try {
-                    f.get();
-                } catch (InterruptedException e) {
-                    System.err.println("Interrupted");
-                } catch (ExecutionException e) {
-                    res.forEach(_f -> _f.cancel(true));
-                    throw e;
-                }
-            }
-        } else {
-            trainThread(0);
-        }
+        startThreads();
         model_ = new Model(input_, output_, args_, 0);
+    }
 
-        if (args_.verbose > 1) {
-            long trainTime = (System.currentTimeMillis() - start_) / 1000;
-            out.printf("\nTrain time used: %d sec\n", trainTime);
-        }
-
+    public void trainAndSave() throws IOException, ExecutionException {
+        train();
         saveModel();
         saveVectors();
         if (args_.saveOutput > 0) {
             saveOutput();
+        }
+    }
+
+    /**
+     * <pre>{@code void FastText::startThreads() {
+     *  start = clock();
+     *  tokenCount = 0;
+     *  if (args_->thread > 1) {
+     *      std::vector<std::thread> threads;
+     *      for (int32_t i = 0; i < args_->thread; i++) {
+     *          threads.push_back(std::thread([=]() { trainThread(i); }));
+     *      }
+     *      for (auto it = threads.begin(); it != threads.end(); ++it) {
+     *          it->join();
+     *      }
+     *  } else {
+     *      trainThread(0);
+     *  }
+     * }}</pre>
+     *
+     * @throws ExecutionException
+     * @throws IOException
+     */
+    private void startThreads() throws ExecutionException, IOException {
+        start_ = System.currentTimeMillis();
+        tokenCount_ = new AtomicLong(0);
+        if (args_.thread > 1) {
+            ExecutorService service = Executors.newFixedThreadPool(args_.thread, r -> {
+                Thread t = Executors.defaultThreadFactory().newThread(r);
+                t.setDaemon(true);
+                return t;
+            });
+            CompletionService<Void> completionService = new ExecutorCompletionService<>(service);
+            Set<Future<Void>> res = IntStream.range(0, args_.thread)
+                    .mapToObj(id -> completionService.submit(() -> {
+                        Thread.currentThread().setName("FT-TrainThread-" + id);
+                        trainThread(id);
+                        return null;
+                    }))
+                    .collect(Collectors.toSet());
+            service.shutdown();
+            int num = args_.thread;
+            try {
+                while (num-- > 0) {
+                    completionService.take().get();
+                }
+            } catch (InterruptedException e) {
+                out.println("Interrupted!");
+                Thread.currentThread().interrupt();
+            } finally {
+                service.shutdownNow();
+            }
+        } else {
+            trainThread(0);
+        }
+        if (args_.verbose > 1) {
+            long trainTime = (System.currentTimeMillis() - start_) / 1000;
+            out.printf("\nTrain time used: %d sec\n", trainTime);
         }
     }
 
@@ -981,32 +1060,16 @@ public strictfp class FastText {
         return dict_;
     }
 
-    public void setDict(Dictionary dict) {
-        this.dict_ = dict;
-    }
-
     public Matrix getInput() {
         return input_;
-    }
-
-    public void setInput(Matrix input) {
-        this.input_ = input;
     }
 
     public Matrix getOutput() {
         return output_;
     }
 
-    public void setOutput(Matrix output) {
-        this.output_ = output;
-    }
-
     public Model getModel() {
         return model_;
-    }
-
-    public void setModel(Model model) {
-        this.model_ = model;
     }
 
 }

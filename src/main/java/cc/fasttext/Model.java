@@ -19,8 +19,9 @@ public strictfp class Model {
     static final int MAX_SIGMOID = 8;
     static final int LOG_TABLE_SIZE = 512;
     static final int NEGATIVE_TABLE_SIZE = 10_000_000;
-    public static final Comparator<Pair<Float, Integer>> COMPARE_PAIRS = (l, r) -> r.first().compareTo(l.first());
-    public static final Comparator<Float> HEAP_COMPARATOR = Comparator.reverseOrder();
+
+    private static final Comparator<Float> HEAP_PROBABILITY_COMPARATOR = Comparator.reverseOrder();
+    private static final Comparator<Integer> HEAP_LABEL_COMPARATOR = Integer::compareTo;
     // todo: new
     public boolean quant_;
     public QMatrix qwi_;
@@ -263,40 +264,6 @@ public strictfp class Model {
     /**
      * <pre>{@code
      * void Model::predict(const std::vector<int32_t>& input, int32_t k, std::vector<std::pair<real, int32_t>>& heap, Vector& hidden, Vector& output) const {
-     *  assert(k > 0);
-     *  heap.reserve(k + 1);
-     *  computeHidden(input, hidden);
-     *  if (args_->loss == loss_name::hs) {
-     *      dfs(k, 2 * osz_ - 2, 0.0, heap, hidden);
-     *  } else {
-     *      findKBest(k, heap, hidden, output);
-     *  }
-     *  std::sort_heap(heap.begin(), heap.end(), comparePairs);
-     * }}</pre>
-     *
-     * @param input
-     * @param k
-     * @param heap
-     * @param hidden
-     * @param output
-     */
-    public void predict(List<Integer> input, int k, List<Pair<Float, Integer>> heap, Vector hidden, Vector output) {
-        Utils.checkArgument(k > 0);
-        if (heap instanceof ArrayList) {
-            ((ArrayList) heap).ensureCapacity(k + 1);
-        }
-        computeHidden(input, hidden);
-        if (args_.loss == Args.LossName.HS) {
-            dfs(k, 2 * osz_ - 2, 0.0f, heap, hidden);
-        } else {
-            findKBest(k, heap, hidden, output);
-        }
-        heap.sort(COMPARE_PAIRS);
-    }
-
-    /**
-     * <pre>{@code
-     * void Model::predict(const std::vector<int32_t>& input, int32_t k, std::vector<std::pair<real, int32_t>>& heap, Vector& hidden, Vector& output) const {
      *  if (k <= 0) {
      *      throw std::invalid_argument("k needs to be 1 or higher!");
      *  }
@@ -319,20 +286,20 @@ public strictfp class Model {
      * @param output
      * @return
      */
-    public TreeMultimap<Float, Integer> _predict(List<Integer> input, int k, Vector hidden, Vector output) {
+    public TreeMultimap<Float, Integer> predict(List<Integer> input, int k, Vector hidden, Vector output) {
         if (k <= 0) {
             throw new IllegalArgumentException("k needs to be 1 or higher!");
         }
         if (!ModelName.SUP.equals(args_.model)) {
             throw new IllegalArgumentException("Model needs to be supervised for prediction!");
         }
-        TreeMultimap<Float, Integer> heap = TreeMultimap.create(Comparator.reverseOrder(), Integer::compareTo);
+        TreeMultimap<Float, Integer> heap = TreeMultimap.create(HEAP_PROBABILITY_COMPARATOR, HEAP_LABEL_COMPARATOR);
 
         computeHidden(input, hidden);
         if (args_.loss == Args.LossName.HS) {
-            _dfs(k, 2 * osz_ - 2, 0.0f, heap, hidden);
+            dfs(k, 2 * osz_ - 2, 0.0f, heap, hidden);
         } else {
-            _findKBest(k, heap, hidden, output);
+            findKBest(k, heap, hidden, output);
         }
         return heap;
     }
@@ -347,8 +314,8 @@ public strictfp class Model {
      * @param k
      * @return
      */
-    public TreeMultimap<Float, Integer> _predict(List<Integer> input, int k) {
-        return _predict(input, k, hidden_, output_);
+    public TreeMultimap<Float, Integer> predict(List<Integer> input, int k) {
+        return predict(input, k, hidden_, output_);
     }
 
     /**
@@ -373,7 +340,7 @@ public strictfp class Model {
      * @param hidden
      * @param output
      */
-    private void _findKBest(int k, TreeMultimap<Float, Integer> heap, Vector hidden, Vector output) {
+    private void findKBest(int k, TreeMultimap<Float, Integer> heap, Vector hidden, Vector output) {
         computeOutputSoftmax(hidden, output);
         for (int i = 0; i < osz_; i++) {
             float key = log(output.get(i));
@@ -434,112 +401,12 @@ public strictfp class Model {
      * @param heap
      * @param hidden
      */
-    private void _dfs(int k, int node, float score, TreeMultimap<Float, Integer> heap, Vector hidden) {
+    private void dfs(int k, int node, float score, TreeMultimap<Float, Integer> heap, Vector hidden) {
         if (heap.size() == k && score < heap.asMap().firstKey()) {
             return;
         }
         if (tree.get(node).left == -1 && tree.get(node).right == -1) {
             put(heap, k, score, node);
-            return;
-        }
-        float f;
-        if (quant_ && args_.qout) {
-            f = sigmoid(qwo_.dotRow(hidden, node - osz_));
-        } else {
-            f = sigmoid(wo_.dotRow(hidden, node - osz_));
-        }
-        _dfs(k, tree.get(node).left, score + log(1.0f - f), heap, hidden);
-        _dfs(k, tree.get(node).right, score + log(f), heap, hidden);
-    }
-
-    @Deprecated
-    public void predict(final List<Integer> input, int k, List<Pair<Float, Integer>> heap) {
-        predict(input, k, heap, hidden_, output_);
-    }
-
-    /**
-     * <pre>{@code
-     * void Model::findKBest(int32_t k, std::vector<std::pair<real, int32_t>>& heap, Vector& hidden, Vector& output) const {
-     *  computeOutputSoftmax(hidden, output);
-     *  for (int32_t i = 0; i < osz_; i++) {
-     *      if (heap.size() == k && log(output[i]) < heap.front().first) {
-     *          continue;
-     *      }
-     *      heap.push_back(std::make_pair(log(output[i]), i));
-     *      std::push_heap(heap.begin(), heap.end(), comparePairs);
-     *      if (heap.size() > k) {
-     *          std::pop_heap(heap.begin(), heap.end(), comparePairs);
-     *          heap.pop_back();
-     *      }
-     *  }
-     * }}</pre>
-     *
-     * @param k
-     * @param heap
-     * @param hidden
-     * @param output
-     */
-    @Deprecated
-    public void findKBest(int k, List<Pair<Float, Integer>> heap, Vector hidden, Vector output) {
-        computeOutputSoftmax(hidden, output);
-        for (int i = 0; i < osz_; i++) {
-            if (heap.size() == k && log(output.get(i)) < heap.get(heap.size() - 1).first()) {
-                continue;
-            }
-            heap.add(new Pair<>(log(output.get(i)), i));
-
-            // TODO: is it correct ? does it make sense?
-            heap.sort(COMPARE_PAIRS);
-            if (heap.size() > k) {
-                heap.sort(COMPARE_PAIRS);
-                heap.remove(heap.size() - 1); // pop last
-            }
-        }
-    }
-
-    /**
-     * <pre>{@code
-     * void Model::dfs(int32_t k, int32_t node, real score, std::vector<std::pair<real, int32_t>>& heap, Vector& hidden) const {
-     *  if (heap.size() == k && score < heap.front().first) {
-     *      return;
-     *  }
-     *  if (tree[node].left == -1 && tree[node].right == -1) {
-     *      heap.push_back(std::make_pair(score, node));
-     *      std::push_heap(heap.begin(), heap.end(), comparePairs);
-     *      if (heap.size() > k) {
-     *          std::pop_heap(heap.begin(), heap.end(), comparePairs);
-     *          heap.pop_back();
-     *      }
-     *      return;
-     *  }
-     *  real f;
-     *  if (quant_ && args_->qout) {
-     *      f = sigmoid(qwo_->dotRow(hidden, node - osz_));
-     *  } else {
-     *      f = sigmoid(wo_->dotRow(hidden, node - osz_));
-     *  }
-     *  dfs(k, tree[node].left, score + log(1.0 - f), heap, hidden);
-     *  dfs(k, tree[node].right, score + log(f), heap, hidden);
-     * }}</pre>
-     *
-     * @param k
-     * @param node
-     * @param score
-     * @param heap
-     * @param hidden
-     */
-    @Deprecated
-    public void dfs(int k, int node, float score, List<Pair<Float, Integer>> heap, Vector hidden) {
-        if (heap.size() == k && score < heap.get(heap.size() - 1).first()) {
-            return;
-        }
-        if (tree.get(node).left == -1 && tree.get(node).right == -1) {
-            heap.add(new Pair<>(score, node));
-            heap.sort(COMPARE_PAIRS);
-            if (heap.size() > k) {
-                heap.sort(COMPARE_PAIRS);
-                heap.remove(heap.size() - 1); // pop last
-            }
             return;
         }
         float f;

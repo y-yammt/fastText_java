@@ -105,7 +105,7 @@ public class ClassificationExampleTest {
         Path bin = TestsBase.DESTINATION_DIR.resolve(DBPEDIA_MODEL + ".bin");
         Args args = Main.parseArgs(TestsBase.cmd("supervised -input %s -output %s -dim 10 -lr 0.1 " +
                 "-wordNgrams 2 -minCount 1 -bucket 10000000 -epoch 5 -thread 4", train, model));
-        new FastText(args).train();
+        new FastText(args).trainAndSave();
         Assert.assertEquals("Incorrect size of dbpedia model", DBPEDIA_MODEL_BIN_SIZE, Files.size(bin));
     }
 
@@ -115,6 +115,41 @@ public class ClassificationExampleTest {
             test01TrainModel();
         }
         return bin;
+    }
+
+    @Test
+    public void test02Test() throws Exception {
+        // output:
+        // N	70000
+        // P@2: 0,495
+        // R@2: 0,990
+        // Number of examples: 70000
+        int expectedN = 70_000;
+        double expectedR = 1;
+        double expectedP = 0.5;
+        double delta = 0.05;
+        int k = 2;
+        LOGGER.info("Test <test>");
+        Path model = getModelBinPath();
+        LOGGER.debug("Test file {}, Model.bin {}", test, model);
+        FastText f = new FastText(Main.createArgs());
+        f.loadModel(model.toString());
+
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        try (InputStream in = Files.newInputStream(test);
+             PrintStream out = new PrintStream(output, true, StandardCharsets.UTF_8.name())) {
+            f.test(in, out, k);
+        }
+        String res = new String(output.toByteArray(), StandardCharsets.UTF_8);
+        LOGGER.debug("Output: {}", res);
+        String[] lines = res.split("\n");
+        Assert.assertEquals(4, lines.length);
+        int n = Integer.parseInt(lines[0].replaceAll("[^\\d]", ""));
+        double p = Double.parseDouble(lines[1].split("\\s+")[1]);
+        double r = Double.parseDouble(lines[2].split("\\s+")[1]);
+        Assert.assertEquals("Wrong number of examples", expectedN, n);
+        Assert.assertEquals("Wrong P@" + k, expectedP, p, delta);
+        Assert.assertEquals("Wrong R@" + k, expectedR, r, delta);
     }
 
     @Test
@@ -146,6 +181,7 @@ public class ClassificationExampleTest {
 
     @Test
     public void test03PredictProbStdIn() throws Exception {
+        LOGGER.info("Test predict with probabilities");
         Path model = getModelBinPath();
         List<String> testData = Arrays.asList("predict", "test");
         List<Map<String, List<Float>>> res7 = predictProb(model, testData, 7);

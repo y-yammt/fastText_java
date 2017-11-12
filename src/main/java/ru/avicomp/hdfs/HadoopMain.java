@@ -63,7 +63,7 @@ public class HadoopMain {
 
         Args args = Main.parseArgs(list.toArray(new String[list.size()])).setIOStreams(fs);
         FastText fasttext = new FastText(args);
-        fasttext.train();
+        fasttext.trainAndSave();
         Instant t1 = Instant.now();
         Duration duration = Duration.between(t0, t1);
         float seconds = duration.get(ChronoUnit.SECONDS) + duration.get(ChronoUnit.NANOS) / 1_000_000_000f;

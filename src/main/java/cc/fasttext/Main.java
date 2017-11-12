@@ -1,7 +1,5 @@
 package cc.fasttext;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -11,7 +9,7 @@ import java.io.InputStream;
  */
 public class Main {
 
-    public static void printUsage() {
+    private static void printUsage() {
         System.out.print("usage: java -jar fasttext.jar <command> <args>\n\n"
                 + "The commands supported by fasttext are:\n\n"
                 + "  supervised          train a supervised classifier\n"
@@ -23,21 +21,21 @@ public class Main {
                 + "  print-vectors       print vectors given a trained model\n");
     }
 
-    public static void printTestUsage() {
+    private static void printTestUsage() {
         System.out.print("usage: java -jar fasttext.jar test <model> <test-data> [<k>]\n\n"
                 + "  <model>      model filename\n"
                 + "  <test-data>  test data filename (if -, read from stdin)\n"
                 + "  <k>          (optional; 1 by default) predict top k labels\n");
     }
 
-    public static void printPredictUsage() {
+    private static void printPredictUsage() {
         System.out.print("usage: java -jar fasttext.jar predict[-prob] <model> <test-data> [<k>]\n\n"
                 + "  <model>      model filename\n"
                 + "  <test-data>  test data filename (if -, read from stdin)\n"
                 + "  <k>          (optional; 1 by default) predict top k labels\n");
     }
 
-    public static void printPrintVectorsUsage() {
+    private static void printPrintVectorsUsage() {
         System.out.print("usage: java -jar fasttext.jar print-vectors <model>\n\n"
                 + " <model> model filename\n");
     }
@@ -63,27 +61,59 @@ public class Main {
         return res;
     }
 
-    public static void test(String[] args) throws IOException, Exception {
+    /**
+     * <pre>{@code void test(const std::vector<std::string>& args) {
+     *  if (args.size() < 4 || args.size() > 5) {
+     *      printTestUsage();
+     *      exit(EXIT_FAILURE);
+     *  }
+     *  int32_t k = 1;
+     *  if (args.size() >= 5) {
+     *      k = std::stoi(args[4]);
+     *  }
+     *  FastText fasttext;
+     *  fasttext.loadModel(args[2]);
+     *  std::string infile = args[3];
+     *  if (infile == "-") {
+     *      fasttext.test(std::cin, k);
+     *  } else {
+     *      std::ifstream ifs(infile);
+     *  if (!ifs.is_open()) {
+     *      std::cerr << "Test file cannot be opened!" << std::endl;
+     *      exit(EXIT_FAILURE);
+     *  }
+     *  fasttext.test(ifs, k);
+     *  ifs.close();
+     *  }
+     *  exit(0);
+     * }}</pre>
+     *
+     * @param input array of args (example: "predict-prob out\dbpedia.bin out\dbpedia.test 7")
+     * @throws IOException in case something is wrong while operating with in/out
+     */
+    public static void test(String[] input) throws IOException {
         int k = 1;
-        if (args.length == 3) {
-            k = 1;
-        } else if (args.length == 4) {
-            k = Integer.parseInt(args[3]);
-        } else {
+        if (input.length == 4) {
+            k = Integer.parseInt(input[3]);
+        } else if (input.length != 3) {
             printTestUsage();
-            System.exit(1);
+            System.exit(1); // todo: should not be exit here
         }
-        FastText fasttext = new FastText(createArgs());
-        fasttext.loadModel(args[1]);
-        String infile = args[2];
+
+        Args args = createArgs();
+        FastText fasttext = new FastText(args);
+        fasttext.loadModel(input[1]);
+        fasttext.setPrintOut(System.out);
+        String infile = input[2];
         if ("-".equals(infile)) {
             fasttext.test(System.in, k);
-        } else {
-            File file = new File(infile);
-            if (!(file.exists() && file.isFile() && file.canRead())) {
-                throw new IOException("Test file cannot be opened!");
-            }
-            fasttext.test(new FileInputStream(file), k);
+            return;
+        }
+        if (!args.getIOStreams().canRead(infile)) {
+            throw new IOException("Input file cannot be opened!");
+        }
+        try (InputStream in = args.getIOStreams().openInput(infile)) {
+            fasttext.test(in, k);
         }
     }
 
@@ -124,7 +154,7 @@ public class Main {
             k = Integer.parseInt(input[3]);
         } else if (input.length != 3) {
             printPredictUsage();
-            System.exit(1);
+            System.exit(1); // todo: should not be exit here
         }
         boolean printProb = "predict-prob".equalsIgnoreCase(input[0]);
         Args args = createArgs();
@@ -155,7 +185,7 @@ public class Main {
     }
 
     public static void train(String[] args) throws Exception {
-        new FastText(parseArgs(args)).train();
+        new FastText(parseArgs(args)).trainAndSave();
     }
 
     public static void main(String... args) {
