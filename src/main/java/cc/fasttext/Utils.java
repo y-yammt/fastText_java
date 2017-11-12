@@ -35,33 +35,6 @@ public class Utils {
         return (str == null || str.isEmpty());
     }
 
-    public static int randomInt(Random rnd, int lower, int upper) {
-        checkArgument(lower <= upper & lower > 0);
-        if (lower == upper) {
-            return lower;
-        }
-        return rnd.nextInt(upper - lower) + lower;
-    }
-
-    /**
-     * The snippet
-     * <pre>{@code
-     * std::minstd_rand rng(seed));
-     * std::uniform_int_distribution<> uniform(start, end);
-     * }</pre>
-     * generates values from interval [start, end]!
-     *
-     * @param rnd
-     * @param start, inclusive
-     * @param end,   inclusive
-     * @return
-     */
-    public static int nextInt(Random rnd, int start, int end) {
-        checkArgument(start >= 0);
-        checkArgument(start <= end);
-        return rnd.nextInt(end - start + 1) + start;
-    }
-
     public static float randomFloat(Random rnd, float lower, float upper) {
         checkArgument(lower <= upper);
         if (lower == upper) {
@@ -108,10 +81,22 @@ public class Utils {
      *  return os;
      * }}</pre>
      *
-     * @param d
-     * @return
+     * @param f float
+     * @return String
      */
-    public static String formatNumber(float d) {
-        return String.format(Locale.US, "%.5g", d).replaceAll("0+($|e)", "$1");
+    public static String formatNumber(float f) {
+        return String.format(Locale.US, "%.5g", f).replaceAll("0+($|e)", "$1");
+    }
+
+    /**
+     * Example: 1.95313e-008, 0.394531, 0.00781252
+     *
+     * @param d double
+     * @return String
+     */
+    public static String formatNumber(double d) {
+        return String.format(Locale.US, "%.6g", d)
+                .replaceAll("0+($|e)", "$1")
+                .replaceAll("(.+e[+-]0)(\\d)$", "$10$2");
     }
 }

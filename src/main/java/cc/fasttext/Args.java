@@ -26,7 +26,7 @@ import ru.avicomp.io.impl.LocalIOStreams;
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/args.h'>args.h</a>
  */
 public strictfp class Args {
-
+    public static final String DEFAULT_LABEL = "__label__";
     public String input;
     public String output;
     public String test;
@@ -46,7 +46,7 @@ public strictfp class Args {
     public int thread = 1; // todo: = 12
     public double t = 1e-4;
     public int lrUpdateRate = 100;
-    public String label = "__label__";
+    public String label = DEFAULT_LABEL;
     public int verbose = 2;
     public String pretrainedVectors = "";
     // TODO:
@@ -233,6 +233,59 @@ public strictfp class Args {
         maxn = in.readInt();
         lrUpdateRate = in.readInt();
         t = in.readDouble();
+    }
+
+    public Args setModelName(ModelName name) {
+        if (Objects.requireNonNull(name, "Null model name").equals(ModelName.SUP)) {
+            this.loss = LossName.SOFTMAX;
+            this.minCount = 1;
+            this.minn = 0;
+            this.maxn = 0;
+            this.lr = 0.1;
+        }
+        this.model = name;
+        return this;
+    }
+
+    public Args setLossName(LossName name) {
+        Objects.requireNonNull(name, "Null loss name");
+        this.loss = name;
+        return this;
+    }
+
+    public Args setDim(int dim) {
+        this.dim = dim;
+        return this;
+    }
+
+    public Args setLR(double lr) {
+        this.lr = lr;
+        return this;
+    }
+
+    public Args setWordNgrams(int wordNgrams) {
+        this.wordNgrams = wordNgrams;
+        return this;
+    }
+
+    public Args setMinCount(int minCount) {
+        this.minCount = minCount;
+        return this;
+    }
+
+    public Args setBucket(int bucket) {
+        this.bucket = bucket;
+        return this;
+    }
+
+    public Args setEpoch(int epoch) {
+        this.epoch = epoch;
+        return this;
+    }
+
+    public Args setThread(int thread) {
+        this.thread = thread;
+        return this;
     }
 
     public void parseArgs(String[] args) {

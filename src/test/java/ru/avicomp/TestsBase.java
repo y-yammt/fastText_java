@@ -10,10 +10,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * Tests data and result dir.
+ *
  * Created by @szuev on 24.10.2017.
  */
 public class TestsBase {
     public static final Logger LOGGER = LoggerFactory.getLogger("TESTS");
+
     public static final Path DESTINATION_DIR = Paths.get("out");
 
     static {
@@ -37,7 +40,6 @@ public class TestsBase {
     public static String[] cmd(Data data) throws IOException, URISyntaxException {
         return cmd(data.cmd(), data.getInput(), data.getOutput());
     }
-
     public enum Data {
         CBOX_THREAD4_DIM128_WS5_EPOCH10_MINCOUNT5 {
             @Override
@@ -141,4 +143,6 @@ public class TestsBase {
             return Paths.get(getOutput().toString() + ".vec");
         }
     }
+
+
 }

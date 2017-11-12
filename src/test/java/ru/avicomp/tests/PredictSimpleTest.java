@@ -1,4 +1,4 @@
-package ru.avicomp;
+package ru.avicomp.tests;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
@@ -14,31 +14,32 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import cc.fasttext.Main;
+import ru.avicomp.TestsBase;
 
 /**
  * Created by @szuev on 31.10.2017.
  */
-public class PredictTest {
+public class PredictSimpleTest {
 
     private static TestsBase.Data data = TestsBase.Data.SUPERVISED_THREAD4_DIM10_LR01_NGRAMS2_BUCKET1E7_EPOCH5;
 
     @BeforeClass
     public static void createModel() throws Exception {
         if (Files.exists(data.getModelBin())) return;
-        new Main().train(TestsBase.cmd(data));
+        Main.train(TestsBase.cmd(data));
     }
 
     @Test
     public void test() throws Exception {
         String cmd = "predict %s %s";
-        Path in = Paths.get(PredictTest.class.getResource("/dbpedia.cut.test").toURI());
+        Path in = Paths.get(PredictSimpleTest.class.getResource("/dbpedia.cut.test").toURI());
 
         ByteArrayOutputStream array = new ByteArrayOutputStream();
         PrintStream newOut = new PrintStream(array);
         PrintStream out = System.out;
         try {
             System.setOut(newOut);
-            new Main().predict(TestsBase.cmd(cmd, data.getModelBin(), in));
+            Main.predict(TestsBase.cmd(cmd, data.getModelBin(), in));
         } finally {
             System.setOut(out);
         }

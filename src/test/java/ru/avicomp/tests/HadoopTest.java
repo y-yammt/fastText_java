@@ -1,4 +1,4 @@
-package ru.avicomp;
+package ru.avicomp.tests;
 
 import java.nio.file.Paths;
 import java.util.Collections;
@@ -11,6 +11,7 @@ import org.junit.Test;
 import cc.fasttext.Args;
 import cc.fasttext.FastText;
 import cc.fasttext.Main;
+import ru.avicomp.TestsBase;
 import ru.avicomp.hdfs.HadoopMain;
 import ru.avicomp.io.IOStreams;
 

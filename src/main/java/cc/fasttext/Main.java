@@ -3,9 +3,7 @@ package cc.fasttext;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.PrintStream;
-
-import ru.avicomp.io.FTReader;
+import java.io.InputStream;
 
 /**
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/main.cc'>main.cc</a>
@@ -60,12 +58,12 @@ public class Main {
      * @return {@link Args}
      */
     public static Args parseArgs(String... args) {
-        Args res = new Args();
+        Args res = createArgs();
         res.parseArgs(args);
         return res;
     }
 
-    public void test(String[] args) throws IOException, Exception {
+    public static void test(String[] args) throws IOException, Exception {
         int k = 1;
         if (args.length == 3) {
             k = 1;
@@ -117,10 +115,10 @@ public class Main {
      *  exit(0);
      * }}</pre>
      *
-     * @param input
-     * @throws Exception
+     * @param input array of args (example: "predict-prob out\dbpedia.bin - 7")
+     * @throws IOException in case something is wrong with in/out
      */
-    public void predict(String[] input) throws Exception {
+    public static void predict(String[] input) throws IOException {
         int k = 1;
         if (input.length == 4) {
             k = Integer.parseInt(input[3]);
@@ -132,22 +130,21 @@ public class Main {
         Args args = createArgs();
         FastText fasttext = new FastText(args);
         fasttext.loadModel(input[1]);
+        fasttext.setPrintOut(System.out);
         String infile = input[2];
-        PrintStream out = System.out;
-        if ("-".equals(infile)) {
+        if ("-".equals(infile)) { // read from pipe:
             fasttext.predict(System.in, k, printProb);
-        } else {
-            if (!args.getIOStreams().canRead(infile)) {
-                throw new IOException("Input file cannot be opened!");
-            }
-            //fasttext.predict(args.getIOStreams().openInput(infile), k, printProb);
-            try (FTReader in = new FTReader(args.getIOStreams().openInput(infile), args.getCharset())) {
-                fasttext._predict(in, out, k, printProb);
-            }
+            return;
+        }
+        if (!args.getIOStreams().canRead(infile)) {
+            throw new IOException("Input file cannot be opened!");
+        }
+        try (InputStream in = args.getIOStreams().openInput(infile)) {
+            fasttext.predict(in, k, printProb);
         }
     }
 
-    public void printVectors(String[] args) throws IOException {
+    public static void printVectors(String[] args) throws IOException {
         if (args.length != 2) {
             printPrintVectorsUsage();
             System.exit(1);
@@ -157,28 +154,26 @@ public class Main {
         fasttext.printVectors();
     }
 
-    public void train(String[] args) throws Exception {
+    public static void train(String[] args) throws Exception {
         new FastText(parseArgs(args)).train();
     }
 
     public static void main(String... args) {
         try {
-            new Main().run(args);
+            Main.run(args);
         } catch (Exception e) {
             e.printStackTrace();
             System.exit(1);
         }
     }
 
-    public void run(String... args) throws Exception {
+    public static void run(String... args) throws Exception {
         if (args.length == 0) {
             printUsage();
             return;
         }
-
         String command = args[0];
-        if ("skipgram".equalsIgnoreCase(command) || "cbow".equalsIgnoreCase(command)
-                || "supervised".equalsIgnoreCase(command)) {
+        if ("skipgram".equalsIgnoreCase(command) || "cbow".equalsIgnoreCase(command) || "supervised".equalsIgnoreCase(command)) {
             train(args);
         } else if ("test".equalsIgnoreCase(command)) {
             test(args);

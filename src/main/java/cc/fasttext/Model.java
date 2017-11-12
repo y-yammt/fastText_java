@@ -1,6 +1,9 @@
 package cc.fasttext;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 
 import org.apache.commons.math3.random.RandomAdaptor;
 import org.apache.commons.math3.random.RandomGenerator;
@@ -8,6 +11,7 @@ import org.apache.commons.math3.util.FastMath;
 
 import cc.fasttext.Args.LossName;
 import cc.fasttext.Args.ModelName;
+import com.google.common.collect.TreeMultimap;
 
 public strictfp class Model {
 
@@ -290,8 +294,40 @@ public strictfp class Model {
         heap.sort(COMPARE_PAIRS);
     }
 
-    public Map<Float, Integer> _predict(List<Integer> input, int k, Vector hidden, Vector output) {
-        NavigableMap<Float, Integer> heap = new TreeMap<>(HEAP_COMPARATOR);
+    /**
+     * <pre>{@code
+     * void Model::predict(const std::vector<int32_t>& input, int32_t k, std::vector<std::pair<real, int32_t>>& heap, Vector& hidden, Vector& output) const {
+     *  if (k <= 0) {
+     *      throw std::invalid_argument("k needs to be 1 or higher!");
+     *  }
+     *  if (args_->model != model_name::sup) {
+     *      throw std::invalid_argument("Model needs to be supervised for prediction!");
+     *  }
+     *  heap.reserve(k + 1);
+     *  computeHidden(input, hidden);
+     *  if (args_->loss == loss_name::hs) {
+     *      dfs(k, 2 * osz_ - 2, 0.0, heap, hidden);
+     *  } else {
+     *      findKBest(k, heap, hidden, output);
+     *  }
+     *  std::sort_heap(heap.begin(), heap.end(), comparePairs);
+     * }}</pre>
+     *
+     * @param input
+     * @param k
+     * @param hidden
+     * @param output
+     * @return
+     */
+    public TreeMultimap<Float, Integer> _predict(List<Integer> input, int k, Vector hidden, Vector output) {
+        if (k <= 0) {
+            throw new IllegalArgumentException("k needs to be 1 or higher!");
+        }
+        if (!ModelName.SUP.equals(args_.model)) {
+            throw new IllegalArgumentException("Model needs to be supervised for prediction!");
+        }
+        TreeMultimap<Float, Integer> heap = TreeMultimap.create(Comparator.reverseOrder(), Integer::compareTo);
+
         computeHidden(input, hidden);
         if (args_.loss == Args.LossName.HS) {
             _dfs(k, 2 * osz_ - 2, 0.0f, heap, hidden);
@@ -311,7 +347,7 @@ public strictfp class Model {
      * @param k
      * @return
      */
-    public Map<Float, Integer> _predict(final List<Integer> input, int k) {
+    public TreeMultimap<Float, Integer> _predict(List<Integer> input, int k) {
         return _predict(input, k, hidden_, output_);
     }
 
@@ -337,18 +373,33 @@ public strictfp class Model {
      * @param hidden
      * @param output
      */
-    private void _findKBest(int k, NavigableMap<Float, Integer> heap, Vector hidden, Vector output) {
+    private void _findKBest(int k, TreeMultimap<Float, Integer> heap, Vector hidden, Vector output) {
         computeOutputSoftmax(hidden, output);
         for (int i = 0; i < osz_; i++) {
             float key = log(output.get(i));
-            if (heap.size() == k && key < heap.firstKey()) {
+            if (heap.size() == k && key < heap.asMap().firstKey()) {
                 continue;
             }
-            heap.put(key, i);
-            if (heap.size() > k) {
-                float l = heap.lastKey();
-                heap.remove(l);
-            }
+            put(heap, k, key, i);
+        }
+    }
+
+    /**
+     * Puts key-value pair to sorted multimap with fixed size.
+     * The smallest element will be deleted if the size exceeds the limit.
+     *
+     * @param map     {@link TreeMultimap} the multimap
+     * @param maxSize int, max size
+     * @param key     the key
+     * @param value   the value
+     * @param <K>     type of key
+     * @param <V>     type of value
+     */
+    private <K, V> void put(TreeMultimap<K, V> map, int maxSize, K key, V value) {
+        map.put(key, value);
+        if (map.size() > maxSize) {
+            K last = map.asMap().lastKey();
+            map.get(last).pollLast();
         }
     }
 
@@ -383,15 +434,12 @@ public strictfp class Model {
      * @param heap
      * @param hidden
      */
-    private void _dfs(int k, int node, float score, NavigableMap<Float, Integer> heap, Vector hidden) {
-        if (heap.size() == k && score < heap.firstKey()) {
+    private void _dfs(int k, int node, float score, TreeMultimap<Float, Integer> heap, Vector hidden) {
+        if (heap.size() == k && score < heap.asMap().firstKey()) {
             return;
         }
         if (tree.get(node).left == -1 && tree.get(node).right == -1) {
-            heap.put(score, node);
-            if (heap.size() > k) {
-                heap.remove(heap.lastKey());
-            }
+            put(heap, k, score, node);
             return;
         }
         float f;
@@ -404,6 +452,7 @@ public strictfp class Model {
         _dfs(k, tree.get(node).right, score + log(f), heap, hidden);
     }
 
+    @Deprecated
     public void predict(final List<Integer> input, int k, List<Pair<Float, Integer>> heap) {
         predict(input, k, heap, hidden_, output_);
     }
@@ -430,6 +479,7 @@ public strictfp class Model {
      * @param hidden
      * @param output
      */
+    @Deprecated
     public void findKBest(int k, List<Pair<Float, Integer>> heap, Vector hidden, Vector output) {
         computeOutputSoftmax(hidden, output);
         for (int i = 0; i < osz_; i++) {
@@ -478,6 +528,7 @@ public strictfp class Model {
      * @param heap
      * @param hidden
      */
+    @Deprecated
     public void dfs(int k, int node, float score, List<Pair<Float, Integer>> heap, Vector hidden) {
         if (heap.size() == k && score < heap.get(heap.size() - 1).first()) {
             return;

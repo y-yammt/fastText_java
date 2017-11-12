@@ -2,6 +2,7 @@ package cc.fasttext;
 
 import java.util.Objects;
 
+@Deprecated
 public final class Pair<K, V> {
 
     private K key_;

@@ -1,4 +1,4 @@
-package ru.avicomp;
+package ru.avicomp.tests;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -16,6 +16,9 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import cc.fasttext.Main;
+import ru.avicomp.TestsBase;
+
+import static ru.avicomp.TestsBase.*;
 
 /**
  * Created by @szuev on 20.10.2017.
@@ -23,20 +26,20 @@ import cc.fasttext.Main;
 @RunWith(Parameterized.class)
 public class TrainModelTest {
 
-    private final TestsBase.Data data;
+    private final Data data;
 
-    public TrainModelTest(TestsBase.Data data) {
+    public TrainModelTest(Data data) {
         this.data = data;
     }
 
     @Parameterized.Parameters(name = "{0}")
     public static List<TestsBase.Data> getData() {
-        return Arrays.asList(TestsBase.Data.values());
+        return Arrays.asList(Data.values());
     }
 
     @Test
     public void test() throws Exception {
-        new Main().train(TestsBase.cmd(data));
+        Main.train(cmd(data));
 
         Path bin = data.getModelBin();
         Path vec = data.getModelVec();
@@ -51,10 +54,10 @@ public class TrainModelTest {
         int allowableDiffInPercents = 10;
         long actualVecSize = Files.size(vec);
         double actualDiffInPercents = 200.0 * (actualVecSize - data.vecSize()) / (actualVecSize + data.vecSize());
-        TestsBase.LOGGER.info(String.format("Actual vec diff: %.2f%% (size: %d)", actualDiffInPercents, actualVecSize));
+        LOGGER.info(String.format("Actual vec diff: %.2f%% (size: %d)", actualDiffInPercents, actualVecSize));
         Assert.assertTrue("Incorrect vec size: " + actualVecSize + ", diff: " + actualDiffInPercents, Math.abs(actualDiffInPercents) <= allowableDiffInPercents);
         List<Word> words = collect(vec);
-        TestsBase.LOGGER.info("{}", toSet(words));
+        LOGGER.info("{}", toSet(words));
         Assert.assertEquals("Wrong size", data.vecWords(), words.size());
         Assert.assertTrue("Wrong dim inside file", toMap(words).values().stream().allMatch(floats -> floats.size() == data.vecDim()));
         try (BufferedReader r = Files.newBufferedReader(vec)) {

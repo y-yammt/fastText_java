@@ -1,9 +1,13 @@
 package cc.fasttext;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -13,11 +17,12 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.apache.commons.math3.distribution.UniformIntegerDistribution;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import cc.fasttext.Args.ModelName;
 import cc.fasttext.Dictionary.EntryType;
+import com.google.common.collect.ImmutableListMultimap;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.TreeMultimap;
 import fasttext.io.BufferedLineReader;
 import fasttext.io.LineReader;
 import ru.avicomp.io.FTInputStream;
@@ -36,8 +41,6 @@ public strictfp class FastText {
     public static final int FASTTEXT_VERSION = 12;
     public static final int FASTTEXT_FILEFORMAT_MAGIC_INT32 = 793712314;
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(FastText.class);
-
     private final Args args_;
     private Dictionary dict_;
     private Matrix input_;
@@ -51,12 +54,23 @@ public strictfp class FastText {
     private boolean quant_;
     private int version;
 
+    private PrintStream out = System.out;
+
+    private Class<? extends LineReader> lineReaderClass_ = BufferedLineReader.class;
+    private long threadFileSize;
+
     public FastText(Args args) {
         this.args_ = args;
     }
 
-    private Class<? extends LineReader> lineReaderClass_ = BufferedLineReader.class;
-    private long threadFileSize;
+    /**
+     * Sets output to log.
+     *
+     * @param out {@link PrintStream} set output to log
+     */
+    public void setPrintOut(PrintStream out) {
+        this.out = Objects.requireNonNull(out, "Null out");
+    }
 
     /**
      * <pre>{@code
@@ -119,7 +133,7 @@ public strictfp class FastText {
     public void saveVectors() throws IOException {
         if (Utils.isEmpty(args_.output)) {
             if (args_.verbose > 1) {
-                System.out.println("output is empty, skip save vector file");
+                out.println("output is empty, skip save vector file");
             }
             return;
         }
@@ -130,7 +144,7 @@ public strictfp class FastText {
             throw new IOException("Can't write to " + file);
         }
         if (args_.verbose > 1) {
-            System.out.println("Saving Vectors to " + file.toAbsolutePath());
+            out.println("Saving Vectors to " + file.toAbsolutePath());
         }
         try (Writer writer = new BufferedWriter(new OutputStreamWriter(args_.getIOStreams().createOutput(file.toString()), args_.charset))) {
             writer.write(dict_.nwords() + " " + args_.dim + "\n");
@@ -235,7 +249,7 @@ public strictfp class FastText {
     public void saveModel() throws IOException {
         if (Utils.isEmpty(args_.output)) {
             if (args_.verbose > 1) {
-                System.out.println("output is empty, skip save model file");
+                out.println("output is empty, skip save model file");
             }
             return;
         }
@@ -247,7 +261,7 @@ public strictfp class FastText {
             throw new IOException("Can't write to " + file);
         }
         if (args_.verbose > 1) {
-            System.out.println("Saving model to " + file.toAbsolutePath());
+            out.println("Saving model to " + file.toAbsolutePath());
         }
 
         try (FTOutputStream out = new FTOutputStream(new BufferedOutputStream(args_.getIOStreams().createOutput(file.toString())))) {
@@ -399,7 +413,7 @@ public strictfp class FastText {
         int eta = (int) (t / progress * (1 - progress));
         int etah = eta / 3600;
         int etam = (eta - etah * 3600) / 60;
-        System.out.printf("\rProgress: %.1f%% words/sec: %d words/sec/thread: %d lr: %.6f loss: %.6f eta: %d h %d m",
+        out.printf("\rProgress: %.1f%% words/sec: %d words/sec/thread: %d lr: %.6f loss: %.6f eta: %d h %d m",
                 100 * progress, (int) ws, (int) wst, lr, loss, etah, etam);
     }
 
@@ -524,7 +538,7 @@ public strictfp class FastText {
                     nexamples++;
                     nlabels += labels.size();
                     // } else {
-                    // System.out.println("FAIL Test line: " + lineTokens +
+                    // out.println("FAIL Test line: " + lineTokens +
                     // "labels: " + labels + " line: " + line);
                 }
             }
@@ -534,105 +548,67 @@ public strictfp class FastText {
             }
         }
 
-        System.out.printf("P@%d: %.3f%n", k, precision / (k * nexamples));
-        System.out.printf("R@%d: %.3f%n", k, precision / nlabels);
-        System.out.println("Number of examples: " + nexamples);
+        out.printf("P@%d: %.3f%n", k, precision / (k * nexamples));
+        out.printf("R@%d: %.3f%n", k, precision / nlabels);
+        out.println("Number of examples: " + nexamples);
     }
 
     /**
-     * Thread-safe predict api
+     * <pre>{@code
+     * void FastText::predict(std::istream& in, int32_t k, std::vector<std::pair<real,std::string>>& predictions) const {
+     *  std::vector<int32_t> words, labels;
+     *  predictions.clear();
+     *  dict_->getLine(in, words, labels, model_->rng);
+     *  predictions.clear();
+     *  if (words.empty()) return;
+     *  Vector hidden(args_->dim);
+     *  Vector output(dict_->nlabels());
+     *  std::vector<std::pair<real,int32_t>> modelPredictions;
+     *  model_->predict(words, k, modelPredictions, hidden, output);
+     *  for (auto it = modelPredictions.cbegin(); it != modelPredictions.cend(); it++) {
+     *      predictions.push_back(std::make_pair(it->first, dict_->getLabel(it->second)));
+     *  }
+     * }}</pre>
      *
-     * @param lineTokens
-     * @param k
-     * @return
+     * @param in {@link FTReader}
+     * @param k  number of labels for each input line, the size of multimap.
+     * @return {@link Multimap}, labels as keys, probabilities (floats) as values
+     * @throws IOException if something wrong
      */
-    @Deprecated
-    public List<Pair<Float, String>> predict(String[] lineTokens, int k) {
-        List<Integer> words = new ArrayList<Integer>();
-        List<Integer> labels = new ArrayList<Integer>();
-        dict_.getLine(lineTokens, words, labels, model_.rng);
-        dict_.addNgrams(words, args_.wordNgrams);
-
+    private Multimap<String, Float> predict(FTReader in, int k) throws IOException {
+        List<Integer> words = new ArrayList<>();
+        List<Integer> labels = new ArrayList<>();
+        dict_.getLine(in, words, labels);
         if (words.isEmpty()) {
-            return null;
+            return ImmutableListMultimap.of();
         }
-
         Vector hidden = new Vector(args_.dim);
         Vector output = new Vector(dict_.nlabels());
-        List<Pair<Float, Integer>> modelPredictions = new ArrayList<Pair<Float, Integer>>(k + 1);
-
-        model_.predict(words, k, modelPredictions, hidden, output);
-
-        List<Pair<Float, String>> predictions = new ArrayList<Pair<Float, String>>(k);
-        for (Pair<Float, Integer> pair : modelPredictions) {
-            predictions.add(new Pair<Float, String>(pair.first(), dict_.getLabel(pair.second())));
-        }
-        return predictions;
-    }
-
-    @Deprecated
-    public void predict(String[] lineTokens, int k, List<Pair<Float, String>> predictions) throws IOException {
-        List<Integer> words = new ArrayList<Integer>();
-        List<Integer> labels = new ArrayList<Integer>();
-        dict_.getLine(lineTokens, words, labels, model_.rng);
-        dict_.addNgrams(words, args_.wordNgrams);
-
-        if (words.isEmpty()) {
-            return;
-        }
-        List<Pair<Float, Integer>> modelPredictions = new ArrayList<Pair<Float, Integer>>(k + 1);
-        model_.predict(words, k, modelPredictions);
-        predictions.clear();
-        for (Pair<Float, Integer> pair : modelPredictions) {
-            predictions.add(new Pair<Float, String>(pair.first(), dict_.getLabel(pair.second())));
-        }
+        TreeMultimap<Float, Integer> map = model_._predict(words, k, hidden, output);
+        @SuppressWarnings("ConstantConditions")
+        Multimap<String, Float> res = TreeMultimap.create(this::compareLabels, map.keySet().comparator());
+        map.forEach((f, i) -> res.put(dict_.getLabel(i), f));
+        return res;
     }
 
     /**
-     * TODO:
+     * Compares labels for output.
      *
-     * @param in
-     * @param k
-     * @param print_prob
-     * @throws IOException
-     * @throws Exception
+     * @param left  String, label
+     * @param right String, label
+     * @return int
      */
-    @Deprecated
-    public void predict(InputStream in, int k, boolean print_prob) throws IOException, Exception {
-        List<Pair<Float, String>> predictions = new ArrayList<Pair<Float, String>>(k);
-
-        LineReader lineReader = null;
-
-        try {
-            lineReader = lineReaderClass_.getConstructor(InputStream.class, String.class).newInstance(in, args_.charset.name());
-            String[] lineTokens;
-            while ((lineTokens = lineReader.readLineTokens()) != null) {
-                if (lineTokens.length == 1 && "quit".equals(lineTokens[0])) {
-                    break;
-                }
-                predictions.clear();
-                predict(lineTokens, k, predictions);
-                if (predictions.isEmpty()) {
-                    System.out.println("n/a");
-                    continue;
-                }
-                for (Pair<Float, String> pair : predictions) {
-                    System.out.print(pair.second());
-                    if (print_prob) {
-                        System.out.printf(" %f", Math.exp(pair.first()));
-                    }
-                }
-                System.out.println();
-            }
-        } finally {
-            if (lineReader != null) {
-                lineReader.close();
-            }
+    private int compareLabels(String left, String right) {
+        String dig1, dig2;
+        if ((dig1 = left.replace(args_.label, "")).matches("\\d+") && (dig2 = right.replace(args_.label, "")).matches("\\d+")) {
+            return Integer.compare(Integer.valueOf(dig1), Integer.valueOf(dig2));
         }
+        return left.compareTo(right);
     }
 
     /**
-     * TODO:
+     * Predicts most likely labels.
+     * Original code:
      * <pre>{@code void FastText::predict(std::istream& in, int32_t k, bool print_prob) {
      *  std::vector<std::pair<real,std::string>> predictions;
      *  while (in.peek() != EOF) {
@@ -655,64 +631,55 @@ public strictfp class FastText {
      *  }
      * }}</pre>
      *
-     * @param in
-     * @param out
-     * @param k
-     * @param printProb
-     * @throws IOException
+     * @param in        {@link InputStream} to read data
+     * @param out       {@link PrintStream} to write data
+     * @param k         the number of result labels
+     * @param printProb if true include also probabilities to output
+     * @throws IOException if something wrong.
      */
-    public void _predict(FTReader in, PrintStream out, int k, boolean printProb) throws IOException {
-        while (!in.end()) {
-            List<Pair<Float, String>> predictions = _predict(in, k);
+    public void predict(InputStream in, PrintStream out, int k, boolean printProb) throws IOException {
+        Objects.requireNonNull(in, "Null input");
+        Objects.requireNonNull(out, "Null output");
+        if (k <= 0) throw new IllegalArgumentException("Negative factor");
+        FTReader reader = new FTReader(in, args_.getCharset());
+        while (!reader.end()) {
+            Multimap<String, Float> predictions = predict(reader, k);
             if (predictions.isEmpty()) continue;
-            for (Pair<Float, String> pair : predictions) {
-                out.print(pair.second());
+            String line = predictions.entries().stream().map(pair -> {
+                String res = pair.getKey();
                 if (printProb) {
-                    out.printf(" %f", Math.exp(pair.first()));
+                    res += " " + Utils.formatNumber(Math.exp(pair.getValue()));
                 }
-            }
-            out.println();
+                return res;
+            }).collect(Collectors.joining(" "));
+            out.println(line);
         }
     }
 
     /**
-     * <pre>{@code
-     * void FastText::predict(std::istream& in, int32_t k, std::vector<std::pair<real,std::string>>& predictions) const {
-     *  std::vector<int32_t> words, labels;
-     *  predictions.clear();
-     *  dict_->getLine(in, words, labels, model_->rng);
-     *  predictions.clear();
-     *  if (words.empty()) return;
-     *  Vector hidden(args_->dim);
-     *  Vector output(dict_->nlabels());
-     *  std::vector<std::pair<real,int32_t>> modelPredictions;
-     *  model_->predict(words, k, modelPredictions, hidden, output);
-     *  for (auto it = modelPredictions.cbegin(); it != modelPredictions.cend(); it++) {
-     *      predictions.push_back(std::make_pair(it->first, dict_->getLabel(it->second)));
-     *  }
-     * }}</pre>
+     * Predicts and prints to standard output.
      *
-     * @param in
-     * @param k
-     * @return
-     * @throws IOException
+     * @param in        {@link InputStream} to read data
+     * @param k,        int the factor.
+     * @param printProb to print probs.
+     * @throws IOException if something is wrong.
      */
-    private List<Pair<Float, String>> _predict(FTReader in, int k) throws IOException {
-        List<Integer> words = new ArrayList<>();
-        List<Integer> labels = new ArrayList<>();
-        dict_.getLine(in, words, labels);
-        if (words.isEmpty()) {
-            return Collections.emptyList();
-        }
-        Vector hidden = new Vector(args_.dim);
-        Vector output = new Vector(dict_.nlabels());
-        List<Pair<Float, String>> res = new ArrayList<>(k);
-        Map<Float, Integer> map = model_._predict(words, k, hidden, output);
+    public void predict(InputStream in, int k, boolean printProb) throws IOException {
+        predict(in, out, k, printProb);
+    }
 
-        for (Float key : map.keySet()) {
-            res.add(new Pair<>(key, dict_.getLabel(map.get(key))));
-        }
-        return res;
+    /**
+     * Predicts the given line.
+     *
+     * @param line, String data to analyze
+     * @param k,    int, the factor.
+     * @return {@link Multimap}, labels as keys, probability as values
+     * @throws IOException if something wrong.
+     */
+    public Multimap<String, Float> predict(String line, int k) throws IOException {
+        InputStream in = new ByteArrayInputStream(line.getBytes(StandardCharsets.UTF_8.name()));
+        FTReader r = new FTReader(in, args_.getCharset());
+        return predict(r, k);
     }
 
     public void wordVectors() {
@@ -723,7 +690,7 @@ public strictfp class FastText {
             String word;
             while (!Utils.isEmpty((word = lineReader.readLine()))) {
                 Vector vec = getVector(word);
-                System.out.println(word + " " + vec);
+                out.println(word + " " + vec);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -759,7 +726,7 @@ public strictfp class FastText {
                 if (!line.isEmpty()) {
                     vec.mul(1.0f / line.size());
                 }
-                System.out.println(vec);
+                out.println(vec);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -858,7 +825,6 @@ public strictfp class FastText {
         if (!args_.getIOStreams().canRead(args_.input)) {
             throw new IOException("Input file cannot be opened! " + args_.input);
         }
-        LOGGER.warn("Read dictionary");
         dict_.readFromFile(args_);
         try (FTReader r = args_.createReader()) {
             threadFileSize = r.size();
@@ -877,7 +843,6 @@ public strictfp class FastText {
             output_ = new Matrix(dict_.nwords(), args_.dim);
         }
 
-        LOGGER.warn("Start train");
         start_ = System.currentTimeMillis();
         tokenCount_ = new AtomicLong(0);
         if (args_.thread > 1) {
@@ -912,18 +877,14 @@ public strictfp class FastText {
 
         if (args_.verbose > 1) {
             long trainTime = (System.currentTimeMillis() - start_) / 1000;
-            System.out.printf("\nTrain time used: %d sec\n", trainTime);
+            out.printf("\nTrain time used: %d sec\n", trainTime);
         }
 
-        LOGGER.warn("Rewinds: {}", dict_.debug_rewind_count.intValue());
-        LOGGER.warn("Save model");
         saveModel();
-        LOGGER.warn("Save vectors");
         saveVectors();
         if (args_.saveOutput > 0) {
             saveOutput();
         }
-        LOGGER.warn("Fin");
     }
 
     /**

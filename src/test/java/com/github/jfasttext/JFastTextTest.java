@@ -1,87 +1,128 @@
 package com.github.jfasttext;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import cc.fasttext.Args;
+import cc.fasttext.FastText;
 import cc.fasttext.Main;
+import com.google.common.collect.Multimap;
 import ru.avicomp.TestsBase;
 
 /**
- * modified <a href='https://github.com/vinhkhuc/JFastText/blob/master/src/test/java/com/github/jfasttext/JFastTextTest.java'>JFastTextTest</a>
+ * Modified <a href='https://github.com/vinhkhuc/JFastText/blob/master/src/test/java/com/github/jfasttext/JFastTextTest.java'>JFastTextTest</a>
  * Created by @szuev on 24.10.2017.
  */
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class JFastTextTest {
+    private static final Logger LOGGER = LoggerFactory.getLogger(JFastTextTest.class);
 
     @After
     public void after() {
-        System.out.println("Fin.");
+        LOGGER.info("Fin.");
     }
 
     @Test
     public void test01TrainSupervisedCmd() throws Exception {
-        System.out.printf("\nTraining supervised model ...\n");
+        LOGGER.info("Training supervised model ...");
         Path input = Paths.get(JFastTextTest.class.getResource("/labeled_data.txt").toURI());
         Path out = TestsBase.DESTINATION_DIR.resolve("supervised.model");
-        new Main().train(TestsBase.cmd("supervised -input %s -output %s", input, out));
+        Main.train(TestsBase.cmd("supervised -input %s -output %s", input, out));
     }
 
     @Test
     public void test02TrainSkipgramCmd() throws Exception {
-        System.out.printf("\nTraining skipgram word-embedding ...\n");
+        LOGGER.info("Training skipgram word-embedding ...");
         Path input = Paths.get(JFastTextTest.class.getResource("/unlabeled_data.txt").toURI());
         Path out = TestsBase.DESTINATION_DIR.resolve("skipgram.model");
-        new Main().train(TestsBase.cmd("skipgram -input %s -output %s -bucket 100 -minCount 1", input, out));
+        Main.train(TestsBase.cmd("skipgram -input %s -output %s -bucket 100 -minCount 1", input, out));
     }
 
     @Test
     public void test03TrainCbowCmd() throws Exception {
-        System.out.printf("\nTraining cbow word-embedding ...\n");
+        LOGGER.info("Training cbow word-embedding ...");
         Path input = Paths.get(JFastTextTest.class.getResource("/unlabeled_data.txt").toURI());
         Path out = TestsBase.DESTINATION_DIR.resolve("cbow.model");
-        new Main().train(TestsBase.cmd("cbow -input %s -output %s -bucket 100 -minCount 1", input, out));
+        Main.train(TestsBase.cmd("cbow -input %s -output %s -bucket 100 -minCount 1", input, out));
     }
 
-/*
     @Test
     public void test04Predict() throws Exception {
-        FastText jft = new FastText();
-        jft.loadModel(TestsBase.DESTINATION_DIR.resolve("supervised.model").toString());
-        String text = "I like soccer";
-        try (InputStream in = new ByteArrayInputStream(text.getBytes(StandardCharsets.UTF_8.name()))) {
-             String predictedLabel = jft.predict(in);
-             System.out.printf("\nText: '%s', label: '%s'\n", text, predictedLabel);
-             }
-    }
-*/
+        LOGGER.info("Test predict");
+        FastText jft = new FastText(Main.createArgs());
+        jft.loadModel(TestsBase.DESTINATION_DIR.resolve("supervised.model.bin").toString());
 
-    /*
+        String text = "I like soccer";
+
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        try (InputStream in = new ByteArrayInputStream(text.getBytes(StandardCharsets.UTF_8.name()));
+             PrintStream out = new PrintStream(output, true, StandardCharsets.UTF_8.name())) {
+            jft.predict(in, out, 1, false);
+        }
+        String label = output.toString(StandardCharsets.UTF_8.name()).trim();
+        LOGGER.info("Text: '{}', label: '{}'", text, label);
+        Assert.assertEquals("Wrong label", Args.DEFAULT_LABEL + "soccer", label);
+    }
+
     @Test
     public void test05PredictProba() throws Exception {
-        JFastText jft = new JFastText();
-        jft.loadModel("src/test/resources/models/supervised.model.bin");
+        LOGGER.info("Test predict-proba");
+        FastText jft = new FastText(Main.createArgs());
+        jft.loadModel(TestsBase.DESTINATION_DIR.resolve("supervised.model.bin").toString());
         String text = "What is the most popular sport in the US ?";
-        JFastText.ProbLabel predictedProbLabel = jft.predictProba(text);
-        System.out.printf("\nText: '%s', label: '%s', probability: %f\n",
-                text, predictedProbLabel.label, Math.exp(predictedProbLabel.logProb));
+        // '{__label__football=[-0.6931472]}'
+        Multimap<String, Float> predictedProbLabel = jft.predict(text, 1);
+        LOGGER.debug("Text: '{}', result: '{}'", text, predictedProbLabel);
+        Assert.assertEquals("Wrong result", 1, predictedProbLabel.size());
+        String label = predictedProbLabel.entries().stream().map(Map.Entry::getKey).findFirst().orElse(null);
+        double probability = predictedProbLabel.entries().stream()
+                .mapToDouble(Map.Entry::getValue)
+                .map(Math::exp)
+                .findFirst().orElse(-1);
+        LOGGER.info("Text: '{}', label: '{}', result: {}", text, label, probability);
+        Assert.assertEquals("Wrong label", Args.DEFAULT_LABEL + "football", label);
+        Assert.assertEquals("Wrong probability", 0.5, probability, 0.0001);
     }
 
     @Test
     public void test06MultiPredictProba() throws Exception {
-        JFastText jft = new JFastText();
-        jft.loadModel("src/test/resources/models/supervised.model.bin");
+        LOGGER.info("Test multi-predict-proba");
+        FastText jft = new FastText(Main.createArgs());
+        jft.loadModel(TestsBase.DESTINATION_DIR.resolve("supervised.model.bin").toString());
+
         String text = "Do you like soccer ?";
-        System.out.printf("Text: '%s'\n", text);
-        for (JFastText.ProbLabel predictedProbLabel: jft.predictProba(text, 2)) {
-            System.out.printf("\tlabel: '%s', probability: %f\n",
-                    predictedProbLabel.label, Math.exp(predictedProbLabel.logProb));
-        }
+        Multimap<String, Float> predictedProbLabel = jft.predict(text, 2);
+        LOGGER.debug("Text: '{}', result: '{}'", text, predictedProbLabel);
+        Assert.assertEquals("Wrong result", 2, predictedProbLabel.size());
+        Map<String, Double> res = predictedProbLabel.entries().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> Math.exp(e.getValue())));
+        LOGGER.debug("Map result: '{}'", res);
+        // __label__soccer 0.5 __label__football 0.498047
+        Map<String, Double> expected = new HashMap<>();
+        expected.put("soccer", 0.5);
+        expected.put("football", 0.498047);
+        expected.forEach((k, v) -> {
+            Assert.assertTrue("Can't find label '" + k + "'", res.containsKey(Args.DEFAULT_LABEL + k));
+            Assert.assertEquals("Wrong probability for label '" + k + "'", v, res.get(Args.DEFAULT_LABEL + k), 0.0001);
+        });
     }
+
+    /*
 
     @Test
     public void test07GetVector() throws Exception {
