@@ -1,5 +1,10 @@
 package cc.fasttext;
 
+import java.util.Objects;
+import java.util.StringJoiner;
+
+import org.apache.commons.math3.util.FastMath;
+
 public strictfp class Vector {
 
     public int m_;
@@ -17,6 +22,45 @@ public strictfp class Vector {
     public void zero() {
         data_ = new float[m_];
         //for (int i = 0; i < m_; i++) data_[i] = 0;
+    }
+
+    /**
+     * <pre>{@code real Vector::norm() const {
+     *  real sum = 0;
+     *  for (int64_t i = 0; i < m_; i++) {
+     *      sum += data_[i] * data_[i];
+     *  }
+     *  return std::sqrt(sum);
+     * }
+     * }</pre>
+     *
+     * @return float
+     */
+    public float norm() {
+        double sum = 0;
+        for (int i = 0; i < m_; i++) {
+            sum += data_[i] * data_[i];
+        }
+        return (float) FastMath.sqrt(sum);
+    }
+
+    /**
+     * <pre>{@code void Vector::addVector(const Vector& source) {
+     *  assert(m_ == source.m_);
+     *  for (int64_t i = 0; i < m_; i++) {
+     *      data_[i] += source.data_[i];
+     *  }
+     * }}</pre>
+     *
+     * @param source {@link Vector}
+     */
+    public void addVector(Vector source) {
+        if (m_ != Objects.requireNonNull(source, "Null source vector").m_) {
+            throw new IllegalArgumentException("Wrong size of vector: " + m_ + "!=" + source.m_);
+        }
+        for (int i = 0; i < m_; i++) {
+            data_[i] += source.data_[i];
+        }
     }
 
     /**
@@ -105,14 +149,11 @@ public strictfp class Vector {
      */
     @Override
     public String toString() {
-        StringBuilder builder = new StringBuilder();
+        StringJoiner res = new StringJoiner(" ");
         for (float data : data_) {
-            builder.append(data).append(' ');
+            res.add(Utils.formatNumber(data));
         }
-        if (builder.length() > 1) {
-            builder.setLength(builder.length() - 1);
-        }
-        return builder.toString();
+        return res.toString();
     }
 
 }

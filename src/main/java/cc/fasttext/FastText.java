@@ -1,7 +1,6 @@
 package cc.fasttext;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
@@ -17,8 +16,6 @@ import cc.fasttext.Dictionary.EntryType;
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.TreeMultimap;
-import fasttext.io.BufferedLineReader;
-import fasttext.io.LineReader;
 import ru.avicomp.io.FTInputStream;
 import ru.avicomp.io.FTOutputStream;
 import ru.avicomp.io.FTReader;
@@ -50,7 +47,6 @@ public strictfp class FastText {
 
     private PrintStream out = System.out;
 
-    private Class<? extends LineReader> lineReaderClass_ = BufferedLineReader.class;
     private long threadFileSize;
 
     public FastText(Args args) {
@@ -62,7 +58,7 @@ public strictfp class FastText {
      *
      * @param out {@link PrintStream} set output to log
      */
-    public void setPrintOut(PrintStream out) {
+    public void setPrintOut(PrintStream out) { // todo: to args or somewhere
         this.out = Objects.requireNonNull(out, "Null out");
     }
 
@@ -87,6 +83,7 @@ public strictfp class FastText {
      * @param word
      * @return
      */
+    @Deprecated
     public Vector getVector(String word) {
         Vector res = new Vector(args_.dim);
         List<Integer> ngrams = dict_.getSubwords(word);
@@ -104,6 +101,119 @@ public strictfp class FastText {
     }
 
     /**
+     * <pre>{@code void FastText::getWordVector(Vector& vec, const std::string& word) const {
+     *  const std::vector<int32_t>& ngrams = dict_->getSubwords(word);
+     *  vec.zero();
+     *  for (int i = 0; i < ngrams.size(); i++) {
+     *      addInputVector(vec, ngrams[i]);
+     *  }
+     *  if (ngrams.size() > 0) {
+     *      vec.mul(1.0 / ngrams.size());
+     *  }
+     * }}</pre>
+     *
+     * @param word
+     * @return
+     */
+    public Vector getWordVector(String word) {
+        Vector res = new Vector(args_.dim);
+        List<Integer> ngrams = dict_.getSubwords(word);
+        for (Integer i : ngrams) {
+            addInputVector(res, i);
+        }
+        if (ngrams.size() > 0) {
+            res.mul(1.0f / ngrams.size());
+        }
+        return res;
+    }
+
+    /**
+     * <pre>{@code void FastText::getSentenceVector(std::istream& in, fasttext::Vector& svec) {
+     *  svec.zero();
+     *  if (args_->model == model_name::sup) {
+     *      std::vector<int32_t> line, labels;
+     *      dict_->getLine(in, line, labels, model_->rng);
+     *      for (int32_t i = 0; i < line.size(); i++) {
+     *          addInputVector(svec, line[i]);
+     *      }
+     *      if (!line.empty()) {
+     *          svec.mul(1.0 / line.size());
+     *      }
+     *  } else {
+     *      Vector vec(args_->dim);
+     *      std::string sentence;
+     *      std::getline(in, sentence);
+     *      std::istringstream iss(sentence);
+     *      std::string word;
+     *      int32_t count = 0;
+     *      while (iss >> word) {
+     *          getWordVector(vec, word);
+     *          real norm = vec.norm();
+     *          if (norm > 0) {
+     *              vec.mul(1.0 / norm);
+     *              svec.addVector(vec);
+     *              count++;
+     *          }
+     *      }
+     *      if (count > 0) {
+     *          svec.mul(1.0 / count);
+     *      }
+     *  }
+     * }}</pre>
+     *
+     * @return
+     */
+    public Vector getSentenceVector(String line) throws IOException {
+        Vector res = new Vector(args_.dim);
+        if (ModelName.SUP.equals(args_.model)) {
+            FTReader in = new FTReader(new ByteArrayInputStream(line.getBytes(args_.getCharset())), args_.getCharset());
+            List<Integer> words = new ArrayList<>();
+            List<Integer> labels = new ArrayList<>();
+            dict_.getLine(in, words, labels);
+            if (words.isEmpty()) return res;
+            for (int w : words) {
+                addInputVector(res, w);
+            }
+            res.mul(1.0f / words.size());
+            return res;
+        }
+        int count = 0;
+        for (String word : line.split("\\s+")) {
+            Vector vec = getWordVector(word);
+            float norm = vec.norm();
+            if (norm > 0) {
+                vec.mul(1.0f / norm);
+                res.addVector(vec);
+                count++;
+            }
+        }
+        if (count > 0) {
+            res.mul(1.0f / count);
+        }
+        return res;
+    }
+
+    /**
+     * <pre>{@code void FastText::addInputVector(Vector& vec, int32_t ind) const {
+     *  if (quant_) {
+     *      vec.addRow(*qinput_, ind);
+     *  } else {
+     *      vec.addRow(*input_, ind);
+     *  }
+     * }}</pre>
+     *
+     * @param vec
+     * @param ind
+     */
+    private void addInputVector(Vector vec, int ind) {
+        if (quant_) {
+            vec.addRow(qinput_, ind);
+        } else {
+            vec.addRow(input_, ind);
+        }
+    }
+
+    /**
      * <pre>{@code
      * void FastText::saveVectors() {
      *  std::ofstream ofs(args_->output + ".vec");
@@ -115,17 +225,18 @@ public strictfp class FastText {
      *  Vector vec(args_->dim);
      *  for (int32_t i = 0; i < dict_->nwords(); i++) {
      *      std::string word = dict_->getWord(i);
-     *      getVector(vec, word);
+     *      getWordVector(vec, word);
      *      ofs << word << " " << vec << std::endl;
      *  }
      *  ofs.close();
      * }
+     *
      * }</pre>
      *
      * @throws IOException
      */
     public void saveVectors() throws IOException {
-        if (Utils.isEmpty(args_.output)) {
+        if (Utils.isEmpty(args_.output)) { // todo: do we need this validation
             if (args_.verbose > 1) {
                 out.println("output is empty, skip save vector file");
             }
@@ -144,12 +255,10 @@ public strictfp class FastText {
             writer.write(dict_.nwords() + " " + args_.dim + "\n");
             for (int i = 0; i < dict_.nwords(); i++) {
                 String word = dict_.getWord(i);
-                Vector vec = getVector(word);
+                Vector vec = getWordVector(word);
                 writer.write(word);
-                for (int j = 0; j < vec.m_; j++) {
-                    writer.write(" ");
-                    writer.write(Utils.formatNumber(vec.data_[j]));
-                }
+                writer.write(" ");
+                writer.write(vec.toString());
                 writer.write("\n");
             }
             writer.flush();
@@ -701,76 +810,9 @@ public strictfp class FastText {
      * @throws IOException if something wrong.
      */
     public Multimap<String, Float> predict(String line, int k) throws IOException {
-        InputStream in = new ByteArrayInputStream(line.getBytes(StandardCharsets.UTF_8.name()));
+        InputStream in = new ByteArrayInputStream(line.getBytes(args_.getCharset().name()));
         FTReader r = new FTReader(in, args_.getCharset());
         return predict(r, k);
-    }
-
-    public void wordVectors() {
-        LineReader lineReader = null;
-        try {
-            lineReader = lineReaderClass_.getConstructor(InputStream.class, String.class).newInstance(System.in,
-                    args_.charset.name());
-            String word;
-            while (!Utils.isEmpty((word = lineReader.readLine()))) {
-                Vector vec = getVector(word);
-                out.println(word + " " + vec);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            if (lineReader != null) {
-                try {
-                    lineReader.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-    }
-
-    public void textVectors() {
-        List<Integer> line = new ArrayList<Integer>();
-        List<Integer> labels = new ArrayList<Integer>();
-        Vector vec = new Vector(args_.dim);
-        LineReader lineReader = null;
-        try {
-            lineReader = lineReaderClass_.getConstructor(InputStream.class, String.class).newInstance(System.in, args_.charset.name());
-            String[] lineTokens;
-            while ((lineTokens = lineReader.readLineTokens()) != null) {
-                if (lineTokens.length == 1 && "quit".equals(lineTokens[0])) {
-                    break;
-                }
-                dict_.getLine(lineTokens, line, labels, model_.rng);
-                dict_.addNgrams(line, args_.wordNgrams);
-                vec.zero();
-                for (Integer it : line) {
-                    vec.addRow(input_, it);
-                }
-                if (!line.isEmpty()) {
-                    vec.mul(1.0f / line.size());
-                }
-                out.println(vec);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            if (lineReader != null) {
-                try {
-                    lineReader.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-    }
-
-    public void printVectors() {
-        if (args_.model == Args.ModelName.SUP) {
-            textVectors();
-        } else {
-            wordVectors();
-        }
     }
 
     private void loadVectors(String filename) throws IOException {
