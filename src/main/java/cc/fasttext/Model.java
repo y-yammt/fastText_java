@@ -21,7 +21,8 @@ public strictfp class Model {
     static final int NEGATIVE_TABLE_SIZE = 10_000_000;
 
     private static final Comparator<Float> HEAP_PROBABILITY_COMPARATOR = Comparator.reverseOrder();
-    private static final Comparator<Integer> HEAP_LABEL_COMPARATOR = Integer::compareTo;
+    // the following order does not important, it is just to match c++ and java versions:
+    private static final Comparator<Integer> HEAP_LABEL_COMPARATOR = Comparator.reverseOrder();//Integer::compareTo;
     // todo: new
     public boolean quant_;
     public QMatrix qwi_;
@@ -187,7 +188,7 @@ public strictfp class Model {
         }
         float max = output.get(0), z = 0.0f;
         for (int i = 0; i < osz_; i++) {
-            max = Math.max(output.get(i), max);
+            max = FastMath.max(output.get(i), max);
         }
         for (int i = 0; i < osz_; i++) {
             output.set(i, (float) FastMath.exp(output.get(i) - max));
@@ -516,10 +517,10 @@ public strictfp class Model {
         negatives = new ArrayList<>(counts.size());
         double z = 0.0;
         for (Long count : counts) {
-            z += Math.sqrt(count);
+            z += FastMath.sqrt(count);
         }
         for (int i = 0; i < counts.size(); i++) {
-            double c = Math.sqrt(counts.get(i));
+            double c = FastMath.sqrt(counts.get(i));
             for (int j = 0; j < c * NEGATIVE_TABLE_SIZE / z; j++) {
                 negatives.add(i);
             }
@@ -572,8 +573,8 @@ public strictfp class Model {
             tree.get(mini[1]).binary = true;
         }
         for (int i = 0; i < osz_; i++) {
-            List<Integer> path = new ArrayList<Integer>();
-            List<Boolean> code = new ArrayList<Boolean>();
+            List<Integer> path = new ArrayList<>();
+            List<Boolean> code = new ArrayList<>();
             int j = i;
             while (tree.get(j).parent != -1) {
                 path.add(tree.get(j).parent - osz_);
@@ -602,7 +603,7 @@ public strictfp class Model {
         t_sigmoid = new float[SIGMOID_TABLE_SIZE + 1];
         for (int i = 0; i < SIGMOID_TABLE_SIZE + 1; i++) {
             float x = i * 2f * MAX_SIGMOID / SIGMOID_TABLE_SIZE - MAX_SIGMOID;
-            t_sigmoid[i] = (float) (1 / (1 + Math.exp(-x)));
+            t_sigmoid[i] = (float) (1 / (1 + FastMath.exp(-x)));
         }
     }
 

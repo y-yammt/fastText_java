@@ -779,7 +779,7 @@ public strictfp class Dictionary {
             return getSubwords(i);
         }
         List<Integer> ngrams = new ArrayList<>();
-        computeSubwords(word, ngrams);
+        computeSubwords(BOW + word + EOW, ngrams);
         return ngrams;
     }
 

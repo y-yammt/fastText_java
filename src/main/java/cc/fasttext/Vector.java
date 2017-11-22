@@ -92,11 +92,11 @@ public strictfp class Vector {
      * @param A
      * @param i
      */
-    public void addRow(final Matrix A, int i) {
+    public void addRow(Matrix A, int i) {
         Utils.checkArgument(i >= 0);
         Utils.checkArgument(i < A.m_);
         Utils.checkArgument(m_ == A.n_);
-        for (int j = 0; j < A.n_; j++) { // layer size
+        for (int j = 0; j < A.n_; j++) {
             data_[j] += A.data_[i][j];
         }
     }

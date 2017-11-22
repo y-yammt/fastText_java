@@ -9,4 +9,4 @@ The main differences with the original port (proposed):
 * java8
 * correct java coding style and good OOP model
 
-# c++ version: f4bced042bb8ece6cfde472b6cbd845506e721c3 (02.11.2017 19:42)
+# c++ version (v12): a96b0d258b88596a38f8a464671c19797540fef1 (16.11.2017)

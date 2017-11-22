@@ -26,7 +26,7 @@ public class HadoopTest {
 
     @Test
     public void hadoopCboxThread4Dim128Ws5Epoch10MinCount5test() throws Exception {
-        String hadoopHome = Paths.get(TrainModelTest.class.getResource("/bin").toURI()).getParent().toString();
+        String hadoopHome = Paths.get(SimpleModelTest.class.getResource("/bin").toURI()).getParent().toString();
         Map<String, String> props = new HashMap<>();
         props.put("hadoop.home.dir", hadoopHome);
 

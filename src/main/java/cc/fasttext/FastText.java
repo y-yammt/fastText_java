@@ -63,44 +63,6 @@ public strictfp class FastText {
     }
 
     /**
-     * <pre>{@code
-     * void FastText::getVector(Vector& vec, const std::string& word) const {
-     *  const std::vector<int32_t>& ngrams = dict_->getSubwords(word);
-     *  vec.zero();
-     *  for (auto it = ngrams.begin(); it != ngrams.end(); ++it) {
-     *      if (quant_) {
-     *          vec.addRow(*qinput_, *it);
-     *      } else {
-     *          vec.addRow(*input_, *it);
-     *      }
-     *  }
-     *  if (ngrams.size() > 0) {
-     *      vec.mul(1.0 / ngrams.size());
-     *  }
-     * }
-     * }</pre>
-     *
-     * @param word
-     * @return
-     */
-    @Deprecated
-    public Vector getVector(String word) {
-        Vector res = new Vector(args_.dim);
-        List<Integer> ngrams = dict_.getSubwords(word);
-        for (Integer it : ngrams) {
-            if (quant_) {
-                res.addRow(qinput_, it);
-            } else {
-                res.addRow(input_, it);
-            }
-        }
-        if (ngrams.size() > 0) {
-            res.mul(1.0f / ngrams.size());
-        }
-        return res;
-    }
-
-    /**
      * <pre>{@code void FastText::getWordVector(Vector& vec, const std::string& word) const {
      *  const std::vector<int32_t>& ngrams = dict_->getSubwords(word);
      *  vec.zero();
@@ -161,15 +123,17 @@ public strictfp class FastText {
      *  }
      * }}</pre>
      *
-     * @return
+     * @return {@link Vector}
+     * @throws IOException something wrong while i/o
      */
     public Vector getSentenceVector(String line) throws IOException {
+        // add '\n' to the end of line to synchronize behaviour of c++ and java versions
+        line += "\n";
         Vector res = new Vector(args_.dim);
         if (ModelName.SUP.equals(args_.model)) {
             FTReader in = new FTReader(new ByteArrayInputStream(line.getBytes(args_.getCharset())), args_.getCharset());
             List<Integer> words = new ArrayList<>();
-            List<Integer> labels = new ArrayList<>();
-            dict_.getLine(in, words, labels);
+            dict_.getLine(in, words, new ArrayList<>());
             if (words.isEmpty()) return res;
             for (int w : words) {
                 addInputVector(res, w);
