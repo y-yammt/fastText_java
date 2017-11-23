@@ -216,6 +216,32 @@ public class Main {
         }
     }
 
+    /**
+     * <pre>{@code void printNgrams(const std::vector<std::string> args) {
+     *  if (args.size() != 4) {
+     *      printPrintNgramsUsage();
+     *      exit(EXIT_FAILURE);
+     *  }
+     *  FastText fasttext;
+     *  fasttext.loadModel(std::string(args[2]));
+     *  fasttext.ngramVectors(std::string(args[3]));
+     *  exit(0);
+     * }}</pre>
+     *
+     * @param input
+     * @throws IOException
+     * @throws IllegalArgumentException
+     */
+    public static void printNgrams(String[] input) throws IOException, IllegalArgumentException {
+        if (input.length != 3) {
+            throw Usage.PRINT_NGRAMS.toException();
+        }
+        Args args = createArgs();
+        FastText fasttext = new FastText(args);
+        fasttext.loadModel(input[1]);
+        fasttext.ngramVectors(System.out, input[2]);
+    }
+
 
     /**
      * <pre>{@code void train(const std::vector<std::string> args) {
@@ -263,11 +289,11 @@ public class Main {
             printWordVectors(args);
         } else if ("print-sentence-vectors".equalsIgnoreCase(command)) {
             printSentenceVectors(args);
-        } else if (command.equalsIgnoreCase("print-ngrams")) {// TODO:
+        } else if ("print-ngrams".equalsIgnoreCase(command)) {
+            printNgrams(args);
+        } else if ("nn".equalsIgnoreCase(command)) {// TODO: nn
             throw new UnsupportedOperationException("TODO");
-        } else if ("nn".equalsIgnoreCase(command)) {// TODO:
-            throw new UnsupportedOperationException("TODO");
-        } else if ("analogies".equalsIgnoreCase(command)) {// TODO:
+        } else if ("analogies".equalsIgnoreCase(command)) {// TODO: analogies
             throw new UnsupportedOperationException("TODO");
         } else if ("predict".equalsIgnoreCase(command) || "predict-prob".equalsIgnoreCase(command)) {
             predict(args);

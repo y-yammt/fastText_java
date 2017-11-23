@@ -1,9 +1,12 @@
 package cc.fasttext;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.StringJoiner;
 
 import org.apache.commons.math3.util.FastMath;
+
+import com.google.common.primitives.Floats;
 
 public strictfp class Vector {
 
@@ -139,6 +142,10 @@ public strictfp class Vector {
 
     public void set(int i, float value) {
         data_[i] = value;
+    }
+
+    public List<Float> getData() {
+        return Floats.asList(data_);
     }
 
     /**

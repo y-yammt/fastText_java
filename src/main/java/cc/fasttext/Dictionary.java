@@ -6,6 +6,7 @@ import java.math.BigInteger;
 import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
 
@@ -40,7 +41,7 @@ public strictfp class Dictionary {
     private long ntokens_;
     private long pruneidx_size_ = PRUNE_IDX_SIZE_DEFAULT;
     private Map<Integer, Integer> pruneidx_ = new HashMap<>();
-    private Args args;
+    private final Args args;
 
     public Dictionary(Args args) {
         this.args = args;
@@ -250,6 +251,38 @@ public strictfp class Dictionary {
      * @param ngrams
      */
     private void computeSubwords(String word, List<Integer> ngrams) {
+        computeSubwords(word, ngrams, null, this::pushHash);
+    }
+
+    /**
+     * <pre>{@code
+     * void Dictionary::computeSubwords(const std::string& word, std::vector<int32_t>& ngrams, std::vector<std::string>& substrings) const {
+     *  for (size_t i = 0; i < word.size(); i++) {
+     *  std::string ngram;
+     *  if ((word[i] & 0xC0) == 0x80) continue;
+     *      for (size_t j = i, n = 1; j < word.size() && n <= args_->maxn; n++) {
+     *          ngram.push_back(word[j++]);
+     *          while (j < word.size() && (word[j] & 0xC0) == 0x80) {
+     *              ngram.push_back(word[j++]);
+     *          }
+     *          if (n >= args_->minn && !(n == 1 && (i == 0 || j == word.size()))) {
+     *              int32_t h = hash(ngram) % args_->bucket;
+     *              ngrams.push_back(nwords_ + h);
+     *              substrings.push_back(ngram);
+     *          }
+     *      }
+     *  }
+     * }}</pre>
+     *
+     * @param word
+     * @param ngrams
+     * @param substrings
+     */
+    private void computeSubwords(String word, List<Integer> ngrams, List<String> substrings) {
+        computeSubwords(word, ngrams, substrings, (nrgams, h) -> ngrams.add(nwords_ + h));
+    }
+
+    private void computeSubwords(String word, List<Integer> ngrams, List<String> substrings, BiConsumer<List<Integer>, Integer> pushMethod) {
         for (int i = 0; i < word.length(); i++) {
             if ((word.charAt(i) & 0xC0) == 0x80) continue;
             StringBuilder ngram = new StringBuilder();
@@ -260,7 +293,10 @@ public strictfp class Dictionary {
                 }
                 if (n >= args.minn && !(n == 1 && (i == 0 || j == word.length()))) {
                     int h = (int) (hash(ngram.toString()) % args.bucket);
-                    pushHash(ngrams, h);
+                    pushMethod.accept(ngrams, h);
+                    if (substrings != null) {
+                        substrings.add(ngram.toString());
+                    }
                 }
             }
         }
@@ -781,6 +817,35 @@ public strictfp class Dictionary {
         List<Integer> ngrams = new ArrayList<>();
         computeSubwords(BOW + word + EOW, ngrams);
         return ngrams;
+    }
+
+    /**
+     * <pre>{@code
+     * void Dictionary::getSubwords(const std::string& word, std::vector<int32_t>& ngrams, std::vector<std::string>& substrings) const {
+     *  int32_t i = getId(word);
+     *  ngrams.clear();
+     *  substrings.clear();
+     *  if (i >= 0) {
+     *      ngrams.push_back(i);
+     *      substrings.push_back(words_[i].word);
+     *  }
+     *  computeSubwords(BOW + word + EOW, ngrams, substrings);
+     * }}</pre>
+     *
+     * @param word
+     * @param ngrams
+     * @param substrings
+     */
+    void getSubwords(String word, List<Integer> ngrams, List<String> substrings) {
+        int i = getId(word);
+        ngrams.clear();
+        ;
+        substrings.clear();
+        if (i >= 0) {
+            ngrams.add(i);
+            substrings.add(words_.get(i).word);
+        }
+        computeSubwords(BOW + word + EOW, ngrams, substrings);
     }
 
     /**

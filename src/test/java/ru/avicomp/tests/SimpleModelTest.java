@@ -15,6 +15,8 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.MethodSorters;
 import org.junit.runners.Parameterized;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import cc.fasttext.Args;
 import cc.fasttext.Main;
@@ -28,6 +30,7 @@ import static ru.avicomp.TestsBase.*;
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 @RunWith(Parameterized.class)
 public class SimpleModelTest {
+    private static final Logger LOGGER = LoggerFactory.getLogger(SimpleModelTest.class);
 
     private final Data data;
 
@@ -90,8 +93,8 @@ public class SimpleModelTest {
         List<String> res = Arrays.stream(array.toString(StandardCharsets.UTF_8.name()).split("\r*\n")).collect(Collectors.toList());
         res.stream()
                 .limit(10)
-                .forEach(s -> TestsBase.LOGGER.debug("{}", s));
-        TestsBase.LOGGER.info("Size: {}", res.size());
+                .forEach(s -> LOGGER.debug("{}", s));
+        LOGGER.info("Size: {}", res.size());
         Assert.assertEquals("Wrong count of lines in out", 161, res.size());
         Assert.assertEquals("Wrong first label", Args.DEFAULT_LABEL + 12, res.get(0));
         Assert.assertEquals("Should be one unique label", 1, new HashSet<>(res).size());
@@ -100,7 +103,7 @@ public class SimpleModelTest {
     @Test
     public void test04PrintSentenceVectors() throws Exception {
         String str = runPrintVectors(data.getModelBin(), data.getSentenceVectorsTestData(), true);
-        TestsBase.LOGGER.info("Output: {}", str);
+        LOGGER.info("Output: {}", str);
         List<Double> res = Arrays.stream(str.split("\\s+"))
                 .mapToDouble(Double::parseDouble)
                 .boxed()
@@ -111,7 +114,7 @@ public class SimpleModelTest {
     @Test
     public void test03PrintWordVectors() throws Exception {
         String str = runPrintVectors(data.getModelBin(), data.getWordVectorsTestData(), false);
-        TestsBase.LOGGER.info("Output: {}", str);
+        LOGGER.info("Output: {}", str);
         String start = data.getWordVectorsTestData() + " ";
         Assert.assertTrue(str.startsWith(start));
         List<Double> res = Arrays.stream(str.replace(start, "").split("\\s+"))
@@ -119,17 +122,6 @@ public class SimpleModelTest {
                 .boxed()
                 .collect(Collectors.toList());
         compareVectors(data.sentenceVectors(), res, 0.4);
-    }
-
-    @SuppressWarnings("SameParameterValue")
-    private static void compareVectors(List<Double> expected, List<Double> actual, double delta) {
-        LOGGER.debug("Result {}", expected);
-        LOGGER.debug("Actual {}", actual);
-
-        Assert.assertEquals("Wrong vectors size", expected.size(), actual.size());
-        for (int i = 0; i < expected.size(); i++) {
-            Assert.assertEquals("#" + i, expected.get(i), actual.get(i), delta);
-        }
     }
 
     private static String runPrintVectors(Path bin, String testData, boolean sentence) throws Exception {
@@ -260,12 +252,12 @@ public class SimpleModelTest {
             }
 
             @Override
-            public List<Double> wordVectors() {
+            public List<Double> sentenceVectors() { // 10
                 return Arrays.asList(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
             }
 
             @Override
-            public List<Double> sentenceVectors() { // 10
+            public List<Double> wordVectors() {
                 return Arrays.asList(0.0079745, -0.014468, -0.071323, 0.054646, 0.037028, 0.070605, -0.010022, 0.082145, 0.018551, -0.002894);
             }
         };

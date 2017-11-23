@@ -5,7 +5,9 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 
+import org.junit.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,7 +19,7 @@ import ru.avicomp.tests.SimpleModelTest;
  * Created by @szuev on 24.10.2017.
  */
 public final class TestsBase {
-    public static final Logger LOGGER = LoggerFactory.getLogger("TESTS");
+    public static final Logger LOGGER = LoggerFactory.getLogger(TestsBase.class);
 
     public static final Path DESTINATION_DIR = Paths.get("out");
 
@@ -43,5 +45,13 @@ public final class TestsBase {
         return cmd(data.cmd(), data.getInput(), data.getOutput());
     }
 
+    public static void compareVectors(List<Double> expected, List<Double> actual, double delta) {
+        LOGGER.debug("Expected {}", expected);
+        LOGGER.debug("Actual {}", actual);
 
+        Assert.assertEquals("Wrong vectors size", expected.size(), actual.size());
+        for (int i = 0; i < expected.size(); i++) {
+            Assert.assertEquals("#" + i, expected.get(i), actual.get(i), delta);
+        }
+    }
 }

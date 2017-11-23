@@ -74,8 +74,8 @@ public strictfp class FastText {
      *  }
      * }}</pre>
      *
-     * @param word
-     * @return
+     * @param word String, not null
+     * @return {@link Vector}
      */
     public Vector getWordVector(String word) {
         Vector res = new Vector(args_.dim);
@@ -155,6 +155,41 @@ public strictfp class FastText {
             res.mul(1.0f / count);
         }
         return res;
+    }
+
+    /**
+     * <pre>{@code void FastText::ngramVectors(std::string word) {
+     *  std::vector<int32_t> ngrams;
+     *  std::vector<std::string> substrings;
+     *  Vector vec(args_->dim);
+     *  dict_->getSubwords(word, ngrams, substrings);
+     *  for (int32_t i = 0; i < ngrams.size(); i++) {
+     *      vec.zero();
+     *      if (ngrams[i] >= 0) {
+     *          if (quant_) {
+     *              vec.addRow(*qinput_, ngrams[i]);
+     *          } else {
+     *              vec.addRow(*input_, ngrams[i]);
+     *          }
+     *      }
+     *      std::cout << substrings[i] << " " << vec << std::endl;
+     *  }
+     * }}</pre>
+     *
+     * @param out
+     * @param word
+     */
+    void ngramVectors(PrintStream out, String word) {
+        List<Integer> ngrams = new ArrayList<>();
+        List<String> substrings = new ArrayList<>();
+        dict_.getSubwords(word, ngrams, substrings);
+        for (int i = 0; i < ngrams.size(); i++) {
+            Vector vec = new Vector(args_.dim);
+            if (ngrams.get(i) >= 0) {
+                addInputVector(vec, ngrams.get(i));
+            }
+            out.println(substrings.get(i) + " " + vec);
+        }
     }
 
     /**
