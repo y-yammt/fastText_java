@@ -2,6 +2,10 @@ package cc.fasttext;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Scanner;
 
 /**
@@ -242,6 +246,104 @@ public class Main {
         fasttext.ngramVectors(System.out, input[2]);
     }
 
+    /**
+     * <pre>{@code void nn(const std::vector<std::string> args) {
+     *  int32_t k;
+     *  if (args.size() == 3) {
+     *      k = 10;
+     *  } else if (args.size() == 4) {
+     *      k = std::stoi(args[3]);
+     *  } else {
+     *      printNNUsage();
+     *      exit(EXIT_FAILURE);
+     *  }
+     *  FastText fasttext;
+     *  fasttext.loadModel(std::string(args[2]));
+     *  fasttext.nn(k);
+     *  exit(0);
+     * }}</pre>
+     *
+     * @param input
+     * @throws IOException
+     * @throws IllegalArgumentException
+     */
+    public static void nn(String[] input) throws IOException, IllegalArgumentException {
+        int k = 10;
+        if (input.length == 3) {
+            k = Integer.parseInt(input[2]);
+        } else if (input.length != 2) {
+            throw Usage.NN.toException();
+        }
+        Args args = createArgs();
+        FastText fasttext = new FastText(args);
+        fasttext.loadModel(input[1]);
+        fasttext.getPrecomputedWordVectors();
+        Scanner sc = new Scanner(System.in);
+        PrintStream out = System.out;
+        while (true) {
+            out.println("Query word?");
+            String line;
+            try {
+                line = sc.next();
+            } catch (NoSuchElementException e) {
+                // ctrl+d
+                return;
+            }
+            fasttext.nn(k, line).forEach((f, s) -> out.println(s + " " + Utils.formatNumber(f)));
+        }
+    }
+
+    /**
+     * <pre>{@code void analogies(const std::vector<std::string> args) {
+     *  int32_t k;
+     *  if (args.size() == 3) {
+     *      k = 10;
+     *  } else if (args.size() == 4) {
+     *      k = std::stoi(args[3]);
+     *  } else {
+     *      printAnalogiesUsage();
+     *      exit(EXIT_FAILURE);
+     *  }
+     *  FastText fasttext;
+     *  fasttext.loadModel(std::string(args[2]));
+     *  fasttext.analogies(k);
+     *  exit(0);
+     * }}</pre>
+     *
+     * @param input
+     * @throws IOException
+     * @throws IllegalArgumentException
+     */
+    public static void analogies(String[] input) throws IOException, IllegalArgumentException {
+        int k = 10;
+        if (input.length == 3) {
+            k = Integer.parseInt(input[2]);
+        } else if (input.length != 2) {
+            throw Usage.ANALOGIES.toException();
+        }
+        Args args = createArgs();
+        FastText fasttext = new FastText(args);
+        fasttext.loadModel(input[1]);
+        fasttext.getPrecomputedWordVectors();
+        Scanner sc = new Scanner(System.in);
+        PrintStream out = System.out;
+        while (true) {
+            out.println("Query triplet (A - B + C)?");
+            List<String> words = new ArrayList<>();
+            while (words.size() < 3) {
+                String word;
+                try {
+                    word = sc.next();
+                } catch (NoSuchElementException e) {
+                    // ctrl+d
+                    return;
+                }
+                words.add(word);
+            }
+            fasttext.analogies(k, words.get(0), words.get(1), words.get(2)).forEach((f, s) -> out.println(s + " " + Utils.formatNumber(f)));
+        }
+    }
+
 
     /**
      * <pre>{@code void train(const std::vector<std::string> args) {
@@ -291,10 +393,10 @@ public class Main {
             printSentenceVectors(args);
         } else if ("print-ngrams".equalsIgnoreCase(command)) {
             printNgrams(args);
-        } else if ("nn".equalsIgnoreCase(command)) {// TODO: nn
-            throw new UnsupportedOperationException("TODO");
-        } else if ("analogies".equalsIgnoreCase(command)) {// TODO: analogies
-            throw new UnsupportedOperationException("TODO");
+        } else if ("nn".equalsIgnoreCase(command)) {
+            nn(args);
+        } else if ("analogies".equalsIgnoreCase(command)) {
+            analogies(args);
         } else if ("predict".equalsIgnoreCase(command) || "predict-prob".equalsIgnoreCase(command)) {
             predict(args);
         } else {

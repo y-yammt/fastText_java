@@ -1,6 +1,8 @@
 package cc.fasttext;
 
 import java.io.*;
+import java.lang.ref.Reference;
+import java.lang.ref.SoftReference;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
@@ -10,6 +12,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.apache.commons.math3.distribution.UniformIntegerDistribution;
+import org.apache.commons.math3.util.FastMath;
 
 import cc.fasttext.Args.ModelName;
 import cc.fasttext.Dictionary.EntryType;
@@ -155,6 +158,187 @@ public strictfp class FastText {
             res.mul(1.0f / count);
         }
         return res;
+    }
+
+    /**
+     * <pre>{@code void FastText::precomputeWordVectors(Matrix& wordVectors) {
+     *  Vector vec(args_->dim);
+     *  wordVectors.zero();
+     *  std::cerr << "Pre-computing word vectors...";
+     *  for (int32_t i = 0; i < dict_->nwords(); i++) {
+     *      std::string word = dict_->getWord(i);
+     *      getWordVector(vec, word);
+     *      real norm = vec.norm();
+     *      if (norm > 0) {
+     *          wordVectors.addRow(vec, i, 1.0 / norm);
+     *      }
+     *  }
+     *  std::cerr << " done." << std::endl;
+     * }}</pre>
+     *
+     * @return
+     */
+    private Matrix precomputeWordVectors() {
+        out.print("Pre-computing word vectors...");
+        Matrix res = new Matrix(dict_.nwords(), args_.dim);
+        for (int i = 0; i < dict_.nwords(); i++) {
+            String word = dict_.getWord(i);
+            Vector vec = getWordVector(word);
+            float norm = vec.norm();
+            if (norm > 0) {
+                res.addRow(vec, i, 1.0f / norm);
+            }
+        }
+        out.println(" done.");
+        return res;
+    }
+
+    private Reference<Matrix> precomputedWordVectors;
+
+    Matrix getPrecomputedWordVectors() {
+        Matrix res;
+        if (precomputedWordVectors != null && (res = precomputedWordVectors.get()) != null) {
+            return res;
+        }
+        precomputedWordVectors = new SoftReference<>(res = precomputeWordVectors());
+        return res;
+    }
+
+    private static final double FIND_NN_THRESHOLD = 1e-8;
+
+    /**
+     * <pre>{@code
+     * void FastText::findNN(const Matrix& wordVectors, const Vector& queryVec, int32_t k, const std::set<std::string>& banSet) {
+     *  real queryNorm = queryVec.norm();
+     *  if (std::abs(queryNorm) < 1e-8) {
+     *      queryNorm = 1;
+     *  }
+     *  std::priority_queue<std::pair<real, std::string>> heap;
+     *  Vector vec(args_->dim);
+     *  for (int32_t i = 0; i < dict_->nwords(); i++) {
+     *      std::string word = dict_->getWord(i);
+     *      real dp = wordVectors.dotRow(queryVec, i);
+     *      heap.push(std::make_pair(dp / queryNorm, word));
+     *  }
+     *  int32_t i = 0;
+     *  while (i < k && heap.size() > 0) {
+     *      auto it = banSet.find(heap.top().second);
+     *      if (it == banSet.end()) {
+     *          std::cout << heap.top().second << " " << heap.top().first << std::endl;
+     *          i++;
+     *      }
+     *      heap.pop();
+     *  }
+     * }
+     * }</pre>
+     *
+     * @param wordVectors
+     * @param queryVec
+     * @param k
+     * @param banSet
+     * @return
+     */
+    Multimap<Float, String> findNN(Matrix wordVectors, Vector queryVec, int k, Set<String> banSet) {
+        float queryNorm = queryVec.norm();
+        if (FastMath.abs(queryNorm) < FIND_NN_THRESHOLD) {
+            queryNorm = 1;
+        }
+
+        TreeMultimap<Float, String> heap = TreeMultimap.create(Comparator.reverseOrder(), Comparator.reverseOrder());
+        Multimap<Float, String> res = TreeMultimap.create(Comparator.reverseOrder(), Comparator.reverseOrder());
+        for (int i = 0; i < dict_.nwords(); i++) {
+            String word = dict_.getWord(i);
+            float dp = wordVectors.dotRow(queryVec, i);
+            heap.put(dp / queryNorm, word);
+        }
+        int i = 0;
+        while (i < k && heap.size() > 0) {
+            Float key = heap.asMap().firstKey();
+            String value = heap.get(key).first();
+            if (!banSet.contains(value)) {
+                res.put(key, value);
+                i++;
+            }
+            heap.remove(key, value);
+        }
+        return res;
+    }
+
+    /**
+     * TODO:
+     * <pre>{@code void FastText::nn(int32_t k) {
+     *  std::string queryWord;
+     *  Vector queryVec(args_->dim);
+     *  Matrix wordVectors(dict_->nwords(), args_->dim);
+     *  precomputeWordVectors(wordVectors);
+     *  std::set<std::string> banSet;
+     *  std::cout << "Query word? ";
+     *  while (std::cin >> queryWord) {
+     *      banSet.clear();
+     *      banSet.insert(queryWord);
+     *      getWordVector(queryVec, queryWord);
+     *      findNN(wordVectors, queryVec, k, banSet);
+     *      std::cout << "Query word? ";
+     *  }
+     * }}</pre>
+     *
+     * @param k
+     * @param queryWord
+     * @return
+     */
+    public Multimap<Float, String> nn(int k, String queryWord) {
+        Matrix wordVectors = getPrecomputedWordVectors();
+        Set<String> banSet = new HashSet<>();
+        banSet.add(queryWord);
+        Vector queryVec = getWordVector(queryWord);
+        return findNN(wordVectors, queryVec, k, banSet);
+    }
+
+    /**
+     * <pre>{@code void FastText::analogies(int32_t k) {
+     *  std::string word;
+     *  Vector buffer(args_->dim), query(args_->dim);
+     *  Matrix wordVectors(dict_->nwords(), args_->dim);
+     *  precomputeWordVectors(wordVectors);
+     *  std::set<std::string> banSet;
+     *  std::cout << "Query triplet (A - B + C)? ";
+     *  while (true) {
+     *      banSet.clear();
+     *      query.zero();
+     *      std::cin >> word;
+     *      banSet.insert(word);
+     *      getWordVector(buffer, word);
+     *      query.addVector(buffer, 1.0);
+     *      std::cin >> word;
+     *      banSet.insert(word);
+     *      getWordVector(buffer, word);
+     *      query.addVector(buffer, -1.0);
+     *      std::cin >> word;
+     *      banSet.insert(word);
+     *      getWordVector(buffer, word);
+     *      query.addVector(buffer, 1.0);
+     *      findNN(wordVectors, query, k, banSet);
+     *      std::cout << "Query triplet (A - B + C)? ";
+     * }
+     * }}</pre>
+     *
+     * @param k
+     * @param a
+     * @param b
+     * @param c
+     * @return
+     */
+    public Multimap<Float, String> analogies(int k, String a, String b, String c) {
+        Matrix wordVectors = getPrecomputedWordVectors();
+        Set<String> banSet = new HashSet<>();
+        banSet.add(a);
+        Vector query = new Vector(args_.dim);
+        query.addVector(getWordVector(a), 1.0f);
+        banSet.add(b);
+        query.addVector(getWordVector(b), -1.0f);
+        banSet.add(c);
+        query.addVector(getWordVector(c), 1.0f);
+        return findNN(wordVectors, query, k, banSet);
     }
 
     /**
@@ -674,6 +858,7 @@ public strictfp class FastText {
     }
 
     /**
+     * TODO: dont' print. return statistic.
      * Tests and prints to standard output
      *
      * @param in {@link InputStream} to read data

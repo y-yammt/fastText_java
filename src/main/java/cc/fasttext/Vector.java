@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.StringJoiner;
 
+import org.apache.commons.lang.Validate;
 import org.apache.commons.math3.util.FastMath;
 
 import com.google.common.primitives.Floats;
@@ -58,11 +59,27 @@ public strictfp class Vector {
      * @param source {@link Vector}
      */
     public void addVector(Vector source) {
-        if (m_ != Objects.requireNonNull(source, "Null source vector").m_) {
-            throw new IllegalArgumentException("Wrong size of vector: " + m_ + "!=" + source.m_);
-        }
+        Validate.isTrue(m_ == Objects.requireNonNull(source, "Null source vector").m_, "Wrong size of vector: " + m_ + "!=" + source.m_);
         for (int i = 0; i < m_; i++) {
             data_[i] += source.data_[i];
+        }
+    }
+
+    /**
+     * <pre>{@code void Vector::addVector(const Vector& source, real s) {
+     *  assert(m_ == source.m_);
+     *  for (int64_t i = 0; i < m_; i++) {
+     *      data_[i] += s * source.data_[i];
+     *  }
+     * }}</pre>
+     *
+     * @param source
+     * @param s
+     */
+    public void addVector(Vector source, float s) {
+        Validate.isTrue(m_ == Objects.requireNonNull(source, "Null source vector").m_, "Wrong size of vector: " + m_ + "!=" + source.m_);
+        for (int i = 0; i < m_; i++) {
+            data_[i] += s * source.data_[i];
         }
     }
 

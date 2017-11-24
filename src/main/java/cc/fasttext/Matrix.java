@@ -2,6 +2,7 @@ package cc.fasttext;
 
 import java.io.IOException;
 
+import org.apache.commons.lang.Validate;
 import org.apache.commons.math3.distribution.UniformRealDistribution;
 import org.apache.commons.math3.random.RandomGenerator;
 
@@ -68,10 +69,26 @@ public strictfp class Matrix {
         }
     }
 
+    /**
+     * <pre>{@code real Matrix::dotRow(const Vector& vec, int64_t i) const {
+     *  assert(i >= 0);
+     *  assert(i < m_);
+     *  assert(vec.size() == n_);
+     *  real d = 0.0;
+     *  for (int64_t j = 0; j < n_; j++) {
+     *      d += at(i, j) * vec.data_[j];
+     *  }
+     *  return d;
+     * }}</pre>
+     *
+     * @param vec
+     * @param i
+     * @return
+     */
     public float dotRow(final Vector vec, int i) {
-        Utils.checkArgument(i >= 0);
-        Utils.checkArgument(i < m_);
-        Utils.checkArgument(vec.m_ == n_);
+        Validate.isTrue(i >= 0);
+        Validate.isTrue(i < m_);
+        Validate.isTrue(vec.size() == n_);
         float d = 0f;
         for (int j = 0; j < n_; j++) {
             d += data_[i][j] * vec.data_[j];
@@ -93,7 +110,7 @@ public strictfp class Matrix {
      * @param i
      * @param a
      */
-    public void addRow(final Vector vec, int i, float a) {
+    public void addRow(Vector vec, int i, float a) {
         Utils.checkArgument(i >= 0);
         Utils.checkArgument(i < m_);
         Utils.checkArgument(vec.m_ == n_);
