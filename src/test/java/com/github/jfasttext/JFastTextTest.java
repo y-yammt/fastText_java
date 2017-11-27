@@ -67,8 +67,7 @@ public class JFastTextTest {
     @Test
     public void test04Predict() throws Exception {
         LOGGER.info("Test predict");
-        FastText jft = new FastText(Main.createArgs());
-        jft.loadModel(TestsBase.DESTINATION_DIR.resolve("supervised.model.bin").toString());
+        FastText jft = Main.loadModel(TestsBase.DESTINATION_DIR.resolve("supervised.model.bin").toString());
 
         String text = "I like soccer";
 
@@ -85,8 +84,7 @@ public class JFastTextTest {
     @Test
     public void test05PredictProba() throws Exception {
         LOGGER.info("Test predict-proba");
-        FastText jft = new FastText(Main.createArgs());
-        jft.loadModel(TestsBase.DESTINATION_DIR.resolve("supervised.model.bin").toString());
+        FastText jft = Main.loadModel(TestsBase.DESTINATION_DIR.resolve("supervised.model.bin").toString());
         String text = "What is the most popular sport in the US ?";
         // '{__label__football=[-0.6931472]}'
         Multimap<String, Float> predictedProbLabel = jft.predict(text, 1);
@@ -105,8 +103,7 @@ public class JFastTextTest {
     @Test
     public void test06MultiPredictProba() throws Exception {
         LOGGER.info("Test multi-predict-proba");
-        FastText jft = new FastText(Main.createArgs());
-        jft.loadModel(TestsBase.DESTINATION_DIR.resolve("supervised.model.bin").toString());
+        FastText jft = Main.loadModel(TestsBase.DESTINATION_DIR.resolve("supervised.model.bin").toString());
 
         String text = "Do you like soccer ?";
         Multimap<String, Float> predictedProbLabel = jft.predict(text, 2);
@@ -139,8 +136,7 @@ public class JFastTextTest {
                 0.0049015884, 0.009060863);
 
         LOGGER.info("Test get vector");
-        FastText jft = new FastText(Main.createArgs());
-        jft.loadModel(TestsBase.DESTINATION_DIR.resolve("supervised.model.bin").toString());
+        FastText jft = Main.loadModel(TestsBase.DESTINATION_DIR.resolve("supervised.model.bin").toString());
         String word = "soccer";
         List<Double> vec = jft.getWordVector(word).getData()
                 .stream().mapToDouble(d -> d).boxed().collect(Collectors.toList());

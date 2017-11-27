@@ -10,6 +10,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Random;
 
+/**
+ * TODO: going to remove
+ */
+@Deprecated
 public class Utils {
 
     /**

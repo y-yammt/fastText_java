@@ -2,7 +2,6 @@ package cc.fasttext;
 
 import java.io.IOException;
 import java.io.Reader;
-import java.math.BigInteger;
 import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -11,13 +10,13 @@ import java.util.function.Function;
 import java.util.function.ToLongFunction;
 
 import org.apache.commons.math3.distribution.UniformRealDistribution;
-import org.apache.commons.math3.random.RandomAdaptor;
 import org.apache.commons.math3.random.RandomGenerator;
 
 import com.google.common.primitives.UnsignedLong;
 import ru.avicomp.io.FTInputStream;
 import ru.avicomp.io.FTOutputStream;
 import ru.avicomp.io.FTReader;
+import ru.avicomp.io.IOStreams;
 
 public strictfp class Dictionary {
 
@@ -118,7 +117,7 @@ public strictfp class Dictionary {
      * @return
      */
     public EntryType getType(String w) {
-        return w.startsWith(args.label) ? EntryType.LABEL : EntryType.WORD;
+        return w.startsWith(args.label()) ? EntryType.LABEL : EntryType.WORD;
     }
 
     public int nwords() {
@@ -199,7 +198,7 @@ public strictfp class Dictionary {
     }
 
     public long hash(String str) {
-        return hash(str, args.charset);
+        return hash(str, args.charset());
     }
 
     /**
@@ -286,13 +285,13 @@ public strictfp class Dictionary {
         for (int i = 0; i < word.length(); i++) {
             if ((word.charAt(i) & 0xC0) == 0x80) continue;
             StringBuilder ngram = new StringBuilder();
-            for (int j = i, n = 1; j < word.length() && n <= args.maxn; n++) {
+            for (int j = i, n = 1; j < word.length() && n <= args.maxn(); n++) {
                 ngram.append(word.charAt(j++));
                 while (j < word.length() && (word.charAt(j) & 0xC0) == 0x80) {
                     ngram.append(word.charAt(j++));
                 }
-                if (n >= args.minn && !(n == 1 && (i == 0 || j == word.length()))) {
-                    int h = (int) (hash(ngram.toString()) % args.bucket);
+                if (n >= args.minn() && !(n == 1 && (i == 0 || j == word.length()))) {
+                    int h = (int) (hash(ngram.toString()) % args.bucket());
                     pushMethod.accept(ngrams, h);
                     if (substrings != null) {
                         substrings.add(ngram.toString());
@@ -364,13 +363,13 @@ public strictfp class Dictionary {
      * @param args
      * @throws IOException
      */
-    public void readFromFile(Args args) throws IOException {
+    public void readFromFile(IOStreams fs, Args args) throws IOException {
         long minThreshold = 1;
-        try (FTReader r = args.createReader()) {
+        try (FTReader r = args.createReader(fs)) {
             String word;
             while ((word = readWord(r)) != null) {
                 add(word);
-                if (ntokens_ % 1_000_000 == 0 && this.args.verbose > 1) {
+                if (ntokens_ % 1_000_000 == 0 && this.args.verbose() > 1) {
                     System.out.printf("\rRead %dM words", ntokens_ / 1_000_000);
                 }
                 if (size_ > 0.75 * MAX_VOCAB_SIZE) {
@@ -379,10 +378,10 @@ public strictfp class Dictionary {
                 }
             }
         }
-        threshold(this.args.minCount, this.args.minCountLabel);
+        threshold(this.args.minCount(), this.args.minCountLabel());
         initTableDiscard();
         initNgrams();
-        if (this.args.verbose > 0) {
+        if (this.args.verbose() > 0) {
             System.out.printf("\rRead %dM words\n", ntokens_ / 1_000_000);
             System.out.println("Number of words:  " + nwords_);
             System.out.println("Number of labels: " + nlabels_);
@@ -505,7 +504,7 @@ public strictfp class Dictionary {
         pdiscard_ = new ArrayList<>(size_);
         for (int i = 0; i < size_; i++) {
             float f = ((float) words_.get(i).count) / ntokens_;
-            pdiscard_.add((float) (Math.sqrt(args.t / f) + args.t / f));
+            pdiscard_.add((float) (Math.sqrt(args.samplingThreshold() / f) + args.samplingThreshold() / f));
         }
     }
 
@@ -585,7 +584,7 @@ public strictfp class Dictionary {
             }
             if (Objects.equals(token, EOS)) break;
         }
-        addWordNgrams(words, word_hashes, args.wordNgrams);
+        addWordNgrams(words, word_hashes, args.wordNgrams());
         return ntokens;
     }
 
@@ -636,46 +635,6 @@ public strictfp class Dictionary {
     }
 
     /**
-     * @param tokens
-     * @param words
-     * @param labels
-     * @param urd
-     * @return
-     */
-    @Deprecated
-    public int getLine(String[] tokens, List<Integer> words, List<Integer> labels, RandomGenerator urd) {
-        int ntokens = 0;
-        words.clear();
-        labels.clear();
-        if (tokens != null) {
-            for (int i = 0; i <= tokens.length; i++) {
-                if (i < tokens.length && Utils.isEmpty(tokens[i])) {
-                    continue;
-                }
-                int wid = i == tokens.length ? getId(EOS) : getId(tokens[i]);
-                if (wid < 0) {
-                    continue;
-                }
-                EntryType type = getType(wid);
-                ntokens++;
-                if (type == EntryType.WORD && !discard(wid, Utils.randomFloat(new RandomAdaptor(urd), 0, 1))) {
-                    words.add(wid);
-                }
-                if (type == EntryType.LABEL) {
-                    labels.add(wid - nwords_);
-                }
-                if (words.size() > MAX_LINE_SIZE && args.model != Args.ModelName.SUP) {
-                    break;
-                }
-                // if (EOS == tokens[i]){
-                // break;
-                // }
-            }
-        }
-        return ntokens;
-    }
-
-    /**
      * <pre>{@code
      * bool Dictionary::discard(int32_t id, real rand) const {
      *  assert(id >= 0);
@@ -692,7 +651,7 @@ public strictfp class Dictionary {
     public boolean discard(int id, float rand) {
         Utils.checkArgument(id >= 0);
         Utils.checkArgument(id < nwords_);
-        return args.model != Args.ModelName.SUP && rand > pdiscard_.get(id);
+        return args.model() != Args.ModelName.SUP && rand > pdiscard_.get(id);
     }
 
     private static final long ADD_WORDS_NGRAMS_FACTOR_LONG = 116_049_371L;
@@ -716,30 +675,12 @@ public strictfp class Dictionary {
      * @param n
      */
     public void addWordNgrams(List<Integer> line, List<Integer> hashes, int n) {
-        UnsignedLong bucket = UnsignedLong.valueOf(args.bucket);
+        UnsignedLong bucket = UnsignedLong.valueOf(args.bucket());
         for (int i = 0; i < hashes.size(); i++) { // int32_t
             UnsignedLong h = UnsignedLong.fromLongBits(hashes.get(i)); // uint64_t
             for (int j = i + 1; j < hashes.size() && j < i + n; j++) { // h = h * 116049371 + hashes[j] :
                 h = h.times(ADD_WORDS_NGRAMS_FACTOR_UNSIGNED_LONG).plus(UnsignedLong.fromLongBits(hashes.get(j)));
                 pushHash(line, h.mod(bucket).intValue()); // h % args_->bucket
-            }
-        }
-    }
-
-    @Deprecated
-    public void addNgrams(List<Integer> line, int n) {
-        if (n <= 1) {
-            return;
-        }
-        int line_size = line.size();
-        for (int i = 0; i < line_size; i++) {
-            BigInteger h = BigInteger.valueOf(line.get(i));
-            BigInteger r = BigInteger.valueOf(116049371L);
-            BigInteger b = BigInteger.valueOf(args.bucket);
-
-            for (int j = i + 1; j < line_size && j < i + n; j++) {
-                h = h.multiply(r).add(BigInteger.valueOf(line.get(j)));
-                line.add(nwords_ + h.remainder(b).intValue());
             }
         }
     }
@@ -767,7 +708,7 @@ public strictfp class Dictionary {
         if (wid < 0) { // out of vocab
             computeSubwords(BOW + token + EOW, line);
         } else {
-            if (args.maxn <= 0) { // in vocab w/o subwords
+            if (args.maxn() <= 0) { // in vocab w/o subwords
                 line.add(wid);
             } else { // in vocab w/ subwords
                 List<Integer> ngrams = getSubwords(wid);

@@ -119,6 +119,10 @@ public strictfp class Matrix {
         }
     }
 
+    void set(int i, int j, float value) {
+        data_[i][j] = value;
+    }
+
     /**
      * <pre>{@code
      * void Matrix::save(std::ostream& out) {

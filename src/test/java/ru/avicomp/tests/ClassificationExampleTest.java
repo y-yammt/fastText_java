@@ -17,7 +17,6 @@ import org.junit.runners.MethodSorters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import cc.fasttext.Args;
 import cc.fasttext.FastText;
 import cc.fasttext.Main;
 import ru.avicomp.ShellUtils;
@@ -103,9 +102,8 @@ public class ClassificationExampleTest {
     @Test
     public void test01TrainModel() throws Exception {
         Path bin = TestsBase.DESTINATION_DIR.resolve(DBPEDIA_MODEL + ".bin");
-        Args args = Main.parseArgs(TestsBase.cmd("supervised -input %s -output %s -dim 10 -lr 0.1 " +
+        Main.train(TestsBase.cmd("supervised -input %s -output %s -dim 10 -lr 0.1 " +
                 "-wordNgrams 2 -minCount 1 -bucket 10000000 -epoch 5 -thread 4", train, model));
-        new FastText(args).trainAndSave();
         Assert.assertEquals("Incorrect size of dbpedia model", DBPEDIA_MODEL_BIN_SIZE, Files.size(bin));
     }
 
@@ -132,8 +130,7 @@ public class ClassificationExampleTest {
         LOGGER.info("Test <test>");
         Path model = getModelBinPath();
         LOGGER.debug("Test file {}, Model.bin {}", test, model);
-        FastText f = new FastText(Main.createArgs());
-        f.loadModel(model.toString());
+        FastText f = Main.loadModel(model.toString());
 
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         try (InputStream in = Files.newInputStream(test);
@@ -161,9 +158,10 @@ public class ClassificationExampleTest {
                 .map(String::trim)
                 .collect(Collectors.toList());
 
-        FastText f = new FastText(Main.createArgs());
+
         String bin = getModelBinPath().toString();
-        f.loadModel(bin);
+        FastText f = Main.loadModel(bin);
+
         List<String> actual;
         LOGGER.info("predict {} {} 1", bin, test);
         try (ByteArrayOutputStream array = new ByteArrayOutputStream();

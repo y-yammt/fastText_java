@@ -49,15 +49,15 @@ public strictfp class Model {
     private List<Node> tree;
 
     public Model(Matrix wi, Matrix wo, Args args, int seed) {
-        hidden_ = new Vector(args.dim);
+        hidden_ = new Vector(args.dim());
         output_ = new Vector(wo.m_);
-        grad_ = new Vector(args.dim);
-        rng = args.getRandomFactory().apply(seed);
+        grad_ = new Vector(args.dim());
+        rng = args.randomFactory().apply(seed);
         wi_ = wi;
         wo_ = wo;
         args_ = args;
         osz_ = wo.m_;
-        hsz_ = args.dim;
+        hsz_ = args.dim();
         negpos = 0;
         loss_ = 0.0f;
         nexamples_ = 1L;
@@ -120,7 +120,7 @@ public strictfp class Model {
     public float negativeSampling(int target, float lr) {
         float loss = 0.0f;
         grad_.zero();
-        for (int n = 0; n <= args_.neg; n++) {
+        for (int n = 0; n <= args_.neg(); n++) {
             if (n == 0) {
                 loss += binaryLogistic(target, true, lr);
             } else {
@@ -181,7 +181,7 @@ public strictfp class Model {
      * @param output
      */
     public void computeOutputSoftmax(Vector hidden, Vector output) {
-        if (quant_ && args_.qout) {
+        if (quant_ && args_.qout()) {
             output.mul(qwo_, hidden);
         } else {
             output.mul(wo_, hidden);
@@ -291,13 +291,13 @@ public strictfp class Model {
         if (k <= 0) {
             throw new IllegalArgumentException("k needs to be 1 or higher!");
         }
-        if (!ModelName.SUP.equals(args_.model)) {
+        if (!ModelName.SUP.equals(args_.model())) {
             throw new IllegalArgumentException("Model needs to be supervised for prediction!");
         }
         TreeMultimap<Float, Integer> heap = TreeMultimap.create(HEAP_PROBABILITY_COMPARATOR, HEAP_LABEL_COMPARATOR);
 
         computeHidden(input, hidden);
-        if (args_.loss == Args.LossName.HS) {
+        if (LossName.HS == args_.loss()) {
             dfs(k, 2 * osz_ - 2, 0.0f, heap, hidden);
         } else {
             findKBest(k, heap, hidden, output);
@@ -411,7 +411,7 @@ public strictfp class Model {
             return;
         }
         float f;
-        if (quant_ && args_.qout) {
+        if (quant_ && args_.qout()) {
             f = sigmoid(qwo_.dotRow(hidden, node - osz_));
         } else {
             f = sigmoid(wo_.dotRow(hidden, node - osz_));
@@ -453,15 +453,15 @@ public strictfp class Model {
             return;
         }
         computeHidden(input, hidden_);
-        if (args_.loss == LossName.NS) {
+        if (args_.loss() == LossName.NS) {
             loss_ += negativeSampling(target, lr);
-        } else if (args_.loss == Args.LossName.HS) {
+        } else if (args_.loss() == Args.LossName.HS) {
             loss_ += hierarchicalSoftmax(target, lr);
         } else {
             loss_ += softmax(target, lr);
         }
         nexamples_ += 1;
-        if (args_.model == ModelName.SUP) {
+        if (args_.model() == ModelName.SUP) {
             grad_.mul(1.0f / input.size());
         }
         for (Integer it : input) {
@@ -486,10 +486,10 @@ public strictfp class Model {
      */
     public void setTargetCounts(final List<Long> counts) {
         Utils.checkArgument(counts.size() == osz_);
-        if (args_.loss == Args.LossName.NS) {
+        if (args_.loss() == Args.LossName.NS) {
             initTableNegatives(counts);
         }
-        if (args_.loss == Args.LossName.HS) {
+        if (args_.loss() == Args.LossName.HS) {
             buildTree(counts);
         }
     }
