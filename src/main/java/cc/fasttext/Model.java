@@ -28,8 +28,8 @@ public strictfp class Model {
     public QMatrix qwi_;
     public QMatrix qwo_;
     public RandomGenerator rng;
-    private Matrix wi_; // input
-    private Matrix wo_; // output
+    public Matrix wi_; // input
+    public Matrix wo_; // output
     private Args args_;
     private Vector hidden_;
     private Vector output_;

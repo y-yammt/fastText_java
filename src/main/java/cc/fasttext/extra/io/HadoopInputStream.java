@@ -1,4 +1,4 @@
-package ru.avicomp.hdfs.io;
+package cc.fasttext.extra.io;
 
 import java.io.IOException;
 

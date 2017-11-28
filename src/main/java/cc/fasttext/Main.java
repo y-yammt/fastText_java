@@ -22,6 +22,10 @@ public class Main {
         Main.fileSystem = Objects.requireNonNull(fileSystem, "Null file system.");
     }
 
+    public static IOStreams getFileSystem() {
+        return fileSystem;
+    }
+
     /**
      * <pre>{@code void test(const std::vector<std::string>& args) {
      *  if (args.size() < 4 || args.size() > 5) {
@@ -334,7 +338,7 @@ public class Main {
      */
     public static void train(String[] input) throws Exception {
         Args args = parseArgs(input);
-        FastText fasttext = new FastText(args);
+        FastText fasttext = new FastText(args).setFileSystem(fileSystem);
         fasttext.train();
         fasttext.saveModel();
         fasttext.saveVectors();

@@ -75,7 +75,7 @@ public class Utils {
     }
 
     /**
-     * TODO:
+     * TODO: move
      * vector.cc
      * <pre>{@code std::ostream& operator<<(std::ostream& os, const Vector& v) {
      *  os << std::setprecision(5);

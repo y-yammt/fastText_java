@@ -626,7 +626,7 @@ public strictfp class Dictionary {
             int wid = getId(token, h);
             if (wid < 0) continue;
             ntokens++;
-            if (getType(wid) == EntryType.WORD && !discard(wid, (float) uniform.sample())) {
+            if (EntryType.WORD == getType(wid) && !discard(wid, (float) uniform.sample())) {
                 words.add(wid);
             }
             if (ntokens > MAX_LINE_SIZE || Objects.equals(token, EOS)) break;

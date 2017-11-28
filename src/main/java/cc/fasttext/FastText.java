@@ -3,8 +3,6 @@ package cc.fasttext;
 import java.io.*;
 import java.lang.ref.Reference;
 import java.lang.ref.SoftReference;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -72,6 +70,26 @@ public strictfp class FastText {
         this.qoutput_ = qoutput_;
         this.quant_ = quant_;
         this.version = version;
+    }
+
+    public Args getArgs() {
+        return args_;
+    }
+
+    public Dictionary getDict() {
+        return dict_;
+    }
+
+    public Matrix getInput() {
+        return input_;
+    }
+
+    public Matrix getOutput() {
+        return output_;
+    }
+
+    public Model getModel() {
+        return model_;
     }
 
     public FastText setFileSystem(IOStreams fs) { // todo:
@@ -457,15 +475,15 @@ public strictfp class FastText {
             return;
         }
         // validate and prepare:
-        Path file = Paths.get(args_.output + ".vec");
-        ioStreams().prepareParent(file.toString());
-        if (!ioStreams().canWrite(file.toString())) {
+        String file = args_.output + ".vec";
+        ioStreams().prepareParent(file);
+        if (!ioStreams().canWrite(file)) {
             throw new IOException("Can't write to " + file);
         }
         if (args_.verbose() > 1) {
-            logs.println("Saving Vectors to " + file.toAbsolutePath());
+            logs.println("Saving Vectors to " + file);
         }
-        try (Writer writer = new BufferedWriter(new OutputStreamWriter(ioStreams().createOutput(file.toString()), args_.charset()))) {
+        try (Writer writer = new BufferedWriter(new OutputStreamWriter(ioStreams().createOutput(file), args_.charset()))) {
             writer.write(dict_.nwords() + " " + args_.dim() + "\n");
             for (int i = 0; i < dict_.nwords(); i++) {
                 String word = dict_.getWord(i);
@@ -545,18 +563,17 @@ public strictfp class FastText {
             }
             return;
         }
-
         // validate and prepare (todo: move to the beginning):
-        Path file = Paths.get(args_.output + (quant_ ? ".ftz" : ".bin"));
-        ioStreams().prepareParent(file.toString());
-        if (!ioStreams().canWrite(file.toString())) {
+        String file = args_.output + (quant_ ? ".ftz" : ".bin");
+        ioStreams().prepareParent(file);
+        if (!ioStreams().canWrite(file)) {
             throw new IOException("Can't write to " + file);
         }
         if (args_.verbose() > 1) {
-            logs.println("Saving model to " + file.toAbsolutePath());
+            logs.println("Saving model to " + file);
         }
 
-        try (FTOutputStream out = new FTOutputStream(new BufferedOutputStream(ioStreams().createOutput(file.toString())))) {
+        try (FTOutputStream out = new FTOutputStream(new BufferedOutputStream(ioStreams().createOutput(file)))) {
             signModel(out);
             args_.save(out);
             dict_.save(out);
@@ -722,8 +739,7 @@ public strictfp class FastText {
         return new FastText(args, dict, model, input, qinput, output, qoutput, quant, version);
     }
 
-
-    public void printInfo(float progress, float loss) {
+    private void printInfo(float progress, float loss) {
         float t = (float) (System.currentTimeMillis() - start_) / 1000;
         float ws = (float) (tokenCount_.get()) / t;
         float wst = (float) (tokenCount_.get()) / t / args_.thread();
@@ -750,7 +766,7 @@ public strictfp class FastText {
      * @param line
      * @param labels
      */
-    public void supervised(Model model, float lr, final List<Integer> line, final List<Integer> labels) {
+    public void supervised(Model model, float lr, List<Integer> line, List<Integer> labels) {
         if (labels.size() == 0 || line.size() == 0)
             return;
         UniformIntegerDistribution uniform = new UniformIntegerDistribution(model.rng, 0, labels.size() - 1);
@@ -781,7 +797,7 @@ public strictfp class FastText {
      * @param lr
      * @param line
      */
-    public void cbow(Model model, float lr, final List<Integer> line) {
+    public void cbow(Model model, float lr, List<Integer> line) {
         List<Integer> bow = new ArrayList<>();
         UniformIntegerDistribution uniform = new UniformIntegerDistribution(model.rng, 1, args_.ws());
         for (int w = 0; w < line.size(); w++) {
@@ -816,7 +832,7 @@ public strictfp class FastText {
      * @param lr
      * @param line
      */
-    public void skipgram(Model model, float lr, final List<Integer> line) {
+    public void skipgram(Model model, float lr, List<Integer> line) {
         UniformIntegerDistribution uniform = new UniformIntegerDistribution(model.rng, 1, args_.ws());
         for (int w = 0; w < line.size(); w++) {
             int boundary = uniform.sample();
@@ -1161,21 +1177,18 @@ public strictfp class FastText {
      * @throws IOException
      * @throws ExecutionException
      */
-    public void train() throws IOException, ExecutionException {
-        dict_ = new Dictionary(args_);
-
+    public void train() throws IOException, ExecutionException, IllegalArgumentException {
         if ("-".equals(args_.input)) {
-            throw new IOException("Cannot use stdin for training!");
+            throw new IllegalArgumentException("Cannot use stdin for training!");
         }
-
         if (!ioStreams().canRead(args_.input)) {
-            throw new IOException("Input file cannot be opened! " + args_.input);
+            throw new IllegalArgumentException("Input file cannot be opened: " + args_.input);
         }
+        dict_ = new Dictionary(args_);
         dict_.readFromFile(factory, args_);
         try (FTReader r = args_.createReader(factory)) {
             threadFileSize = r.size();
         }
-
         if (!StringUtils.isEmpty(args_.pretrainedVectors())) {
             input_ = loadVectors(dict_, args_, factory, args_.pretrainedVectors());
         } else {
@@ -1192,16 +1205,8 @@ public strictfp class FastText {
         model_ = new Model(input_, output_, args_, 0);
     }
 
-    public void trainAndSave() throws IOException, ExecutionException {
-        train();
-        saveModel();
-        saveVectors();
-        if (args_.saveOutput() > 0) {
-            saveOutput();
-        }
-    }
-
     /**
+     * TODO: make static
      * <pre>{@code void FastText::startThreads() {
      *  start = clock();
      *  tokenCount = 0;
@@ -1231,13 +1236,12 @@ public strictfp class FastText {
                 return t;
             });
             CompletionService<Void> completionService = new ExecutorCompletionService<>(service);
-            Set<Future<Void>> res = IntStream.range(0, args_.thread())
-                    .mapToObj(id -> completionService.submit(() -> {
+            IntStream.range(0, args_.thread()).forEach(id ->
+                    completionService.submit(() -> {
                         Thread.currentThread().setName("FT-TrainThread-" + id);
                         trainThread(id);
                         return null;
-                    }))
-                    .collect(Collectors.toSet());
+                    }));
             service.shutdown();
             int num = args_.thread();
             try {
@@ -1311,7 +1315,7 @@ public strictfp class FastText {
             long skip = threadId * threadFileSize / args_.thread();
             r.skipBytes(skip);
             Model model = new Model(input_, output_, args_, threadId);
-            if (args_.model() == Args.ModelName.SUP) {
+            if (ModelName.SUP.equals(args_.model())) {
                 model.setTargetCounts(dict_.getCounts(EntryType.LABEL));
             } else {
                 model.setTargetCounts(dict_.getCounts(EntryType.WORD));
@@ -1324,13 +1328,13 @@ public strictfp class FastText {
             while (tokenCount_.longValue() < args_.epoch() * ntokens) {
                 float progress = tokenCount_.floatValue() / (args_.epoch() * ntokens);
                 float lr = (float) (args_.lr() * (1.0 - progress));
-                if (args_.model() == Args.ModelName.SUP) {
+                if (ModelName.SUP.equals(args_.model())) {
                     localTokenCount += dict_.getLine(r, line, labels);
                     supervised(model, lr, line, labels);
-                } else if (args_.model() == Args.ModelName.CBOW) {
+                } else if (ModelName.CBOW.equals(args_.model())) {
                     localTokenCount += dict_.getLine(r, line, model.rng);
                     cbow(model, lr, line);
-                } else if (args_.model() == ModelName.SG) {
+                } else if (ModelName.SG.equals(args_.model())) {
                     localTokenCount += dict_.getLine(r, line, model.rng);
                     skipgram(model, lr, line);
                 }
@@ -1343,26 +1347,6 @@ public strictfp class FastText {
                 }
             }
         }
-    }
-
-    public Args getArgs() {
-        return args_;
-    }
-
-    public Dictionary getDict() {
-        return dict_;
-    }
-
-    public Matrix getInput() {
-        return input_;
-    }
-
-    public Matrix getOutput() {
-        return output_;
-    }
-
-    public Model getModel() {
-        return model_;
     }
 
 }

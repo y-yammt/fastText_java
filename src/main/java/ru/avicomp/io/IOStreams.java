@@ -11,15 +11,15 @@ import java.io.OutputStream;
  */
 public interface IOStreams {
 
-    OutputStream createOutput(String path) throws IOException;
+    OutputStream createOutput(String uri) throws IOException;
 
-    InputStream openInput(String path) throws IOException;
+    InputStream openInput(String uri) throws IOException;
 
-    default boolean canRead(String path) {
+    default boolean canRead(String uri) {
         return true;
     }
 
-    default boolean canWrite(String path) {
+    default boolean canWrite(String uri) {
         return true;
     }
 
@@ -27,31 +27,31 @@ public interface IOStreams {
      * Prepares the file to write.
      * Usually for creating parent directories
      *
-     * @param path String, path identifier to file entity.
+     * @param uri String, path identifier to file entity.
      * @throws IOException if something goes wrong while preparation.
      */
-    default void prepareParent(String path) throws IOException {
+    default void prepareParent(String uri) throws IOException {
 
     }
 
     /**
-     * @param path
+     * @param uri
      * @return
      * @throws IOException
      * @throws UnsupportedOperationException
      */
-    default ScrollableInputStream openScrollable(String path) throws IOException, UnsupportedOperationException {
+    default ScrollableInputStream openScrollable(String uri) throws IOException, UnsupportedOperationException {
         // TODO: add default impl
         throw new UnsupportedOperationException();
     }
 
     /**
-     * @param path
+     * @param uri
      * @return
      * @throws IOException
      * @throws UnsupportedOperationException
      */
-    default long size(String path) throws IOException, UnsupportedOperationException {
+    default long size(String uri) throws IOException, UnsupportedOperationException {
         // TODO: add default impl
         throw new UnsupportedOperationException();
     }

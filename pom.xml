@@ -133,7 +133,7 @@
                         <configuration>
                             <archive>
                                 <manifest>
-                                    <mainClass>ru.avicomp.hdfs.HadoopMain</mainClass>
+                                    <mainClass>cc.fasttext.extra.ExtraMain</mainClass>
                                 </manifest>
                             </archive>
                             <descriptorRefs>

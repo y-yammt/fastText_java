@@ -16,24 +16,24 @@ import ru.avicomp.io.ScrollableInputStream;
 public class LocalIOStreams implements IOStreams {
 
     @Override
-    public OutputStream createOutput(String file) throws IOException {
-        return Files.newOutputStream(Paths.get(file));
+    public OutputStream createOutput(String uri) throws IOException {
+        return Files.newOutputStream(Paths.get(uri));
     }
 
     @Override
-    public InputStream openInput(String path) throws IOException {
-        return Files.newInputStream(Paths.get(path));
+    public InputStream openInput(String uri) throws IOException {
+        return Files.newInputStream(Paths.get(uri));
     }
 
     @Override
-    public boolean canRead(String path) {
-        Path file = Paths.get(path);
+    public boolean canRead(String uri) {
+        Path file = Paths.get(uri);
         return Files.isRegularFile(file) && Files.isReadable(file);
     }
 
     @Override
-    public boolean canWrite(String path) {
-        Path parent = getParent(path);
+    public boolean canWrite(String uri) {
+        Path parent = getParent(uri);
         return parent != null && Files.isWritable(parent);
     }
 
@@ -47,21 +47,21 @@ public class LocalIOStreams implements IOStreams {
     }
 
     @Override
-    public void prepareParent(String path) throws IOException {
-        Path parent = getParent(path);
-        if (parent == null) throw new IOException("No parent for " + path);
+    public void prepareParent(String uri) throws IOException {
+        Path parent = getParent(uri);
+        if (parent == null) throw new IOException("No parent for " + uri);
         Files.createDirectories(parent);
-        Files.deleteIfExists(parent.resolve(path));
+        Files.deleteIfExists(parent.resolve(uri));
     }
 
     @Override
-    public ScrollableInputStream openScrollable(String path) throws IOException {
-        return new LocalInputStream(Paths.get(path));
+    public ScrollableInputStream openScrollable(String uri) throws IOException {
+        return new LocalInputStream(Paths.get(uri));
     }
 
     @Override
-    public long size(String path) throws IOException {
-        return Files.size(Paths.get(path));
+    public long size(String uri) throws IOException {
+        return Files.size(Paths.get(uri));
     }
 
 }
