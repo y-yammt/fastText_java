@@ -8,7 +8,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Random;
 
 /**
  * TODO: going to remove
@@ -28,25 +27,6 @@ public class Utils {
             throw new IllegalArgumentException();
         }
     }
-
-    public static void checkArgument(boolean expression, String message) {
-        if (!expression) {
-            throw new IllegalArgumentException(message);
-        }
-    }
-
-    public static boolean isEmpty(String str) {
-        return (str == null || str.isEmpty());
-    }
-
-    public static float randomFloat(Random rnd, float lower, float upper) {
-        checkArgument(lower <= upper);
-        if (lower == upper) {
-            return lower;
-        }
-        return (rnd.nextFloat() * (upper - lower)) + lower;
-    }
-
 
     public static byte[] readUpToByte(InputStream in, byte end) throws IOException {
         List<Integer> buff = new ArrayList<>(128);

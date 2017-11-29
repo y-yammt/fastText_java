@@ -15,7 +15,7 @@ import ru.avicomp.io.IOStreams;
  * For manual running only
  * Ignore since it requires preconfigured hadoop with test data inside fs.
  * May require Xmx jvm-option.
- * Approximately duration for current data and _local_ configuration ~ 15m.
+ * Approximately duration ~ 5-15m.
  * <p>
  * Created by @szuev on 31.10.2017.
  */

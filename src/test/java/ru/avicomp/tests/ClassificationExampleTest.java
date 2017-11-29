@@ -167,7 +167,7 @@ public class ClassificationExampleTest {
         try (ByteArrayOutputStream array = new ByteArrayOutputStream();
              PrintStream out = new PrintStream(array);
              InputStream in = Files.newInputStream(test)) {
-            f.setPrintOut(out);
+            f.setLogs(out);
             f.predict(in, 1, false);
             actual = Arrays.stream(array.toString(StandardCharsets.UTF_8.name()).split("\n"))
                     .map(String::trim)

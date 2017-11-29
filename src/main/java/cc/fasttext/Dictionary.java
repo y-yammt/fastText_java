@@ -1,6 +1,7 @@
 package cc.fasttext;
 
 import java.io.IOException;
+import java.io.PrintStream;
 import java.io.Reader;
 import java.nio.charset.Charset;
 import java.util.*;
@@ -16,7 +17,6 @@ import com.google.common.primitives.UnsignedLong;
 import ru.avicomp.io.FTInputStream;
 import ru.avicomp.io.FTOutputStream;
 import ru.avicomp.io.FTReader;
-import ru.avicomp.io.IOStreams;
 
 public strictfp class Dictionary {
 
@@ -44,10 +44,6 @@ public strictfp class Dictionary {
 
     public Dictionary(Args args) {
         this.args = args;
-        size_ = 0;
-        nwords_ = 0;
-        nlabels_ = 0;
-        ntokens_ = 0;
         word2int_ = new HashMap<>(MAX_VOCAB_SIZE);
         words_ = new ArrayList<>(MAX_VOCAB_SIZE);
     }
@@ -332,7 +328,6 @@ public strictfp class Dictionary {
     }
 
     /**
-     * TODO: change signature
      * <pre>{@code void Dictionary::readFromFile(std::istream& in) {
      *  std::string word;
      *  int64_t minThreshold = 1;
@@ -359,36 +354,37 @@ public strictfp class Dictionary {
      *      exit(EXIT_FAILURE);
      *  }
      * }}</pre>
-     *
-     * @param args
+     * @param reader
+     * @param logs
+     * @return
      * @throws IOException
+     * @throws IllegalStateException
      */
-    public void readFromFile(IOStreams fs, Args args) throws IOException {
+    long readFromFile(FTReader reader, PrintStream logs) throws IOException, IllegalStateException {
         long minThreshold = 1;
-        try (FTReader r = args.createReader(fs)) {
-            String word;
-            while ((word = readWord(r)) != null) {
-                add(word);
-                if (ntokens_ % 1_000_000 == 0 && this.args.verbose() > 1) {
-                    System.out.printf("\rRead %dM words", ntokens_ / 1_000_000);
-                }
-                if (size_ > 0.75 * MAX_VOCAB_SIZE) {
-                    minThreshold++;
-                    threshold(minThreshold, minThreshold);
-                }
+        String word;
+        while ((word = readWord(reader)) != null) {
+            add(word);
+            if (ntokens_ % 1_000_000 == 0 && this.args.verbose() > 1) {
+                logs.printf("\rRead %dM words", ntokens_ / 1_000_000);
+            }
+            if (size_ > 0.75 * MAX_VOCAB_SIZE) {
+                minThreshold++;
+                threshold(minThreshold, minThreshold);
             }
         }
         threshold(this.args.minCount(), this.args.minCountLabel());
         initTableDiscard();
         initNgrams();
         if (this.args.verbose() > 0) {
-            System.out.printf("\rRead %dM words\n", ntokens_ / 1_000_000);
-            System.out.println("Number of words:  " + nwords_);
-            System.out.println("Number of labels: " + nlabels_);
+            logs.printf("\rRead %dM words\n", ntokens_ / 1_000_000);
+            logs.println("Number of words:  " + nwords_);
+            logs.println("Number of labels: " + nlabels_);
         }
         if (size_ == 0) {
             throw new IllegalStateException("Empty vocabulary. Try a smaller -minCount value.");
         }
+        return reader.size();
     }
 
     /**

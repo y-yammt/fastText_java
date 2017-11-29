@@ -28,7 +28,7 @@ public strictfp class Matrix {
         data_ = new float[m][n];
     }
 
-    public Matrix(final Matrix other) {
+    public Matrix(Matrix other) {
         m_ = other.m_;
         n_ = other.n_;
         data_ = new float[m_][n_];
@@ -39,11 +39,10 @@ public strictfp class Matrix {
 
     public void zero() {
         data_ = new float[m_][n_];
-        /*for (int i = 0; i < m_; i++) {
-            for (int j = 0; j < n_; j++) {
-                data_[i][j] = 0f;
-            }
-        }*/
+    }
+
+    public boolean isEmpty() {
+        return data_ == null;
     }
 
     /**

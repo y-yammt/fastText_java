@@ -12,9 +12,6 @@ import org.apache.commons.math3.random.RandomGenerator;
 
 import ru.avicomp.io.FTInputStream;
 import ru.avicomp.io.FTOutputStream;
-import ru.avicomp.io.FTReader;
-import ru.avicomp.io.IOStreams;
-import ru.avicomp.io.impl.LocalIOStreams;
 
 /**
  * Immutable Args object.
@@ -58,19 +55,7 @@ public final strictfp class Args {
     private int cutoff;
     // additional:
     private Charset charset = StandardCharsets.UTF_8;
-    private IOStreams factory = new LocalIOStreams();
     private IntFunction<RandomGenerator> randomFactory = JDKRandomGenerator::new;
-
-    @Deprecated
-    public Args setIOStreams(IOStreams factory) {
-        this.factory = Objects.requireNonNull(factory, "Null factory");
-        return this;
-    }
-
-    @Deprecated // todo: must be in FastText
-    public IOStreams ioStreams() {
-        return factory;
-    }
 
     public IntFunction<RandomGenerator> randomFactory() {
         return randomFactory;
@@ -180,15 +165,6 @@ public final strictfp class Args {
         return saveOutput;
     }
 
-    /**
-     *
-     * @param fs
-     * @return
-     * @throws IOException
-     */
-    FTReader createReader(IOStreams fs) throws IOException { // todo: buff size is experimental
-        return new FTReader(fs.openScrollable(input), charset, 100 * 1024);
-    }
 
     /**
      * <pre>{@code
@@ -274,7 +250,7 @@ public final strictfp class Args {
         private Args _args = new Args();
 
         public Builder copy(Args other) {
-            return setCharset(other.charset()).setIOFactory(other.ioStreams()).setRandomFactory(other.randomFactory())
+            return setCharset(other.charset()).setRandomFactory(other.randomFactory())
                     .setModel(other.model()).setLossName(other.loss())
                     .setDim(other.dim()).setWS(other.ws()).setLR(other.lr()).setLRUpdateRate(other.lrUpdateRate()).setWordNgrams(other.wordNgrams())
                     .setMinCount(other.minCount()).setMinCountLabel(other.minCountLabel())
@@ -287,11 +263,6 @@ public final strictfp class Args {
 
         public Builder setCharset(Charset charset) {
             _args.charset = Objects.requireNonNull(charset, "Null charset");
-            return this;
-        }
-
-        public Builder setIOFactory(IOStreams f) {
-            _args.factory = Objects.requireNonNull(f, "Null IO streams factory");
             return this;
         }
 

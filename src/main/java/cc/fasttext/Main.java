@@ -65,16 +65,16 @@ public class Main {
             throw Usage.TEST.toException();
         }
         FastText fasttext = loadModel(input[1]);
-        fasttext.setPrintOut(System.out);
+        fasttext.setLogs(System.out);
         String infile = input[2];
         if ("-".equals(infile)) {
             fasttext.test(System.in, k);
             return;
         }
-        if (!fasttext.ioStreams().canRead(infile)) {
+        if (!fasttext.getFileSystem().canRead(infile)) {
             throw new IOException("Input file cannot be opened!");
         }
-        try (InputStream in = fasttext.ioStreams().openInput(infile)) {
+        try (InputStream in = fasttext.getFileSystem().openInput(infile)) {
             fasttext.test(in, k);
         }
     }
@@ -120,16 +120,16 @@ public class Main {
         }
         boolean printProb = "predict-prob".equalsIgnoreCase(input[0]);
         FastText fasttext = loadModel(input[1]);
-        fasttext.setPrintOut(System.out);
+        fasttext.setLogs(System.out);
         String infile = input[2];
         if ("-".equals(infile)) { // read from pipe:
             fasttext.predict(System.in, k, printProb);
             return;
         }
-        if (!fasttext.ioStreams().canRead(infile)) {
+        if (!fasttext.getFileSystem().canRead(infile)) {
             throw new IOException("Input file cannot be opened!");
         }
-        try (InputStream in = fasttext.ioStreams().openInput(infile)) {
+        try (InputStream in = fasttext.getFileSystem().openInput(infile)) {
             fasttext.predict(in, k, printProb);
         }
     }
@@ -333,13 +333,18 @@ public class Main {
      *  }
      * }}</pre>
      *
-     * @param input
+     * @param array
      * @throws Exception
      */
-    public static void train(String[] input) throws Exception {
-        Args args = parseArgs(input);
-        FastText fasttext = new FastText(args).setFileSystem(fileSystem);
-        fasttext.train();
+    public static void train(String[] array) throws Exception {
+        Map<String, String> map = toMap(array);
+        String input = map.get("-input");
+        if (input == null) {
+            throw new IllegalArgumentException("Empty -input");
+        }
+        String preTrainedVectors = map.get("-pretrainedVectors");
+        Args args = parseArgs(array);
+        FastText fasttext = FastText.train(args, fileSystem, System.out, input, preTrainedVectors);
         fasttext.saveModel();
         fasttext.saveVectors();
         if (args.saveOutput() > 0) {

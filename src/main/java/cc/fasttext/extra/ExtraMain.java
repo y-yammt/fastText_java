@@ -45,6 +45,8 @@ public class ExtraMain {
             pair("dfs.client.socket-timeout", 2 * 60 * 1000))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
+    private static final String DEFAULT_HADOOP_USER = "hadoop";
+
     static {
         init();
     }
@@ -102,7 +104,9 @@ public class ExtraMain {
             throw new IllegalArgumentException("Not a hdfs uri: " + uri);
         }
         String user = uri.getRawUserInfo();
-        if (user.contains(":")) {
+        if (user == null) {
+            user = DEFAULT_HADOOP_USER;
+        } else if (user.contains(":")) {
             throw new IllegalArgumentException("Security URIs are not supported: " + uri);
         }
         URI root;

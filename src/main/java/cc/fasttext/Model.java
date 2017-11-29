@@ -24,7 +24,6 @@ public strictfp class Model {
     // the following order does not important, it is just to match c++ and java versions:
     private static final Comparator<Integer> HEAP_LABEL_COMPARATOR = Comparator.reverseOrder();//Integer::compareTo;
     // todo: new
-    public boolean quant_;
     public QMatrix qwi_;
     public QMatrix qwo_;
     public RandomGenerator rng;
@@ -79,12 +78,32 @@ public strictfp class Model {
      * @param qwo
      * @param qout
      */
-    public void setQuantizePointer(QMatrix qwi, QMatrix qwo, boolean qout) {
+    void setQuantizePointer(QMatrix qwi, QMatrix qwo, boolean qout) {
         this.qwi_ = qwi;
         this.qwo_ = qwo;
         if (qout) {
             osz_ = qwo_.getM();
         }
+    }
+
+    public Matrix input() {
+        return wi_;
+    }
+
+    public Matrix output() {
+        return wo_;
+    }
+
+    public QMatrix qinput() {
+        return qwi_;
+    }
+
+    public QMatrix qoutput() {
+        return qwo_;
+    }
+
+    public boolean isQuant() {
+        return qwi_ != null && !qwi_.isEmpty();
     }
 
     public float binaryLogistic(int target, boolean label, float lr) {
@@ -181,7 +200,7 @@ public strictfp class Model {
      * @param output
      */
     public void computeOutputSoftmax(Vector hidden, Vector output) {
-        if (quant_ && args_.qout()) {
+        if (isQuant() && args_.qout()) {
             output.mul(qwo_, hidden);
         } else {
             output.mul(wo_, hidden);
@@ -253,7 +272,7 @@ public strictfp class Model {
         Utils.checkArgument(hidden.size() == hsz_);
         hidden.zero();
         for (Integer it : input) {
-            if (quant_) {
+            if (isQuant()) {
                 hidden.addRow(qwi_, it);
             } else {
                 hidden.addRow(wi_, it);
@@ -411,7 +430,7 @@ public strictfp class Model {
             return;
         }
         float f;
-        if (quant_ && args_.qout()) {
+        if (isQuant() && args_.qout()) {
             f = sigmoid(qwo_.dotRow(hidden, node - osz_));
         } else {
             f = sigmoid(wo_.dotRow(hidden, node - osz_));
