@@ -1014,8 +1014,102 @@ public strictfp class FastText {
         return res;
     }
 
+    /**
+     * <pre>{@code std::vector<int32_t> FastText::selectEmbeddings(int32_t cutoff) const {
+     *  Vector norms(input_->m_);
+     *  input_->l2NormRow(norms);
+     *  std::vector<int32_t> idx(input_->m_, 0);
+     *  std::iota(idx.begin(), idx.end(), 0);
+     *  auto eosid = dict_->getId(Dictionary::EOS);
+     *  std::sort(idx.begin(), idx.end(), [&norms, eosid] (size_t i1, size_t i2) {
+     *      return eosid ==i1 || (eosid != i2 && norms[i1] > norms[i2]);
+     *  });
+     *  idx.erase(idx.begin() + cutoff, idx.end());
+     *  return idx;
+     * }}</pre>
+     *
+     * @param cutoff
+     * @return
+     */
+    private List<Integer> selectEmbeddings(int cutoff) {
+        Vector norms = model.input().l2NormRow();
+        List<Integer> idx = IntStream.iterate(0, operand -> ++operand).limit(norms.size()).boxed().collect(Collectors.toList());
+        int eosid = dict.getId(Dictionary.EOS);
+        idx.sort((i1, i2) -> {
+            boolean res = eosid == i1 || (eosid != i2 && norms.get(i1) > norms.get(i2));
+            return res ? -1 : i1.compareTo(i2);
+        });
+        return idx.subList(0, cutoff);
+    }
+
+    /**
+     * <pre>{@code void FastText::quantize(std::shared_ptr<Args> qargs) {
+     *  if (args_->model != model_name::sup) {
+     *      throw std::invalid_argument("For now we only support quantization of supervised models");
+     *  }
+     *  args_->input = qargs->input;
+     *  args_->qout = qargs->qout;
+     *  args_->output = qargs->output;
+     *  if (qargs->cutoff > 0 && qargs->cutoff < input_->m_) {
+     *      auto idx = selectEmbeddings(qargs->cutoff);
+     *      dict_->prune(idx);
+     *      std::shared_ptr<Matrix> ninput = std::make_shared<Matrix>(idx.size(), args_->dim);
+     *      for (auto i = 0; i < idx.size(); i++) {
+     *          for (auto j = 0; j < args_->dim; j++) {
+     *              ninput->at(i, j) = input_->at(idx[i], j);
+     *          }
+     *      }
+     *      input_ = ninput;
+     *      if (qargs->retrain) {
+     *          args_->epoch = qargs->epoch;
+     *          args_->lr = qargs->lr;
+     *          args_->thread = qargs->thread;
+     *          args_->verbose = qargs->verbose;
+     *          startThreads();
+     *      }
+     *  }
+     *  qinput_ = std::make_shared<QMatrix>(*input_, qargs->dsub, qargs->qnorm);
+     *  if (args_->qout) {
+     *      qoutput_ = std::make_shared<QMatrix>(*output_, 2, qargs->qnorm);
+     *  }
+     *  quant_ = true;
+     *  model_ = std::make_shared<Model>(input_, output_, args_, 0);
+     *  model_->quant_ = quant_;
+     *  model_->setQuantizePointer(qinput_, qoutput_, args_->qout);
+     * }}</pre>
+     * TODO: warn - model files will be overwritten.
+     *
+     * @param other
+     * @param fileToRetrain
+     * @return
+     */
+    public FastText quantize(Args other, String fileToRetrain) {
+        if (!ModelName.SUP.equals(args.model())) {
+            throw new IllegalArgumentException("For now we only support quantization of supervised models");
+        }
+        Matrix input_;
+        if (other.cutoff() > 0 && other.cutoff() < model.input().m_) {
+            List<Integer> idx = selectEmbeddings(other.cutoff());
+            dict.prune(idx);
+            Matrix ninput = new Matrix(idx.size(), args.dim());
+            for (int i = 0; i < idx.size(); i++) {
+                for (int j = 0; j < args.dim(); j++) {
+                    ninput.data_[i][j] = model.input().data_[idx.get(i)][j];
+                }
+            }
+            input_ = ninput;
+            if (!StringUtils.isEmpty(fileToRetrain)) {
+                throw new UnsupportedOperationException("Retrain is not supported right now");
+            }
+        } else {
+            input_ = model.input().copy();
+        }
+        // TODO:
+        throw new UnsupportedOperationException("TODO: not ready");
+    }
+
     public static FastText train(Args args, IOStreams fs, PrintStream logs, String dataFile, String vectorsFile) throws IOException, ExecutionException {
-        return new Trainer(args, fs, logs).train(dataFile, vectorsFile);
+        return new Trainer(args, fs, logs).train(dataFile, vectorsFile).setFileSystem(fs);
     }
 
     /**
@@ -1222,9 +1316,9 @@ public strictfp class FastText {
          */
         private void trainThread(int threadId, BiConsumer<Float, Float> printer) throws IOException {
             Model model = new Model(input, output, args, threadId);
-            try (FTReader r = createReader()) {
+            try (FTReader reader = createReader()) {
                 long skip = threadId * fileSize / args.thread();
-                r.skipBytes(skip);
+                reader.skipBytes(skip);
                 if (ModelName.SUP.equals(args.model())) {
                     model.setTargetCounts(dict.getCounts(EntryType.LABEL));
                 } else {
@@ -1238,13 +1332,13 @@ public strictfp class FastText {
                     float progress = tokenCount.floatValue() / (args.epoch() * ntokens);
                     float lr = (float) (args.lr() * (1.0 - progress));
                     if (ModelName.SUP.equals(args.model())) {
-                        localTokenCount += dict.getLine(r, line, labels);
+                        localTokenCount += dict.getLine(reader, line, labels);
                         supervised(model, lr, line, labels);
                     } else if (ModelName.CBOW.equals(args.model())) {
-                        localTokenCount += dict.getLine(r, line, model.rng);
+                        localTokenCount += dict.getLine(reader, line, model.rng);
                         cbow(model, lr, line);
                     } else if (ModelName.SG.equals(args.model())) {
-                        localTokenCount += dict.getLine(r, line, model.rng);
+                        localTokenCount += dict.getLine(reader, line, model.rng);
                         skipgram(model, lr, line);
                     }
                     if (localTokenCount > args.lrUpdateRate()) {

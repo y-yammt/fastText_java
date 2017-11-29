@@ -354,6 +354,7 @@ public strictfp class Dictionary {
      *      exit(EXIT_FAILURE);
      *  }
      * }}</pre>
+     *
      * @param reader
      * @param logs
      * @return
@@ -836,6 +837,49 @@ public strictfp class Dictionary {
      */
     public boolean isPruned() {
         return pruneidx_size_ >= 0;
+    }
+
+    /**
+     * <pre>{@code void Dictionary::prune(std::vector<int32_t>& idx) {
+     *  std::vector<int32_t> words, ngrams;
+     *  for (auto it = idx.cbegin(); it != idx.cend(); ++it) {
+     *      if (*it < nwords_) {
+     *          words.push_back(*it);
+     *      } else {
+     *          ngrams.push_back(*it);
+     *      }
+     *  }
+     *  std::sort(words.begin(), words.end());
+     *  idx = words;
+     *  if (ngrams.size() != 0) {
+     *      int32_t j = 0;
+     *      for (const auto ngram : ngrams) {
+     *          pruneidx_[ngram - nwords_] = j;
+     *          j++;
+     *      }
+     *      idx.insert(idx.end(), ngrams.begin(), ngrams.end());
+     *  }
+     *  pruneidx_size_ = pruneidx_.size();
+     *  std::fill(word2int_.begin(), word2int_.end(), -1);
+     *  int32_t j = 0;
+     *  for (int32_t i = 0; i < words_.size(); i++) {
+     *      if (getType(i) == entry_type::label || (j < words.size() && words[j] == i)) {
+     *          words_[j] = words_[i];
+     *          word2int_[find(words_[j].word)] = j;
+     *          j++;
+     *      }
+     *  }
+     *  nwords_ = words.size();
+     *  size_ = nwords_ +  nlabels_;
+     *  words_.erase(words_.begin() + size_, words_.end());
+     *  initNgrams();
+     * }}</pre>
+     *
+     * @param idx
+     */
+    void prune(List<Integer> idx) {
+        // TODO:
+        throw new UnsupportedOperationException("TODO");
     }
 
     /**

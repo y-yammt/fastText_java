@@ -8,6 +8,8 @@ import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 import java.util.function.IntConsumer;
 
+import org.apache.commons.lang.StringUtils;
+
 import ru.avicomp.io.IOStreams;
 import ru.avicomp.io.impl.LocalIOStreams;
 
@@ -333,22 +335,73 @@ public class Main {
      *  }
      * }}</pre>
      *
-     * @param array
+     * @param inputs
      * @throws Exception
      */
-    public static void train(String[] array) throws Exception {
-        Map<String, String> map = toMap(array);
-        String input = map.get("-input");
-        if (input == null) {
-            throw new IllegalArgumentException("Empty -input");
+    public static void train(String[] inputs) throws Exception {
+        Map<String, String> map = toMap(inputs);
+        String textData = map.get("-input");
+        if (StringUtils.isEmpty(textData)) {
+            throw Usage.TRAIN.toException("Empty -input", Usage.ARGS);
+        }
+        String modelName = map.get("-output");
+        if (StringUtils.isEmpty(modelName)) {
+            throw Usage.TRAIN.toException("Empty -output", Usage.ARGS);
         }
         String preTrainedVectors = map.get("-pretrainedVectors");
-        Args args = parseArgs(array);
-        FastText fasttext = FastText.train(args, fileSystem, System.out, input, preTrainedVectors);
+        // todo: check all files before processing
+        Args args = parseArgs(inputs);
+        FastText fasttext = FastText.train(args, fileSystem, System.out, textData, preTrainedVectors);
+        // todo: change signature: save to specified file (see modelName)
         fasttext.saveModel();
         fasttext.saveVectors();
         if (args.saveOutput() > 0) {
             fasttext.saveOutput();
+        }
+    }
+
+    /**
+     * <pre>{@code void quantize(const std::vector<std::string>& args) {
+     *  std::shared_ptr<Args> a = std::make_shared<Args>();
+     *  if (args.size() < 3) {
+     *      printQuantizeUsage();
+     *      a->printHelp();
+     *      exit(EXIT_FAILURE);
+     *  }
+     *  a->parseArgs(args);
+     *  FastText fasttext;
+     *  // parseArgs checks if a->output is given.
+     *  fasttext.loadModel(a->output + ".bin");
+     *  fasttext.quantize(a);
+     *  fasttext.saveModel();
+     *  exit(0);
+     * }}</pre>
+     *
+     * @param inputs
+     */
+    public static void quantize(String[] inputs) throws IOException {
+        if (inputs.length < 3) { // ex: quantize -output <model-name-uri|mode-bin>
+            throw Usage.QUANTIZE.toException("Model name or model path is mandatory (see -output).", Usage.ARGS);
+        }
+        Map<String, String> map = toMap(inputs);
+        String modelBin = map.get("-output");
+        if (StringUtils.isEmpty(modelBin)) {
+            throw Usage.QUANTIZE.toException("No model (see -output)", Usage.ARGS);
+        }
+        if (!modelBin.endsWith(".bin")) {
+            modelBin += ".bin";
+        }
+        String textData = map.get("-input"); // only with -retrain:
+        if (map.containsKey("-retrain") && StringUtils.isEmpty(textData)) {
+            throw Usage.QUANTIZE.toException("Wrong args: -input is required if -retrain specified", Usage.ARGS);
+        }
+        // todo: check all files before processing
+        Args args = parseArgs(inputs);
+        FastText dst = FastText.loadModel(fileSystem, modelBin).quantize(args, textData);
+        dst.saveModel();
+        dst.saveVectors();
+        if (args.saveOutput() > 0) {
+            dst.saveOutput();
         }
     }
 
@@ -372,8 +425,8 @@ public class Main {
             train(args);
         } else if ("test".equalsIgnoreCase(command)) {
             test(args);
-        } else if ("quantize".equalsIgnoreCase(command)) { // TODO: quantize
-            throw new UnsupportedOperationException("TODO");
+        } else if ("quantize".equalsIgnoreCase(command)) {
+            quantize(args);
         } else if ("print-word-vectors".equalsIgnoreCase(command)) {
             printWordVectors(args);
         } else if ("print-sentence-vectors".equalsIgnoreCase(command)) {
@@ -636,6 +689,7 @@ public class Main {
                 + "  print-sentence-vectors  print sentence vectors given a trained model\n"
                 + "  nn                      query for nearest neighbors\n"
                 + "  analogies               query for analogies\n"),
+        TRAIN("usage: {fasttext} {supervised|skipgram|cbow} <args>"),
         QUANTIZE("usage: {fasttext} quantize <args>"),
         TEST("usage: {fasttext} test <model> <test-data> [<k>]\n\n"
                 + "  <model>      model filename\n"
@@ -660,13 +714,13 @@ public class Main {
                 + "  <k>          (optional; 10 by default) predict top k labels\n"),
 
         ARGS_BASIC_HELP("\nThe following arguments are mandatory:\n"
-                + "  -input              training file path\n"
-                + "  -output             output file path\n"
+                + "  -input              training file uri\n"
+                + "  -output             output file name\n"
                 + "\nThe following arguments are optional:\n"
                 + "  -verbose            verbosity level [integer]\n"),
         ARGS_DICTIONARY_HELP("\nThe following arguments for the dictionary are optional:\n"
-                + "  -minCount           minimal number of word occurences [integer]\n"
-                + "  -minCountLabel      minimal number of label occurences [integer]\n"
+                + "  -minCount           minimal number of word occurrences [integer]\n"
+                + "  -minCountLabel      minimal number of label occurrences [integer]\n"
                 + "  -wordNgrams         max length of word ngram [integer]\n"
                 + "  -bucket             number of buckets [integer]\n"
                 + "  -minn               min length of char ngram [integer]\n"
@@ -680,7 +734,7 @@ public class Main {
                 + "  -ws                 size of the context window [integer]\n"
                 + "  -epoch              number of epochs [integer]\n"
                 + "  -neg                number of negatives sampled [integer]\n"
-                + "  -loss               loss function {ns, hs, softmax} [enum]\n"
+                + "  -loss               loss function {ns|hs|softmax} [string]\n"
                 + "  -thread             number of threads [integer]\n"
                 + "  -pretrainedVectors  pretrained word vectors for supervised learning [string]\n"
                 + "  -saveOutput         whether output params should be saved [integer]\n"),
@@ -703,11 +757,19 @@ public class Main {
         }
 
         public IllegalArgumentException toException() {
-            return new IllegalArgumentException(getMessage());
+            return createException(getMessage());
         }
 
         public IllegalArgumentException toException(String line) {
-            return new IllegalArgumentException(line + "\n" + getMessage());
+            return createException(line + "\n" + getMessage());
+        }
+
+        public IllegalArgumentException toException(String line, Usage extra) {
+            return createException(line + "\n" + getMessage() + "\n" + extra.getMessage());
+        }
+
+        private static IllegalArgumentException createException(String msg) {
+            return new IllegalArgumentException(msg);
         }
     }
 }

@@ -18,6 +18,7 @@ import ru.avicomp.io.FTOutputStream;
  * See:
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/args.cc'>args.cc</a> and
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/args.h'>args.h</a>
+ * TODO: retrain, input, output - must be excluded, charset, random factory - must be moved to fastText
  */
 public final strictfp class Args {
     public static final String DEFAULT_LABEL = "__label__";

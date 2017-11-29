@@ -5,6 +5,7 @@ import java.io.IOException;
 import org.apache.commons.lang.Validate;
 import org.apache.commons.math3.distribution.UniformRealDistribution;
 import org.apache.commons.math3.random.RandomGenerator;
+import org.apache.commons.math3.util.FastMath;
 
 import ru.avicomp.io.FTInputStream;
 import ru.avicomp.io.FTOutputStream;
@@ -19,22 +20,22 @@ public strictfp class Matrix {
     public int m_ = 0; // vocabSize
     public int n_ = 0; // layer1Size
 
-    public Matrix() {
+    Matrix() {
     }
 
     public Matrix(int m, int n) {
+        this();
         m_ = m;
         n_ = n;
         data_ = new float[m][n];
     }
 
-    public Matrix(Matrix other) {
-        m_ = other.m_;
-        n_ = other.n_;
-        data_ = new float[m_][n_];
+    public Matrix copy() {
+        Matrix res = new Matrix(m_, n_);
         for (int i = 0; i < m_; i++) {
-            System.arraycopy(other.data_[i], 0, data_[i], 0, n_);
+            System.arraycopy(data_[i], 0, res.data_[i], 0, n_);
         }
+        return res;
     }
 
     public void zero() {
@@ -121,6 +122,47 @@ public strictfp class Matrix {
     void set(int i, int j, float value) {
         data_[i][j] = value;
     }
+
+    /**
+     * <pre>{@code real Matrix::l2NormRow(int64_t i) const {
+     *  auto norm = 0.0;
+     *  for (auto j = 0; j < n_; j++) {
+     *      const real v = at(i,j);
+     *      norm += v * v;
+     *  }
+     *  return std::sqrt(norm);
+     * }}</pre>
+     *
+     * @param i
+     * @return
+     */
+    private float l2NormRow(int i) {
+        double norm = 0.0;
+        for (int j = 0; j < n_; j++) {
+            float v = data_[i][j];
+            norm += v * v;
+        }
+        return (float) FastMath.sqrt(norm);
+    }
+
+    /**
+     * <pre>{@code void Matrix::l2NormRow(Vector& norms) const {
+     *  assert(norms.size() == m_);
+     *  for (auto i = 0; i < m_; i++) {
+     *      norms[i] = l2NormRow(i);
+     *  }
+     * }}</pre>
+     *
+     * @return
+     */
+    public Vector l2NormRow() {
+        Vector res = new Vector(m_);
+        for (int i = 0; i < m_; i++) {
+            res.data_[i] = l2NormRow(i);
+        }
+        return res;
+    }
+
 
     /**
      * <pre>{@code
