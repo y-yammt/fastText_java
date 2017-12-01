@@ -16,15 +16,15 @@ import ru.avicomp.io.FTOutputStream;
  */
 public strictfp class Matrix {
 
-    public float[][] data_;
-    public int m_ = 0; // vocabSize
-    public int n_ = 0; // layer1Size
+    private float[][] data_;
+    protected int m_; // vocabSize
+    public int n_; // layer1Size
 
     Matrix() {
+        this(0, 0);
     }
 
     public Matrix(int m, int n) {
-        this();
         m_ = m;
         n_ = n;
         data_ = new float[m][n];
@@ -38,12 +38,37 @@ public strictfp class Matrix {
         return res;
     }
 
+    @Deprecated
     public void zero() {
         data_ = new float[m_][n_];
     }
 
     public boolean isEmpty() {
-        return data_ == null;
+        return data_ == null || data_.length == 0;
+    }
+
+    public int getM() {
+        return m_;
+    }
+
+    public int getN() {
+        return n_;
+    }
+
+    public float get(int i, int j) {
+        Validate.isTrue(i >= 0 && i < m_, "Wong first index: " + i);
+        Validate.isTrue(j >= 0 && j < n_, "Wong second index: " + j);
+        return at(i, j);
+    }
+
+    float at(int i, int j) {
+        return data_[i][j];
+    }
+
+    void set(int i, int j, float value) {
+        Validate.isTrue(i >= 0 && i < m_, "Wong first index: " + i);
+        Validate.isTrue(j >= 0 && j < n_, "Wong second index: " + j);
+        data_[i][j] = value;
     }
 
     /**
@@ -81,17 +106,17 @@ public strictfp class Matrix {
      *  return d;
      * }}</pre>
      *
-     * @param vec
+     * @param vector
      * @param i
      * @return
      */
-    public float dotRow(final Vector vec, int i) {
+    public float dotRow(Vector vector, int i) {
         Validate.isTrue(i >= 0);
         Validate.isTrue(i < m_);
-        Validate.isTrue(vec.size() == n_);
+        Validate.isTrue(vector.size() == n_);
         float d = 0f;
         for (int j = 0; j < n_; j++) {
-            d += data_[i][j] * vec.data_[j];
+            d += data_[i][j] * vector.data_[j];
         }
         return d;
     }
@@ -117,10 +142,6 @@ public strictfp class Matrix {
         for (int j = 0; j < n_; j++) {
             data_[i][j] += a * vec.data_[j];
         }
-    }
-
-    void set(int i, int j, float value) {
-        data_[i][j] = value;
     }
 
     /**

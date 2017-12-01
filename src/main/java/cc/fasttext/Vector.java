@@ -25,7 +25,6 @@ public strictfp class Vector {
 
     public void zero() {
         data_ = new float[m_];
-        //for (int i = 0; i < m_; i++) data_[i] = 0;
     }
 
     /**
@@ -100,7 +99,8 @@ public strictfp class Vector {
     }
 
     /**
-     * <pre>{@code void Vector::addRow(const Matrix& A, int64_t i) {
+     * <pre>{@code
+     * void Vector::addRow(const Matrix& A, int64_t i) {
      *  assert(i >= 0);
      *  assert(i < A.m_);
      *  assert(m_ == A.n_);
@@ -109,35 +109,59 @@ public strictfp class Vector {
      *  }
      * }}</pre>
      *
-     * @param A
+     * @param matrix
      * @param i
      */
-    public void addRow(Matrix A, int i) {
-        Utils.checkArgument(i >= 0);
-        Utils.checkArgument(i < A.m_);
-        Utils.checkArgument(m_ == A.n_);
-        for (int j = 0; j < A.n_; j++) {
-            data_[j] += A.data_[i][j];
+    public void addRow(Matrix matrix, int i) {
+        Validate.isTrue(i >= 0 && i < matrix.getM(), "Incompatible index (" + i + ") and matrix m-size (" + matrix.getM() + ")");
+        Validate.isTrue(m_ == matrix.getN(), "Wrong matrix n-size: " + m_ + " != " + matrix.getN());
+        for (int j = 0; j < matrix.getN(); j++) {
+            data_[j] += matrix.at(i, j);
         }
     }
 
-    public void addRow(final Matrix A, int i, float a) {
-        Utils.checkArgument(i >= 0);
-        Utils.checkArgument(i < A.m_);
-        Utils.checkArgument(m_ == A.n_);
-        for (int j = 0; j < A.n_; j++) {
-            data_[j] += a * A.data_[i][j];
+    /**
+     * <pre>{@code
+     * void Vector::addRow(const Matrix& A, int64_t i, real a) {
+     *  assert(i >= 0);
+     *  assert(i < A.m_);
+     *  assert(m_ == A.n_);
+     *  for (int64_t j = 0; j < A.n_; j++) {
+     *      data_[j] += a * A.at(i, j);
+     *  }
+     * }
+     * }</pre>
+     *
+     * @param matrix
+     * @param i
+     * @param a
+     */
+    public void addRow(Matrix matrix, int i, float a) {
+        Validate.isTrue(i >= 0 && i < matrix.getM(), "Incompatible index (" + i + ") and matrix m-size (" + matrix.getM() + ")");
+        Validate.isTrue(m_ == matrix.getN(), "Wrong matrix n-size: " + m_ + " != " + matrix.getN());
+        for (int j = 0; j < matrix.getN(); j++) {
+            data_[j] += a * matrix.at(i, j);
         }
     }
 
-    public void mul(final Matrix A, final Vector vec) {
-        Utils.checkArgument(A.m_ == m_);
-        Utils.checkArgument(A.n_ == vec.m_);
+    /**
+     * <pre>{@code
+     * void Vector::mul(const Matrix& A, const Vector& vec) {
+     *  assert(A.m_ == m_);
+     *  assert(A.n_ == vec.m_);
+     *  for (int64_t i = 0; i < m_; i++) {
+     *      data_[i] = A.dotRow(vec, i);
+     *  }
+     * }}</pre>
+     *
+     * @param matrix
+     * @param vector
+     */
+    public void mul(Matrix matrix, Vector vector) {
+        Validate.isTrue(matrix.getM() == m_, "Wrong matrix m-size: " + m_ + " != " + matrix.getM());
+        Validate.isTrue(matrix.getN() == vector.m_, "Matrix n-size (" + matrix.getN() + ") and vector size (" + vector.m_ + ")  are not equal.");
         for (int i = 0; i < m_; i++) {
-            data_[i] = 0.0f;
-            for (int j = 0; j < A.n_; j++) {
-                data_[i] += A.data_[i][j] * vec.data_[j];
-            }
+            data_[i] = matrix.dotRow(vector, i);
         }
     }
 

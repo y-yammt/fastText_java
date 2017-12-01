@@ -52,14 +52,6 @@ public class QMatrix extends Matrix {
         //TODO:
     }
 
-    public int getM() {
-        return m_;
-    }
-
-    public int getN() {
-        return n_;
-    }
-
     /**
      * <pre>{@code void QMatrix::save(std::ostream& out) {
      *  out.write((char*) &qnorm_, sizeof(qnorm_));

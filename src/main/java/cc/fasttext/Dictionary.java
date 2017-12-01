@@ -979,6 +979,23 @@ public strictfp class Dictionary {
         initNgrams();
     }
 
+    Dictionary copy() {
+        Dictionary res = new Dictionary(args);
+        res.size_ = this.size_;
+        res.nwords_ = this.nwords_;
+        res.nlabels_ = this.nlabels_;
+        res.ntokens_ = this.ntokens_;
+        res.pruneidx_size_ = this.pruneidx_size_;
+        res.word2int_ = this.word2int_;
+        res.word2int_ = new HashMap<>(this.word2int_);
+        // todo:
+        res.words_ = new ArrayList<>(this.words_);
+        res.pruneidx_ = new HashMap<>(this.pruneidx_);
+        res.initTableDiscard();
+        res.initNgrams();
+        return res;
+    }
+
     @Override
     public String toString() {
         return String.format("Dictionary [words_=%s, pdiscard_=%s, word2int_=%s, size_=%d, nwords_=%d, nlabels_=%d, ntokens_=%d]",

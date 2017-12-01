@@ -699,6 +699,7 @@ public strictfp class FastText {
             throw new IllegalArgumentException("Invalid model file.\nPlease download the updated model from " +
                     "www.fasttext.cc.\nSee issue #332 on Github for more information.\n");
         }
+        // warn: after following line different args in dictionary and this object:
         args = new Args.Builder().copy(args).setQOut(inputStream.readBoolean()).build();
         Matrix output = new Matrix();
         QMatrix qoutput = new QMatrix();
@@ -1009,7 +1010,10 @@ public strictfp class FastText {
             int idx = dict.getId(words.get(i));
             if (idx < 0 || idx >= dict.nwords())
                 continue;
-            System.arraycopy(mat.data_[i], 0, res.data_[idx], 0, dim);
+            for (int j = 0; j < dim; j++) {
+                res.set(idx, j, mat.get(i, j));
+            }
+            //System.arraycopy(mat.data_[i], 0, res.data_[idx], 0, dim);
         }
         return res;
     }
@@ -1080,31 +1084,46 @@ public strictfp class FastText {
      * TODO: warn - model files will be overwritten.
      *
      * @param other
-     * @param fileToRetrain
+     * @param dataFileToRetrain
      * @return
      */
-    public FastText quantize(Args other, String fileToRetrain) {
+    public FastText quantize(Args other, String dataFileToRetrain) {
+        if (model.isQuant()) {
+            throw new IllegalStateException("Already quantilizated.");
+        }
         if (!ModelName.SUP.equals(args.model())) {
             throw new IllegalArgumentException("For now we only support quantization of supervised models");
         }
+        Args qargs = new Args.Builder()
+                .copy(this.args)
+                .setQOut(other.qout())
+                .setCutOff(other.cutoff())
+                .setQNorm(other.qnorm())
+                .setDSub(other.dsub()).build();
+
         Matrix input_;
-        if (other.cutoff() > 0 && other.cutoff() < model.input().m_) {
-            List<Integer> idx = selectEmbeddings(other.cutoff());
+        if (qargs.cutoff() > 0 && qargs.cutoff() < model.input().getM()) {
+            List<Integer> idx = selectEmbeddings(qargs.cutoff());
             dict.prune(idx);
-            Matrix ninput = new Matrix(idx.size(), args.dim());
+            input_ = new Matrix(idx.size(), qargs.dim());
             for (int i = 0; i < idx.size(); i++) {
-                for (int j = 0; j < args.dim(); j++) {
-                    ninput.data_[i][j] = model.input().data_[idx.get(i)][j];
+                for (int j = 0; j < qargs.dim(); j++) {
+                    input_.set(i, j, model.input().get(idx.get(i), j));
                 }
             }
-            input_ = ninput;
-            if (!StringUtils.isEmpty(fileToRetrain)) {
+            if (!StringUtils.isEmpty(dataFileToRetrain)) {
                 throw new UnsupportedOperationException("Retrain is not supported right now");
             }
         } else {
             input_ = model.input().copy();
         }
+        Matrix output_ = model.output().copy();
+        QMatrix qinput_ = new QMatrix(input_, qargs.dsub(), qargs.qnorm());
+        if (qargs.qout()) {
+            // todo:
+        }
         // TODO:
+        Dictionary qdict = this.dict.copy();
         throw new UnsupportedOperationException("TODO: not ready");
     }
 
@@ -1129,8 +1148,8 @@ public strictfp class FastText {
         private Instant start;
         private AtomicLong tokenCount;
 
-        private Trainer(Args args_, IOStreams factory, PrintStream logs) {
-            this.args = args_;
+        private Trainer(Args args, IOStreams factory, PrintStream logs) {
+            this.args = args;
             this.fs = factory;
             this.logs = logs;
         }

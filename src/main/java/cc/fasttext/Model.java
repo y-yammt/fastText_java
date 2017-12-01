@@ -24,11 +24,11 @@ public strictfp class Model {
     // the following order does not important, it is just to match c++ and java versions:
     private static final Comparator<Integer> HEAP_LABEL_COMPARATOR = Comparator.reverseOrder();//Integer::compareTo;
     // todo: new
-    public QMatrix qwi_;
-    public QMatrix qwo_;
+    private QMatrix qwi_;
+    private QMatrix qwo_;
     public RandomGenerator rng;
-    public Matrix wi_; // input
-    public Matrix wo_; // output
+    private Matrix wi_; // input
+    private Matrix wo_; // output
     private Args args_;
     private Vector hidden_;
     private Vector output_;
@@ -49,13 +49,13 @@ public strictfp class Model {
 
     public Model(Matrix wi, Matrix wo, Args args, int seed) {
         hidden_ = new Vector(args.dim());
-        output_ = new Vector(wo.m_);
+        output_ = new Vector(wo.getM());
         grad_ = new Vector(args.dim());
         rng = args.randomFactory().apply(seed);
         wi_ = wi;
         wo_ = wo;
         args_ = args;
-        osz_ = wo.m_;
+        osz_ = wo.getM();
         hsz_ = args.dim();
         negpos = 0;
         loss_ = 0.0f;
