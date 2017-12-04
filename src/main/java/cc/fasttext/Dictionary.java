@@ -9,6 +9,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
+import java.util.stream.Collectors;
 
 import org.apache.commons.math3.distribution.UniformRealDistribution;
 import org.apache.commons.math3.random.RandomGenerator;
@@ -445,50 +446,6 @@ public strictfp class Dictionary {
     }
 
     /**
-     * <pre>{@code
-     * void Dictionary::threshold(int64_t t, int64_t tl) {
-     *  sort(words_.begin(), words_.end(), [](const entry& e1, const entry& e2) {
-     *      if (e1.type != e2.type) return e1.type < e2.type;
-     *      return e1.count > e2.count;
-     *  });
-     *  words_.erase(remove_if(words_.begin(), words_.end(), [&](const entry& e) {
-     *      return (e.type == entry_type::word && e.count < t) || (e.type == entry_type::label && e.count < tl);
-     *  }), words_.end());
-     *  words_.shrink_to_fit();
-     *  size_ = 0;
-     *  nwords_ = 0;
-     *  nlabels_ = 0;
-     *  std::fill(word2int_.begin(), word2int_.end(), -1);
-     *  for (auto it = words_.begin(); it != words_.end(); ++it) {
-     *      int32_t h = find(it->word);
-     *      word2int_[h] = size_++;
-     *      if (it->type == entry_type::word) nwords_++;
-     *      if (it->type == entry_type::label) nlabels_++;
-     *  }
-     * }
-     * }</pre>
-     *
-     * @param wordThreshold
-     * @param labelThreshold
-     */
-    public void threshold(long wordThreshold, long labelThreshold) {
-        words_.sort(ENTRY_COMPARATOR);
-        words_.removeIf(e ->
-                (EntryType.WORD == e.type && e.count < wordThreshold) || (EntryType.LABEL == e.type && e.count < labelThreshold));
-        ((ArrayList<Entry>) words_).trimToSize();
-        size_ = 0;
-        nwords_ = 0;
-        nlabels_ = 0;
-        word2int_ = new HashMap<>(words_.size());
-        for (Entry e : words_) {
-            long h = find(e.word);
-            word2int_.put(h, size_++);
-            if (EntryType.WORD == e.type) nwords_++;
-            if (EntryType.LABEL == e.type) nlabels_++;
-        }
-    }
-
-    /**
      * <pre>{@code void Dictionary::initTableDiscard() {
      *  pdiscard_.resize(size_);
      *  for (size_t i = 0; i < size_; i++) {
@@ -840,6 +797,56 @@ public strictfp class Dictionary {
     }
 
     /**
+     * <pre>{@code
+     * void Dictionary::threshold(int64_t t, int64_t tl) {
+     *  sort(words_.begin(), words_.end(), [](const entry& e1, const entry& e2) {
+     *      if (e1.type != e2.type) return e1.type < e2.type;
+     *      return e1.count > e2.count;
+     *  });
+     *  words_.erase(remove_if(words_.begin(), words_.end(), [&](const entry& e) {
+     *      return (e.type == entry_type::word && e.count < t) || (e.type == entry_type::label && e.count < tl);
+     *  }), words_.end());
+     *  words_.shrink_to_fit();
+     *  size_ = 0;
+     *  nwords_ = 0;
+     *  nlabels_ = 0;
+     *  std::fill(word2int_.begin(), word2int_.end(), -1);
+     *  for (auto it = words_.begin(); it != words_.end(); ++it) {
+     *      int32_t h = find(it->word);
+     *      word2int_[h] = size_++;
+     *      if (it->type == entry_type::word) nwords_++;
+     *      if (it->type == entry_type::label) nlabels_++;
+     *  }
+     * }
+     * }</pre>
+     *
+     * @param wordThreshold
+     * @param labelThreshold
+     */
+    void threshold(long wordThreshold, long labelThreshold) {
+        // todo: mb parallel stream ?
+        ArrayList<Entry> words = words_.stream()
+                .sorted(ENTRY_COMPARATOR) // todo: why?
+                .filter(e -> (EntryType.WORD != e.type || e.count >= wordThreshold) && (EntryType.LABEL != e.type || e.count >= labelThreshold))
+                .collect(Collectors.toCollection(ArrayList::new));
+        words.trimToSize();
+        this.words_ = words;
+        this.word2int_ = new HashMap<>(words.size());
+        int wordsCount = 0;
+        int labelsCount = 0;
+        int count = 0;
+        for (Entry e : words) { // todo: move to one cycle?
+            long h = find(e.word);
+            word2int_.put(h, count++);
+            if (EntryType.WORD == e.type) wordsCount++;
+            if (EntryType.LABEL == e.type) labelsCount++;
+        }
+        this.size_ = words_.size();
+        this.nwords_ = wordsCount;
+        this.nlabels_ = labelsCount;
+    }
+
+    /**
      * <pre>{@code void Dictionary::prune(std::vector<int32_t>& idx) {
      *  std::vector<int32_t> words, ngrams;
      *  for (auto it = idx.cbegin(); it != idx.cend(); ++it) {
@@ -878,8 +885,40 @@ public strictfp class Dictionary {
      * @param idx
      */
     void prune(List<Integer> idx) {
-        // TODO:
-        throw new UnsupportedOperationException("TODO");
+        List<Integer> words = new ArrayList<>();
+        List<Integer> ngrams = new ArrayList<>();
+        for (Integer it : idx) {
+            if (it < nwords_) {
+                words.add(it);
+            } else {
+                ngrams.add(it);
+            }
+        }
+        Collections.sort(words);
+        idx = words;
+        if (!ngrams.isEmpty()) {
+            int j = 0;
+            for (int ngram : ngrams) {
+                pruneidx_.put(ngram - nwords_, j);
+                j++;
+            }
+            idx.addAll(ngrams);
+        }
+        pruneidx_size_ = pruneidx_.size();
+        word2int_.clear();
+        int j = 0;
+        for (int i = 0; i < words_.size(); i++) {
+            if (getType(i) != EntryType.LABEL && (j >= words.size() || words.get(j) != i)) {
+                continue;
+            }
+            words_.set(j, words_.get(i));
+            word2int_.put(find(words_.get(j).word), j);
+            j++;
+        }
+        nwords_ = words.size();
+        size_ = nwords_ + nlabels_;
+        words_ = words_.subList(0, size_);
+        initNgrams();
     }
 
     /**
@@ -979,7 +1018,7 @@ public strictfp class Dictionary {
         initNgrams();
     }
 
-    Dictionary copy() {
+    Dictionary copy() { // ??
         Dictionary res = new Dictionary(args);
         res.size_ = this.size_;
         res.nwords_ = this.nwords_;
@@ -988,11 +1027,11 @@ public strictfp class Dictionary {
         res.pruneidx_size_ = this.pruneidx_size_;
         res.word2int_ = this.word2int_;
         res.word2int_ = new HashMap<>(this.word2int_);
-        // todo:
+        res.words_ = new ArrayList<>(this.words_.size());
+        this.words_.forEach(entry -> res.words_.add(entry.copy()));
         res.words_ = new ArrayList<>(this.words_);
         res.pruneidx_ = new HashMap<>(this.pruneidx_);
-        res.initTableDiscard();
-        res.initNgrams();
+        res.pdiscard_ = new ArrayList<>(this.pdiscard_);
         return res;
     }
 
@@ -1016,10 +1055,6 @@ public strictfp class Dictionary {
 
     public int getSize() {
         return size_;
-    }
-
-    public Args getArgs() {
-        return args;
     }
 
     public enum EntryType {
@@ -1052,6 +1087,12 @@ public strictfp class Dictionary {
 
         public long count() {
             return count;
+        }
+
+        Entry copy() {
+            Entry res = new Entry(this.word, this.count, this.type);
+            res.subwords.addAll(this.subwords);
+            return res;
         }
     }
 

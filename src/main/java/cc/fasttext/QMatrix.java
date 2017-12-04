@@ -1,6 +1,11 @@
 package cc.fasttext;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.function.IntFunction;
+
+import org.apache.commons.math3.random.RandomGenerator;
 
 import ru.avicomp.io.FTInputStream;
 import ru.avicomp.io.FTOutputStream;
@@ -12,21 +17,18 @@ import ru.avicomp.io.FTOutputStream;
  * <p>
  * Created by @szuev on 24.10.2017.
  */
-public class QMatrix extends Matrix {
+public strictfp class QMatrix extends Matrix {
 
-    public boolean qnorm_;
-    public int codesize_;
+    private boolean qnorm_;
+    private int codesize_;
     //uint8_t* codes_;
-    public byte[] codes_;
+    private byte[] codes_;
     //uint8_t* norm_codes_;
-    public byte[] norm_codes_;
+    private byte[] normCodes;
+    private ProductQuantizer pq_;
+    private ProductQuantizer npq_;
 
-    //std::unique_ptr<ProductQuantizer> pq_;
-    public ProductQuantizer pq_;
-    //std::unique_ptr<ProductQuantizer> npq_;
-    public ProductQuantizer npq_;
-
-    public QMatrix() {
+    QMatrix() {
     }
 
     /**
@@ -44,12 +46,167 @@ public class QMatrix extends Matrix {
      *  quantize(mat);
      * }}</pre>
      *
-     * @param mat
+     * @param matrix
+     * @param randomProvider
      * @param dsub
      * @param qnorm
      */
-    public QMatrix(Matrix mat, int dsub, boolean qnorm) {
-        //TODO:
+    public QMatrix(Matrix matrix, IntFunction<RandomGenerator> randomProvider, int dsub, boolean qnorm) {
+        this.qnorm_ = qnorm;
+        this.m_ = matrix.m_;
+        this.n_ = matrix.m_;
+        this.codesize_ = this.m_ * ((this.n_ + dsub - 1) / dsub);
+        if (codesize_ > 0) {
+            codes_ = new byte[codesize_];
+        }
+        pq_ = new ProductQuantizer(randomProvider, this.n_, dsub);
+        if (qnorm_) {
+            normCodes = new byte[this.m_];
+            npq_ = new ProductQuantizer(randomProvider, 1, 1);
+        }
+        quantize(matrix);
+    }
+
+    @Override
+    public List<Vector> getData() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public float get(int i, int j) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void set(int i, int j, float value) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void uniform(RandomGenerator rnd, float a) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * <pre>{@code void QMatrix::quantize(const Matrix& matrix) {
+     *  assert(n_ == matrix.n_);
+     *  assert(m_ == matrix.m_);
+     *  Matrix temp(matrix);
+     *  if (qnorm_) {
+     *      Vector norms(temp.m_);
+     *      temp.l2NormRow(norms);
+     *      temp.divideRow(norms);
+     *      quantizeNorm(norms);
+     *  }
+     *  auto dataptr = temp.data_;
+     *  pq_->train(m_, dataptr);
+     *  pq_->compute_codes(dataptr, codes_, m_);
+     * }}</pre>
+     *
+     * @param matrix
+     */
+    private void quantize(Matrix matrix) {
+        float[] data;
+        if (qnorm_) {
+            Matrix temp = matrix.copy();
+            Vector norms = new Vector(temp.getM());
+            temp.l2NormRow(norms);
+            temp.divideRow(norms);
+            quantizeNorm(norms);
+            data = temp.flatData();
+        } else {
+            data = matrix.flatData();
+        }
+        pq_.train(getM(), data);
+        pq_.computeCodes(data, codes_, getM());
+    }
+
+    /**
+     * <pre>{@code void QMatrix::quantizeNorm(const Vector& norms) {
+     *  assert(qnorm_);
+     *  assert(norms.m_ == m_);
+     *  auto dataptr = norms.data_;
+     *  npq_->train(m_, dataptr);
+     *  npq_->compute_codes(dataptr, norm_codes_, m_);
+     * }}</pre>
+     *
+     * @param norms
+     */
+    private void quantizeNorm(Vector norms) {
+        npq_.train(getM(), norms.data());
+        npq_.computeCodes(norms.data(), normCodes, getM());
+    }
+
+    /**
+     * <pre>{@code void QMatrix::addToVector(Vector& x, int32_t t) const {
+     *  real norm = 1;
+     *  if (qnorm_) {
+     *      norm = npq_->get_centroids(0, norm_codes_[t])[0];
+     *  }
+     *  pq_->addcode(x, codes_, t, norm);
+     * }}</pre>
+     *
+     * @param x
+     * @param t
+     */
+    public void addToVector(Vector x, int t) {
+        float norm = 1;
+        if (qnorm_) {
+            norm = npq_.getCentroids(0, normCodes[t]).get(0);
+        }
+        pq_.addCode(x, codes_, t, norm);
+    }
+
+    /**
+     * <pre>{@code real QMatrix::dotRow(const Vector& vec, int64_t i) const {
+     *  assert(i >= 0);
+     *  assert(i < m_);
+     *  assert(vec.size() == n_);
+     *  real norm = 1;
+     *  if (qnorm_) {
+     *      norm = npq_->get_centroids(0, norm_codes_[i])[0];
+     *  }
+     *  return pq_->mulcode(vec, codes_, i, norm);
+     * }}</pre>
+     *
+     * @param vector
+     * @param i
+     * @return
+     */
+    @Override
+    public float dotRow(Vector vector, int i) {
+        validateMIndex(i);
+        validateNVector(vector);
+        float norm = 1;
+        if (qnorm_) {
+            norm = npq_.getCentroids(0, normCodes[i]).get(0);
+        }
+        return pq_.mulCode(vector, codes_, i, norm);
+    }
+
+    @Override
+    public void addRow(Vector vector, int i, float a) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void multiplyRow(Vector denoms) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void divideRow(Vector denoms) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Vector l2NormRow() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected void l2NormRow(Vector norms) {
+        throw new UnsupportedOperationException();
     }
 
     /**
@@ -71,7 +228,19 @@ public class QMatrix extends Matrix {
      */
     @Override
     void save(FTOutputStream out) throws IOException {
-        //TODO:
+        out.writeBoolean(qnorm_);
+        out.writeLong(m_);
+        out.writeLong(n_);
+        out.writeInt(codesize_);
+        for (byte b : codes_) {
+            out.writeByte(b);
+        }
+        pq_.save(out);
+        if (!qnorm_) return;
+        for (byte b : normCodes) {
+            out.writeByte(b);
+        }
+        npq_.save(out);
     }
 
     /**
@@ -99,6 +268,24 @@ public class QMatrix extends Matrix {
      */
     @Override
     void load(FTInputStream in) throws IOException {
-        //TODO:
+        qnorm_ = in.readBoolean();
+        m_ = (int) in.readLong();
+        n_ = (int) in.readLong();
+        codesize_ = in.readInt();
+        codes_ = new byte[codesize_];
+        for (int i = 0; i < codesize_; i++) {
+            codes_[i] = in.readByte();
+        }
+        pq_.load(in);
+        if (!qnorm_) return;
+        for (int i = 0; i < codesize_; i++) {
+            normCodes[i] = in.readByte();
+        }
+        npq_.load(in);
+    }
+
+    @Override
+    public String toString() {
+        return String.format("QMatrix{qnorm_=%s, codesize_=%d, codes_=%s, normCodes=%s, pq_=%s, npq_=%s}", qnorm_, codesize_, Arrays.toString(codes_), Arrays.toString(normCodes), pq_, npq_);
     }
 }

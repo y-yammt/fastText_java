@@ -2,7 +2,8 @@ package cc.fasttext;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.StringJoiner;
+import java.util.function.DoubleUnaryOperator;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang.Validate;
 import org.apache.commons.math3.util.FastMath;
@@ -11,20 +12,47 @@ import com.google.common.primitives.Floats;
 
 public strictfp class Vector {
 
-    public int m_;
-    public float[] data_;
+    private float[] data_;
+
+    protected Vector() {
+    }
 
     public Vector(int size) {
-        m_ = size;
-        data_ = new float[size];
+        this(new float[size]);
+    }
+
+    Vector(float[] data) {
+        this.data_ = data;
     }
 
     public int size() {
-        return m_;
+        return data_.length;
     }
 
+    public float get(int i) {
+        return data_[i];
+    }
+
+    public void set(int i, float value) {
+        data_[i] = value;
+    }
+
+    public void compute(int i, DoubleUnaryOperator operator) {
+        Objects.requireNonNull(operator, "Null operator");
+        data_[i] = (float) operator.applyAsDouble(data_[i]);
+    }
+
+    float[] data() {
+        return data_;
+    }
+
+    public List<Float> getData() {
+        return Floats.asList(data_);
+    }
+
+    @Deprecated // ?
     public void zero() {
-        data_ = new float[m_];
+        data_ = new float[data_.length];
     }
 
     /**
@@ -41,7 +69,7 @@ public strictfp class Vector {
      */
     public float norm() {
         double sum = 0;
-        for (int i = 0; i < m_; i++) {
+        for (int i = 0; i < size(); i++) {
             sum += data_[i] * data_[i];
         }
         return (float) FastMath.sqrt(sum);
@@ -58,10 +86,7 @@ public strictfp class Vector {
      * @param source {@link Vector}
      */
     public void addVector(Vector source) {
-        Validate.isTrue(m_ == Objects.requireNonNull(source, "Null source vector").m_, "Wrong size of vector: " + m_ + "!=" + source.m_);
-        for (int i = 0; i < m_; i++) {
-            data_[i] += source.data_[i];
-        }
+        addVector(source, 1);
     }
 
     /**
@@ -76,8 +101,8 @@ public strictfp class Vector {
      * @param s
      */
     public void addVector(Vector source, float s) {
-        Validate.isTrue(m_ == Objects.requireNonNull(source, "Null source vector").m_, "Wrong size of vector: " + m_ + "!=" + source.m_);
-        for (int i = 0; i < m_; i++) {
+        Validate.isTrue(size() == Objects.requireNonNull(source, "Null source vector").size(), "Wrong size of vector: " + size() + "!=" + source.size());
+        for (int i = 0; i < size(); i++) {
             data_[i] += s * source.data_[i];
         }
     }
@@ -93,8 +118,9 @@ public strictfp class Vector {
      * @param a
      */
     public void mul(float a) {
-        for (int i = 0; i < m_; i++) {
-            data_[i] *= a;
+        DoubleUnaryOperator op = v -> v * a;
+        for (int i = 0; i < size(); i++) {
+            compute(i, op);
         }
     }
 
@@ -113,11 +139,7 @@ public strictfp class Vector {
      * @param i
      */
     public void addRow(Matrix matrix, int i) {
-        Validate.isTrue(i >= 0 && i < matrix.getM(), "Incompatible index (" + i + ") and matrix m-size (" + matrix.getM() + ")");
-        Validate.isTrue(m_ == matrix.getN(), "Wrong matrix n-size: " + m_ + " != " + matrix.getN());
-        for (int j = 0; j < matrix.getN(); j++) {
-            data_[j] += matrix.at(i, j);
-        }
+        addRow(matrix, i, 1);
     }
 
     /**
@@ -138,7 +160,7 @@ public strictfp class Vector {
      */
     public void addRow(Matrix matrix, int i, float a) {
         Validate.isTrue(i >= 0 && i < matrix.getM(), "Incompatible index (" + i + ") and matrix m-size (" + matrix.getM() + ")");
-        Validate.isTrue(m_ == matrix.getN(), "Wrong matrix n-size: " + m_ + " != " + matrix.getN());
+        Validate.isTrue(size() == matrix.getN(), "Wrong matrix n-size: " + size() + " != " + matrix.getN());
         for (int j = 0; j < matrix.getN(); j++) {
             data_[j] += a * matrix.at(i, j);
         }
@@ -158,35 +180,39 @@ public strictfp class Vector {
      * @param vector
      */
     public void mul(Matrix matrix, Vector vector) {
-        Validate.isTrue(matrix.getM() == m_, "Wrong matrix m-size: " + m_ + " != " + matrix.getM());
-        Validate.isTrue(matrix.getN() == vector.m_, "Matrix n-size (" + matrix.getN() + ") and vector size (" + vector.m_ + ")  are not equal.");
-        for (int i = 0; i < m_; i++) {
+        Validate.isTrue(matrix.getM() == size(), "Wrong matrix m-size: " + size() + " != " + matrix.getM());
+        Validate.isTrue(matrix.getN() == vector.size(), "Matrix n-size (" + matrix.getN() + ") and vector size (" + vector.size() + ")  are not equal.");
+        for (int i = 0; i < size(); i++) {
             data_[i] = matrix.dotRow(vector, i);
         }
     }
 
+    /**
+     * <pre>{@code int64_t Vector::argmax() {
+     *  real max = data_[0];
+     *  int64_t argmax = 0;
+     *  for (int64_t i = 1; i < m_; i++) {
+     *      if (data_[i] > max) {
+     *          max = data_[i];
+     *          argmax = i;
+     *  }
+     * }
+     * return argmax;
+     * }}</pre>
+     *
+     * @return
+     */
     public int argmax() {
-        float max = data_[0];
+        float max = get(0);
         int argmax = 0;
-        for (int i = 1; i < m_; i++) {
-            if (data_[i] > max) {
-                max = data_[i];
-                argmax = i;
+        for (int i = 1; i < size(); i++) {
+            if (get(i) <= max) {
+                continue;
             }
+            max = get(i);
+            argmax = i;
         }
         return argmax;
-    }
-
-    public float get(int i) {
-        return data_[i];
-    }
-
-    public void set(int i, float value) {
-        data_[i] = value;
-    }
-
-    public List<Float> getData() {
-        return Floats.asList(data_);
     }
 
     /**
@@ -197,11 +223,7 @@ public strictfp class Vector {
      */
     @Override
     public String toString() {
-        StringJoiner res = new StringJoiner(" ");
-        for (float data : data_) {
-            res.add(Utils.formatNumber(data));
-        }
-        return res.toString();
+        return getData().stream().map(Utils::formatNumber).collect(Collectors.joining(" "));
     }
 
 }

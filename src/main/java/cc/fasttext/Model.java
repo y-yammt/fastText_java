@@ -13,6 +13,10 @@ import cc.fasttext.Args.LossName;
 import cc.fasttext.Args.ModelName;
 import com.google.common.collect.TreeMultimap;
 
+/**
+ * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.cc'>model.cc</a> and
+ * <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.h'>model.h</>
+ */
 public strictfp class Model {
 
     static final int SIGMOID_TABLE_SIZE = 512;
@@ -77,13 +81,15 @@ public strictfp class Model {
      * @param qwi
      * @param qwo
      * @param qout
+     * @return
      */
-    void setQuantizePointer(QMatrix qwi, QMatrix qwo, boolean qout) {
+    Model setQuantizePointer(QMatrix qwi, QMatrix qwo, boolean qout) {
         this.qwi_ = qwi;
         this.qwo_ = qwo;
         if (qout) {
             osz_ = qwo_.getM();
         }
+        return this;
     }
 
     public Matrix input() {

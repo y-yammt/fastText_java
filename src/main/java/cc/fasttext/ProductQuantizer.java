@@ -1,11 +1,12 @@
 package cc.fasttext;
 
-import java.util.Arrays;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 
 import org.apache.commons.math3.distribution.UniformRealDistribution;
 import org.apache.commons.math3.random.RandomAdaptor;
@@ -15,6 +16,8 @@ import org.apache.commons.math3.util.FastMath;
 import com.google.common.primitives.Bytes;
 import com.google.common.primitives.Floats;
 import com.google.common.primitives.Ints;
+import ru.avicomp.io.FTInputStream;
+import ru.avicomp.io.FTOutputStream;
 
 /**
  * TODO: implement
@@ -22,22 +25,22 @@ import com.google.common.primitives.Ints;
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/productquantizer.h'>productquantizer.h</>
  * Created by @szuev on 27.10.2017.
  */
-public class ProductQuantizer {
+public strictfp class ProductQuantizer {
 
-    private final int nbits_ = 8;
-    private final int ksub_ = 1 << nbits_;
-    private final int max_points_per_cluster_ = 256;
-    private final int max_points_ = max_points_per_cluster_ * ksub_;
-    private final int seed_ = 1234;
-    private final int niter_ = 25;
-    final double eps_ = 1e-7d;
+    private static final int NBITS = 8;
+    private static final int KSUB = 1 << NBITS;
+    private static final int MAX_POINTS_PER_CLUSTER = 256;
+    private static final int MAX_POINTS = MAX_POINTS_PER_CLUSTER * KSUB;
+    private static final int SEED = 1234;
+    private static final int NITER = 25;
+    private static final float EPS = 1e-7F;
 
     private int dim_;
     private int nsubq_;
     private int dsub_;
     private int lastdsub_;
 
-    private float[][] centroids_;
+    private List<Float> centroids_;
 
     private RandomGenerator rng;
 
@@ -58,8 +61,8 @@ public class ProductQuantizer {
         this.dim_ = dim;
         this.nsubq_ = dim / dsub;
         this.dsub_ = dsub;
-        this.centroids_ = new float[dim * ksub_][];
-        this.rng = randomProvider.apply(seed_);
+        this.centroids_ = asFloatList(new float[dim * KSUB]);
+        this.rng = randomProvider.apply(SEED);
         this.lastdsub_ = dim_ % dsub;
         if (this.lastdsub_ == 0) {
             this.lastdsub_ = dsub_;
@@ -77,18 +80,14 @@ public class ProductQuantizer {
      * }}</pre>
      *
      * @param m
-     * @param i
+     * @param b
      * @return
      */
-    public float[] getCentroids(int m, byte i) {
-        int index = m == nsubq_ - 1 ? m * ksub_ * dsub_ + i * lastdsub_ : (m * ksub_ + i) * dsub_;
-        return centroids_[index];
+    public List<Float> getCentroids(int m, byte b) {
+        int i = Byte.toUnsignedInt(b);
+        int index = m == nsubq_ - 1 ? m * KSUB * dsub_ + i * lastdsub_ : (m * KSUB + i) * dsub_;
+        return shift(centroids_, index);
     }
-
-    public List<Float> getCentroidsAsList(int m, byte i) {
-        return asFloatList(getCentroids(m, i));
-    }
-
 
     /**
      * <pre>{@code real distL2(const real* x, const real* y, int32_t d) {
@@ -108,7 +107,7 @@ public class ProductQuantizer {
     private float distL2(List<Float> x, List<Float> y, int d) {
         float dist = 0;
         for (int i = 0; i < d; i++) {
-            float tmp = getFloat(x, i) - getFloat(y, i);
+            float tmp = get(x, i) - get(y, i);
             dist += tmp * tmp;
         }
         return dist;
@@ -132,16 +131,15 @@ public class ProductQuantizer {
      * }}</pre>
      *
      * @param x
-     * @param c0
+     * @param c
      * @param code
      * @param d
      * @return
      */
-    private float assignCentroid(List<Float> x, float[] c0, List<Byte> code, int d) {
-        List<Float> c = asFloatList(c0);
+    private float assignCentroid(List<Float> x, List<Float> c, List<Byte> code, int d) {
         float dis = distL2(x, c, d);
         code.set(0, (byte) 0);
-        for (int j = 1; j < ksub_; j++) {
+        for (int j = 1; j < KSUB; j++) {
             c = shift(c, d);
             float disij = distL2(x, c, d);
             if (disij < dis) {
@@ -167,7 +165,7 @@ public class ProductQuantizer {
      * @param d
      * @param n
      */
-    private void eStep(float[] x, float[] centroids, List<Byte> codes, int d, int n) {
+    private void eStep(float[] x, List<Float> centroids, List<Byte> codes, int d, int n) {
         List<Float> _x = asFloatList(x);
         for (int i = 0; i < n; i++) {
             assignCentroid(shift(_x, i * d), centroids, shift(codes, i), d);
@@ -224,23 +222,23 @@ public class ProductQuantizer {
      * @param d
      * @param n
      */
-    private void mStep(float[] x0, float[] centroids, List<Byte> codes, int d, int n) {
-        List<Integer> nelts = asIntList(new int[ksub_]);
+    private void mStep(float[] x0, List<Float> centroids, List<Byte> codes, int d, int n) {
+        List<Integer> nelts = asIntList(new int[KSUB]);
         // `memset(centroids, 0, sizeof(real) * d * ksub_);` :
-        Arrays.fill(centroids, 0, d * ksub_, 0);
+        IntStream.range(0, d * KSUB).forEach(i -> centroids.set(i, 0f));
         List<Float> x = asFloatList(x0);
-        List<Float> c = asFloatList(centroids);
+        List<Float> c = centroids;
         for (int i = 0; i < n; i++) {
-            byte k = getByte(codes, i);
+            int k = Byte.toUnsignedInt(codes.get(i));
             c = shift(c, k * d);
             for (int j = 0; j < d; j++) {
-                c.set(j, c.get(j) + x.get(j));
+                set(c, j, get(c, j) + get(x, j));
             }
             nelts.set(k, nelts.get(k) + 1);
             x = shift(x, d);
         }
-        c = asFloatList(centroids);
-        for (int k = 0; k < ksub_; k++) {
+        c = centroids;
+        for (int k = 0; k < KSUB; k++) {
             float z = (float) nelts.get(k);
             if (z != 0) {
                 for (int j = 0; j < d; j++) {
@@ -251,19 +249,22 @@ public class ProductQuantizer {
         }
 
         UniformRealDistribution runiform = new UniformRealDistribution(rng, 0, 1);
-        for (int k = 0; k < ksub_; k++) {
+        for (int k = 0; k < KSUB; k++) {
             if (nelts.get(k) != 0) continue;
             int m = 0;
-            while (runiform.sample() * (n - ksub_) >= nelts.get(m) - 1) {
-                m = (m + 1) % ksub_;
+            while (runiform.sample() * (n - KSUB) >= nelts.get(m) - 1) {
+                m = (m + 1) % KSUB;
             }
+            int kd = k * d;
+            int md = m * d;
             // `memcpy(centroids + k * d, centroids + m * d, sizeof(real) * d)` :
-            System.arraycopy(centroids, m * d, centroids, k * d, d);
-
             for (int j = 0; j < d; j++) {
-                int sign = (j % 2) * 2 - 1;
-                centroids[k * d + j] += sign * eps_;
-                centroids[m * d + j] -= sign * eps_;
+                centroids.set(j + kd, centroids.get(j + md));
+            }
+            for (int j = 0; j < d; j++) {
+                float sign = ((j % 2) * 2 - 1) * EPS;
+                centroids.set(j + kd, centroids.get(j + kd) + sign);
+                centroids.set(j + md, centroids.get(j + md) - sign);
             }
             nelts.set(k, nelts.get(m) / 2);
             nelts.set(m, nelts.get(m) - nelts.get(k));
@@ -298,15 +299,15 @@ public class ProductQuantizer {
      * }}</pre>
      *
      * @param n
-     * @param x
+     * @param data
      */
-    public void train(int n, float[] x) {
-        if (n < ksub_) {
+    public void train(int n, float[] data) {
+        if (n < KSUB) {
             throw new IllegalArgumentException("Matrix too small for quantization, must have > 256 rows");
         }
-        List<Integer> perm = IntStream.iterate(0, operand -> ++operand).limit(n).boxed().collect(Collectors.toList());
+        List<Long> perm = LongStream.iterate(0, i -> ++i).limit(n).boxed().collect(Collectors.toList());
         int d = dsub_;
-        int np = FastMath.min(n, max_points_);
+        int np = FastMath.min(n, MAX_POINTS);
         float[] xslice = new float[np * dsub_];
         for (int m = 0; m < nsubq_; m++) {
             if (m == nsubq_ - 1) {
@@ -317,7 +318,13 @@ public class ProductQuantizer {
             }
             for (int j = 0; j < np; j++) {
                 // `memcpy (xslice + j * d, x + perm[j] * dim_ + m * dsub_, d * sizeof(real))` :
-                System.arraycopy(x, perm.get(j) * dim_ + m * dsub_, xslice, j * d, d);
+                long srcPos = perm.get(j) * dim_ + m * dsub_;
+                if (srcPos > Integer.MAX_VALUE) {
+                    // todo: wtf?
+                    continue;
+                }
+                int dstPos = j * d;
+                System.arraycopy(data, (int) srcPos, xslice, dstPos, d);
             }
             kmeans(xslice, getCentroids(m, (byte) 0), np, d);
         }
@@ -339,15 +346,19 @@ public class ProductQuantizer {
      *  delete [] codes;
      * }}</pre>
      */
-    private void kmeans(float[] x, float[] c, int n, int d) {
+    private void kmeans(float[] x, List<Float> c, int n, int d) {
         List<Integer> perm = IntStream.iterate(0, operand -> ++operand).limit(n).boxed().collect(Collectors.toList());
         Collections.shuffle(perm, new RandomAdaptor(rng));
-        for (int i = 0; i < ksub_; i++) {
+        for (int i = 0; i < KSUB; i++) {
             // `memcpy (&c[i * d], x + perm[i] * d, d * sizeof(real))` :
-            System.arraycopy(x, perm.get(i) * d, c, i * d, d);
+            int dstPos = i * d;
+            int srcPos = perm.get(i) * d;
+            for (int k = 0; k < d; k++) {
+                c.set(k + dstPos, x[srcPos + k]);
+            }
         }
         List<Byte> codes = asByteList(new byte[n]);
-        for (int i = 0; i < niter_; i++) {
+        for (int i = 0; i < NITER; i++) {
             eStep(x, c, codes, d, n);
             mStep(x, c, codes, d, n);
         }
@@ -384,15 +395,147 @@ public class ProductQuantizer {
      *  }
      * }}</pre>
      *
-     * @param x
+     * @param data
      * @param code
      * @param n
      */
-    public void computeCode(float[] x, byte[] code, int n) {
-        List<Float> _x = asFloatList(x);
+    public void computeCodes(float[] data, byte[] code, int n) {
+        List<Float> _x = asFloatList(data);
         List<Byte> _c = asByteList(code);
         for (int i = 0; i < n; i++) {
             computeCode(shift(_x, i * dim_), shift(_c, i * nsubq_));
+        }
+    }
+
+    /**
+     * <pre>{@code
+     * real ProductQuantizer::mulcode(const Vector& x, const uint8_t* codes, int32_t t, real alpha) const {
+     *  real res = 0.0;
+     *  auto d = dsub_;
+     *  const uint8_t* code = codes + nsubq_ * t;
+     *  for (auto m = 0; m < nsubq_; m++) {
+     *      const real* c = get_centroids(m, code[m]);
+     *      if (m == nsubq_ - 1) {
+     *          d = lastdsub_;
+     *      }
+     *      for(auto n = 0; n < d; n++) {
+     *          res += x[m * dsub_ + n] * c[n];
+     *      }
+     *  }
+     *  return res * alpha;
+     * }}</pre>
+     *
+     * @param vector
+     * @param codes
+     * @param t
+     * @param alpha
+     * @return
+     */
+    public float mulCode(Vector vector, byte[] codes, int t, float alpha) {
+        return mulCode(vector.data(), codes, t) * alpha;
+    }
+
+    private float mulCode(float[] data, byte[] codes, int t) {
+        float res = 0;
+        int d = dsub_;
+        List<Byte> code = shift(asByteList(codes), nsubq_ * t);
+        for (int m = 0; m < nsubq_; m++) {
+            List<Float> c = getCentroids(m, code.get(m));
+            if (m == nsubq_ - 1) {
+                d = lastdsub_;
+            }
+            for (int n = 0; n < d; n++) {
+                res += data[m * dsub_ + n] * c.get(n);
+            }
+        }
+        return res;
+    }
+
+    /**
+     * <pre>{@code
+     * void ProductQuantizer::addcode(Vector& x, const uint8_t* codes, int32_t t, real alpha) const {
+     *  auto d = dsub_;
+     *  const uint8_t* code = codes + nsubq_ * t;
+     *  for (auto m = 0; m < nsubq_; m++) {
+     *      const real* c = get_centroids(m, code[m]);
+     *      if (m == nsubq_ - 1) {
+     *          d = lastdsub_;
+     *      }
+     *      for(auto n = 0; n < d; n++) {
+     *          x[m * dsub_ + n] += alpha * c[n];
+     *      }
+     *  }
+     * }}</pre>
+     *
+     * @param vector
+     * @param codes
+     * @param t
+     * @param alpha
+     */
+    public void addCode(Vector vector, byte[] codes, int t, float alpha) {
+        addCode(vector.data(), codes, t, alpha);
+    }
+
+    private void addCode(float[] data, byte[] codes, int t, float alpha) {
+        int d = dsub_;
+        List<Byte> code = shift(asByteList(codes), nsubq_ * t);
+        for (int m = 0; m < nsubq_; m++) {
+            List<Float> c = getCentroids(m, code.get(m));
+            if (m == nsubq_ - 1) {
+                d = lastdsub_;
+            }
+            for (int n = 0; n < d; n++) {
+                data[m * dsub_ + n] += alpha * c.get(n);
+            }
+        }
+    }
+
+    /**
+     * <pre>{@code void ProductQuantizer::save(std::ostream& out) {
+     *  out.write((char*) &dim_, sizeof(dim_));
+     *  out.write((char*) &nsubq_, sizeof(nsubq_));
+     *  out.write((char*) &dsub_, sizeof(dsub_));
+     *  out.write((char*) &lastdsub_, sizeof(lastdsub_));
+     *  out.write((char*) centroids_.data(), centroids_.size() * sizeof(real));
+     * }
+     * }</pre>
+     *
+     * @param out
+     * @throws IOException
+     */
+    void save(FTOutputStream out) throws IOException {
+        out.writeInt(dim_);
+        out.writeInt(nsubq_);
+        out.writeInt(dsub_);
+        out.writeInt(lastdsub_);
+        for (float c : centroids_) {
+            out.writeFloat(c);
+        }
+    }
+
+    /**
+     * <pre>{@code void ProductQuantizer::load(std::istream& in) {
+     *  in.read((char*) &dim_, sizeof(dim_));
+     *  in.read((char*) &nsubq_, sizeof(nsubq_));
+     *  in.read((char*) &dsub_, sizeof(dsub_));
+     *  in.read((char*) &lastdsub_, sizeof(lastdsub_));
+     *  centroids_.resize(dim_ * ksub_);
+     *  for (auto i=0; i < centroids_.size(); i++) {
+     *      in.read((char*) &centroids_[i], sizeof(real));
+     *  }
+     * }}</pre>
+     *
+     * @param in
+     * @throws IOException
+     */
+    void load(FTInputStream in) throws IOException {
+        dim_ = in.readInt();
+        nsubq_ = in.readInt();
+        dsub_ = in.readInt();
+        lastdsub_ = in.readInt();
+        centroids_ = asFloatList(new float[dim_ * KSUB]);
+        for (int i = 0; i < centroids_.size(); i++) {
+            centroids_.set(i, in.readFloat());
         }
     }
 
@@ -409,11 +552,18 @@ public class ProductQuantizer {
         return Ints.asList(values);
     }
 
-    private static float getFloat(List<Float> array, int index) {
+    private static float get(List<Float> array, int index) {
         if (index >= array.size()) {
             return Float.NaN;
         }
         return array.get(index);
+    }
+
+    private static void set(List<Float> array, int index, float value) {
+        if (index >= array.size()) {
+            return;
+        }
+        array.set(index, value);
     }
 
     private static byte getByte(List<Byte> array, int index) {
@@ -429,4 +579,5 @@ public class ProductQuantizer {
         }
         return array.subList(index, array.size());
     }
+
 }

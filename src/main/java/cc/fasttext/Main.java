@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 import java.util.function.IntConsumer;
@@ -339,7 +340,12 @@ public class Main {
      * @throws Exception
      */
     public static void train(String[] inputs) throws Exception {
+        if (inputs.length == 0) {
+            throw Usage.TRAIN.toException("Empty args specified", Usage.ARGS);
+        }
         Map<String, String> map = toMap(inputs);
+        Args.ModelName model = Args.ModelName.fromName(inputs[0]);
+
         String textData = map.get("-input");
         if (StringUtils.isEmpty(textData)) {
             throw Usage.TRAIN.toException("Empty -input", Usage.ARGS);
@@ -349,8 +355,8 @@ public class Main {
             throw Usage.TRAIN.toException("Empty -output", Usage.ARGS);
         }
         String preTrainedVectors = map.get("-pretrainedVectors");
+        Args args = parseArgs(model, map);
         // todo: check all files before processing
-        Args args = parseArgs(inputs);
         FastText fasttext = FastText.train(args, fileSystem, System.out, textData, preTrainedVectors);
         // todo: change signature: save to specified file (see modelName)
         fasttext.saveModel();
@@ -379,7 +385,7 @@ public class Main {
      *
      * @param inputs
      */
-    public static void quantize(String[] inputs) throws IOException {
+    public static void quantize(String[] inputs) throws IOException, ExecutionException {
         if (inputs.length < 3) { // ex: quantize -output <model-name-uri|mode-bin>
             throw Usage.QUANTIZE.toException("Model name or model path is mandatory (see -output).", Usage.ARGS);
         }
@@ -391,13 +397,16 @@ public class Main {
         if (!modelBin.endsWith(".bin")) {
             modelBin += ".bin";
         }
-        String textData = map.get("-input"); // only with -retrain:
-        if (map.containsKey("-retrain") && StringUtils.isEmpty(textData)) {
-            throw Usage.QUANTIZE.toException("Wrong args: -input is required if -retrain specified", Usage.ARGS);
+        String textData = null;
+        if (map.containsKey("-retrain")) {
+            textData = map.get("-input");
+            if (StringUtils.isEmpty(textData)) {
+                throw Usage.QUANTIZE.toException("Wrong args: -input is required if -retrain specified", Usage.ARGS);
+            }
         }
         // todo: check all files before processing
-        Args args = parseArgs(inputs);
-        FastText dst = FastText.loadModel(fileSystem, modelBin).quantize(args, textData);
+        Args args = parseArgs(Args.ModelName.SUP, map);
+        FastText dst = loadModel(modelBin).quantize(args, textData);
         dst.saveModel();
         dst.saveVectors();
         if (args.saveOutput() > 0) {
@@ -570,55 +579,48 @@ public class Main {
      *  }
      * }}</pre>
      *
-     * @param args array of strings, not null, not empty
-     * @return {@link Args} object
-     * @throws IllegalArgumentException if wrong arguments in input
+     * @param model
+     * @param args
+     * @return
+     * @throws IllegalArgumentException
      */
-    public static Args parseArgs(String... args) throws IllegalArgumentException {
-        if (args.length == 0) {
-            throw Usage.ARGS.toException("Empty args specified");
-        }
-        Args.Builder builder = new Args.Builder();
-        builder.setModel(Args.ModelName.fromName(args[0]));
-        Map<String, String> map = toMap(args);
-        if (map.containsKey("-h")) {
-            throw Usage.ARGS.toException("Here is the help! Usage:");
-        }
-        putIntegerArg(map, "-lrUpdateRate", builder::setLRUpdateRate);
-        putIntegerArg(map, "-dim", builder::setDim);
-        putIntegerArg(map, "-ws", builder::setWS);
-        putIntegerArg(map, "-epoch", builder::setEpoch);
-        putIntegerArg(map, "-minCount", builder::setMinCount);
-        putIntegerArg(map, "-minCountLabel", builder::setMinCountLabel);
-        putIntegerArg(map, "-neg", builder::setNeg);
-        putIntegerArg(map, "-wordNgrams", builder::setWordNgrams);
-        putIntegerArg(map, "-bucket", builder::setBucket);
-        putIntegerArg(map, "-minn", builder::setMinN);
-        putIntegerArg(map, "-maxn", builder::setMaxN);
-        putIntegerArg(map, "-thread", builder::setThread);
-        putIntegerArg(map, "-verbose", builder::setVerbose);
-        putIntegerArg(map, "-saveOutput", builder::setSaveOutput);
-        putIntegerArg(map, "-cutoff", builder::setCutOff);
-        putIntegerArg(map, "-dsub", builder::setDSub);
+    public static Args parseArgs(Args.ModelName model, Map<String, String> args) throws IllegalArgumentException {
+        Args.Builder builder = new Args.Builder().setModel(model);
+        putIntegerArg(args, "-lrUpdateRate", builder::setLRUpdateRate);
+        putIntegerArg(args, "-dim", builder::setDim);
+        putIntegerArg(args, "-ws", builder::setWS);
+        putIntegerArg(args, "-epoch", builder::setEpoch);
+        putIntegerArg(args, "-minCount", builder::setMinCount);
+        putIntegerArg(args, "-minCountLabel", builder::setMinCountLabel);
+        putIntegerArg(args, "-neg", builder::setNeg);
+        putIntegerArg(args, "-wordNgrams", builder::setWordNgrams);
+        putIntegerArg(args, "-bucket", builder::setBucket);
+        putIntegerArg(args, "-minn", builder::setMinN);
+        putIntegerArg(args, "-maxn", builder::setMaxN);
+        putIntegerArg(args, "-thread", builder::setThread);
+        putIntegerArg(args, "-verbose", builder::setVerbose);
+        putIntegerArg(args, "-saveOutput", builder::setSaveOutput);
+        putIntegerArg(args, "-cutoff", builder::setCutOff);
+        putIntegerArg(args, "-dsub", builder::setDSub);
 
-        putDoubleArg(map, "-lr", builder::setLR);
-        putDoubleArg(map, "-t", builder::setSamplingThreshold);
+        putDoubleArg(args, "-lr", builder::setLR);
+        putDoubleArg(args, "-t", builder::setSamplingThreshold);
 
-        putBooleanArg(map, "-qnorm", builder::setQNorm);
-        putBooleanArg(map, "-retrain", builder::setRetrain);
-        putBooleanArg(map, "-qout", builder::setQOut);
+        putBooleanArg(args, "-qnorm", builder::setQNorm);
+        putBooleanArg(args, "-retrain", builder::setRetrain);
+        putBooleanArg(args, "-qout", builder::setQOut);
 
-        putStringArg(map, "-pretrainedVectors", builder::setPreparedVectors);
-        putStringArg(map, "-label", builder::setLabel);
+        putStringArg(args, "-pretrainedVectors", builder::setPreparedVectors);
+        putStringArg(args, "-label", builder::setLabel);
 
-        if (map.containsKey("-loss")) {
-            builder.setLossName(Args.LossName.fromName(map.get("-loss")));
+        if (args.containsKey("-loss")) {
+            builder.setLossName(Args.LossName.fromName(args.get("-loss")));
         }
 
         Args res = builder.build();
         // todo: temporary - should not be in args
-        res.input = map.get("-input");
-        res.output = map.get("-output");
+        res.input = args.get("-input");
+        res.output = args.get("-output");
         return res;
     }
 
@@ -629,8 +631,9 @@ public class Main {
      *
      * @param input array of strings
      * @return Map
+     * @throws IllegalArgumentException
      */
-    public static Map<String, String> toMap(String... input) {
+    public static Map<String, String> toMap(String... input) throws IllegalArgumentException {
         Map<String, String> res = new LinkedHashMap<>();
         for (int i = 0; i < input.length; i++) {
             if (input[i].startsWith("-")) {
@@ -640,6 +643,9 @@ public class Main {
             } else {
                 res.put(input[i], null);
             }
+        }
+        if (res.containsKey("-h")) {
+            throw Usage.ARGS.toException("Here is the help! Usage:");
         }
         return res;
     }

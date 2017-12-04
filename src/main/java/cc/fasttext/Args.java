@@ -423,6 +423,10 @@ public final strictfp class Args {
             this.value = value;
         }
 
+        public String getName() {
+            return name;
+        }
+
         public static ModelName fromValue(int value) throws IllegalArgumentException {
             return Arrays.stream(values()).filter(v -> v.value == value)
                     .findFirst().orElseThrow(() -> new IllegalArgumentException("Unknown model enum value: " + value));

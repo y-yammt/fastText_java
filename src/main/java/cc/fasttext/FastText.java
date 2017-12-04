@@ -552,7 +552,6 @@ public strictfp class FastText {
         if (args.verbose() > 1) {
             logs.println("Saving model to " + file);
         }
-
         try (FTOutputStream out = new FTOutputStream(new BufferedOutputStream(getFileSystem().createOutput(file)))) {
             signModel(out);
             args.save(out);
@@ -564,7 +563,6 @@ public strictfp class FastText {
             } else {
                 model.input().save(out);
             }
-
             out.writeBoolean(args.qout());
             if (quant_ && args.qout()) {
                 model.qoutput().save(out);
@@ -699,7 +697,7 @@ public strictfp class FastText {
             throw new IllegalArgumentException("Invalid model file.\nPlease download the updated model from " +
                     "www.fasttext.cc.\nSee issue #332 on Github for more information.\n");
         }
-        // warn: after following line different args in dictionary and this object:
+        // todo warn: after following line different args in the dictionary and this object:
         args = new Args.Builder().copy(args).setQOut(inputStream.readBoolean()).build();
         Matrix output = new Matrix();
         QMatrix qoutput = new QMatrix();
@@ -709,8 +707,7 @@ public strictfp class FastText {
             output.load(inputStream);
         }
 
-        Model model = new Model(input, output, args, 0);
-        model.setQuantizePointer(qinput, qoutput, args.qout());
+        Model model = new Model(input, output, args, 0).setQuantizePointer(qinput, qoutput, args.qout());
         if (ModelName.SUP.equals(args.model())) {
             model.setTargetCounts(dict.getCounts(EntryType.LABEL));
         } else {
@@ -1087,7 +1084,7 @@ public strictfp class FastText {
      * @param dataFileToRetrain
      * @return
      */
-    public FastText quantize(Args other, String dataFileToRetrain) {
+    public FastText quantize(Args other, String dataFileToRetrain) throws IOException, ExecutionException {
         if (model.isQuant()) {
             throw new IllegalStateException("Already quantilizated.");
         }
@@ -1099,32 +1096,45 @@ public strictfp class FastText {
                 .setQOut(other.qout())
                 .setCutOff(other.cutoff())
                 .setQNorm(other.qnorm())
-                .setDSub(other.dsub()).build();
-
+                .setDSub(other.dsub())
+                .build();
+        Dictionary qdict = this.dict.copy();
         Matrix input_;
+        Matrix output_ = model.output().copy();
         if (qargs.cutoff() > 0 && qargs.cutoff() < model.input().getM()) {
             List<Integer> idx = selectEmbeddings(qargs.cutoff());
-            dict.prune(idx);
+            qdict.prune(idx);
             input_ = new Matrix(idx.size(), qargs.dim());
             for (int i = 0; i < idx.size(); i++) {
                 for (int j = 0; j < qargs.dim(); j++) {
-                    input_.set(i, j, model.input().get(idx.get(i), j));
+                    input_.put(i, j, model.input().at(idx.get(i), j));
                 }
             }
             if (!StringUtils.isEmpty(dataFileToRetrain)) {
-                throw new UnsupportedOperationException("Retrain is not supported right now");
+                qargs = new Args.Builder()
+                        .copy(qargs)
+                        .setEpoch(other.epoch())
+                        .setLR(other.lr())
+                        .setThread(other.thread())
+                        .setVerbose(other.verbose())
+                        .build();
+                Model model = new Trainer(qargs, fs, logs).train(dataFileToRetrain, null, qdict, input_, output_).model;
+                input_ = model.input();
+                output_ = model.output();
             }
         } else {
             input_ = model.input().copy();
         }
-        Matrix output_ = model.output().copy();
-        QMatrix qinput_ = new QMatrix(input_, qargs.dsub(), qargs.qnorm());
+
+        QMatrix qinput_ = new QMatrix(input_, args.randomFactory(), qargs.dsub(), qargs.qnorm());
+        QMatrix qoutput_;
         if (qargs.qout()) {
-            // todo:
+            qoutput_ = new QMatrix(output_, args.randomFactory(), 2, qargs.qnorm());
+        } else {
+            qoutput_ = new QMatrix();
         }
-        // TODO:
-        Dictionary qdict = this.dict.copy();
-        throw new UnsupportedOperationException("TODO: not ready");
+        Model model_ = new Model(input_, output_, qargs, 0).setQuantizePointer(qinput_, qoutput_, qargs.qout());
+        return new FastText(qargs, qdict, model_, FASTTEXT_VERSION);
     }
 
     public static FastText train(Args args, IOStreams fs, PrintStream logs, String dataFile, String vectorsFile) throws IOException, ExecutionException {
@@ -1141,10 +1151,12 @@ public strictfp class FastText {
         private final IOStreams fs;
         private final PrintStream logs;
 
-        private Dictionary dict;
-        private Matrix input, output;
+        private Dictionary dictionary;
         private String fileName;
         private long fileSize;
+
+        private Matrix input, output;
+
         private Instant start;
         private AtomicLong tokenCount;
 
@@ -1198,34 +1210,55 @@ public strictfp class FastText {
          * @throws IllegalArgumentException in case wrong file refs.
          */
         public FastText train(String dataFile, String vectorsFile) throws IOException, ExecutionException, IllegalArgumentException {
-            this.fileName = dataFile;
-            if ("-".equals(fileName) || "-".equals(vectorsFile)) {
+            return train(dataFile, vectorsFile, null, null, null);
+        }
+
+        private FastText train(String dataFile, String vectorsFile, Dictionary dict, Matrix in, Matrix out) throws IOException, ExecutionException {
+            if ("-".equals(dataFile) || "-".equals(vectorsFile)) {
                 throw new IllegalArgumentException("Cannot use stdin for training!");
             }
-            if (!fs.canRead(fileName)) {
-                throw new IllegalArgumentException("Input file cannot be opened: " + fileName);
+            if (!fs.canRead(dataFile)) {
+                throw new IllegalArgumentException("Input file cannot be opened: " + dataFile);
             }
+            this.fileName = dataFile;
             if (!StringUtils.isEmpty(vectorsFile) && !fs.canRead(vectorsFile)) {
                 throw new IllegalArgumentException("Pre-trained vectors file cannot be opened: " + vectorsFile);
             }
-            this.dict = new Dictionary(args);
-            try (FTReader r = createReader()) {
-                this.fileSize = dict.readFromFile(r, logs);
-            }
-            if (!StringUtils.isEmpty(vectorsFile)) {
-                input = FastText.loadVectors(dict, args, fs, vectorsFile);
+            if (dict == null) {
+                this.dictionary = new Dictionary(args);
+                try (FTReader r = createReader()) {
+                    this.fileSize = this.dictionary.readFromFile(r, logs);
+                }
             } else {
-                input = new Matrix(dict.nwords() + args.bucket(), args.dim());
-                input.uniform(args.randomFactory().apply(1), 1.0f / args.dim());
+                this.dictionary = dict;
+                this.fileSize = fs.size(this.fileName);
             }
-            if (ModelName.SUP.equals(args.model())) {
-                output = new Matrix(dict.nlabels(), args.dim());
+            if (in == null) {
+                if (!StringUtils.isEmpty(vectorsFile)) {
+                    input = FastText.loadVectors(this.dictionary, args, fs, vectorsFile);
+                } else {
+                    input = new Matrix(this.dictionary.nwords() + args.bucket(), args.dim());
+                    input.uniform(args.randomFactory().apply(1), 1.0f / args.dim());
+                }
             } else {
-                output = new Matrix(dict.nwords(), args.dim());
+                this.input = in;
+            }
+            if (out == null) {
+                if (ModelName.SUP.equals(args.model())) {
+                    this.output = new Matrix(this.dictionary.nlabels(), args.dim());
+                } else {
+                    this.output = new Matrix(this.dictionary.nwords(), args.dim());
+                }
+            } else {
+                this.output = out;
             }
             startThreads();
-            Model model_ = new Model(input, output, args, 0);
-            return new FastText(args, dict, model_, FASTTEXT_VERSION);
+            Model model = new Model(input, output, args, 0);
+            return new FastText(args, this.dictionary, model, FASTTEXT_VERSION);
+        }
+
+        private FTReader createReader() throws IOException {
+            return new FTReader(fs.openScrollable(fileName), args.charset(), BUFF_SIZE);
         }
 
         /**
@@ -1284,10 +1317,6 @@ public strictfp class FastText {
             }
         }
 
-        private FTReader createReader() throws IOException {
-            return new FTReader(fs.openScrollable(fileName), args.charset(), BUFF_SIZE);
-        }
-
         /**
          * <pre>{@code void FastText::trainThread(int32_t threadId) {
          *  std::ifstream ifs(args_->input);
@@ -1339,11 +1368,11 @@ public strictfp class FastText {
                 long skip = threadId * fileSize / args.thread();
                 reader.skipBytes(skip);
                 if (ModelName.SUP.equals(args.model())) {
-                    model.setTargetCounts(dict.getCounts(EntryType.LABEL));
+                    model.setTargetCounts(dictionary.getCounts(EntryType.LABEL));
                 } else {
-                    model.setTargetCounts(dict.getCounts(EntryType.WORD));
+                    model.setTargetCounts(dictionary.getCounts(EntryType.WORD));
                 }
-                long ntokens = dict.ntokens();
+                long ntokens = dictionary.ntokens();
                 long localTokenCount = 0;
                 List<Integer> line = new ArrayList<>();
                 List<Integer> labels = new ArrayList<>();
@@ -1351,13 +1380,13 @@ public strictfp class FastText {
                     float progress = tokenCount.floatValue() / (args.epoch() * ntokens);
                     float lr = (float) (args.lr() * (1.0 - progress));
                     if (ModelName.SUP.equals(args.model())) {
-                        localTokenCount += dict.getLine(reader, line, labels);
+                        localTokenCount += dictionary.getLine(reader, line, labels);
                         supervised(model, lr, line, labels);
                     } else if (ModelName.CBOW.equals(args.model())) {
-                        localTokenCount += dict.getLine(reader, line, model.rng);
+                        localTokenCount += dictionary.getLine(reader, line, model.rng);
                         cbow(model, lr, line);
                     } else if (ModelName.SG.equals(args.model())) {
-                        localTokenCount += dict.getLine(reader, line, model.rng);
+                        localTokenCount += dictionary.getLine(reader, line, model.rng);
                         skipgram(model, lr, line);
                     }
                     if (localTokenCount > args.lrUpdateRate()) {
@@ -1422,7 +1451,7 @@ public strictfp class FastText {
                 for (int c = -boundary; c <= boundary; c++) {
                     int wc;
                     if (c != 0 && (wc = w + c) >= 0 && wc < line.size()) {
-                        List<Integer> ngrams = dict.getSubwords(line.get(wc));
+                        List<Integer> ngrams = dictionary.getSubwords(line.get(wc));
                         bow.addAll(ngrams);
                     }
                 }
@@ -1452,7 +1481,7 @@ public strictfp class FastText {
             UniformIntegerDistribution uniform = new UniformIntegerDistribution(model.rng, 1, args.ws());
             for (int w = 0; w < line.size(); w++) {
                 int boundary = uniform.sample();
-                List<Integer> ngrams = dict.getSubwords(line.get(w));
+                List<Integer> ngrams = dictionary.getSubwords(line.get(w));
                 for (int c = -boundary; c <= boundary; c++) {
                     int wc;
                     if (c != 0 && (wc = w + c) >= 0 && wc < line.size()) {
