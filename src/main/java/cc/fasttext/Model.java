@@ -1,17 +1,16 @@
 package cc.fasttext;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-
+import cc.fasttext.Args.LossName;
+import cc.fasttext.Args.ModelName;
+import com.google.common.collect.TreeMultimap;
 import org.apache.commons.math3.random.RandomAdaptor;
 import org.apache.commons.math3.random.RandomGenerator;
 import org.apache.commons.math3.util.FastMath;
 
-import cc.fasttext.Args.LossName;
-import cc.fasttext.Args.ModelName;
-import com.google.common.collect.TreeMultimap;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 
 /**
  * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.cc'>model.cc</a> and
@@ -27,7 +26,6 @@ public strictfp class Model {
     private static final Comparator<Float> HEAP_PROBABILITY_COMPARATOR = Comparator.reverseOrder();
     // the following order does not important, it is just to match c++ and java versions:
     private static final Comparator<Integer> HEAP_LABEL_COMPARATOR = Comparator.reverseOrder();//Integer::compareTo;
-    // todo: new
     private QMatrix qwi_;
     private QMatrix qwo_;
     public RandomGenerator rng;

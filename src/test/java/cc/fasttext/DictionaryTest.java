@@ -1,15 +1,12 @@
-package fasttext;
-
-import java.util.Map;
+package cc.fasttext;
 
 import org.junit.Test;
 
-import cc.fasttext.Dictionary;
-import cc.fasttext.Main;
+import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 
-public class TestDictionary {
+public class DictionaryTest {
 
 	private Dictionary dictionary = new Dictionary(Main.createArgs());
 

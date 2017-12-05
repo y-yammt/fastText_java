@@ -1,17 +1,16 @@
 package cc.fasttext;
 
+import org.apache.commons.math3.random.RandomGenerator;
+import org.apache.commons.math3.random.Well19937c;
+import ru.avicomp.io.FTInputStream;
+import ru.avicomp.io.FTOutputStream;
+
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.IntFunction;
-
-import org.apache.commons.math3.random.JDKRandomGenerator;
-import org.apache.commons.math3.random.RandomGenerator;
-
-import ru.avicomp.io.FTInputStream;
-import ru.avicomp.io.FTOutputStream;
 
 /**
  * Immutable Args object.
@@ -22,6 +21,8 @@ import ru.avicomp.io.FTOutputStream;
  */
 public final strictfp class Args {
     public static final String DEFAULT_LABEL = "__label__";
+    // close to std::minstd_rand
+    public static final IntFunction<RandomGenerator> DEFAULT_RANDOM_GENERATOR_FACTORY = Well19937c::new;
     // basic:
     private ModelName model = ModelName.SG;
     // todo: input & output should not be in args
@@ -56,7 +57,8 @@ public final strictfp class Args {
     private int cutoff;
     // additional:
     private Charset charset = StandardCharsets.UTF_8;
-    private IntFunction<RandomGenerator> randomFactory = JDKRandomGenerator::new;
+    // todo: will be moved to Fasttext.java
+    private IntFunction<RandomGenerator> randomFactory = DEFAULT_RANDOM_GENERATOR_FACTORY;
 
     public IntFunction<RandomGenerator> randomFactory() {
         return randomFactory;

@@ -1,21 +1,17 @@
 package cc.fasttext;
 
+import com.google.common.primitives.Floats;
+import org.apache.commons.lang.Validate;
+import org.apache.commons.math3.util.FastMath;
+
 import java.util.List;
 import java.util.Objects;
 import java.util.function.DoubleUnaryOperator;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang.Validate;
-import org.apache.commons.math3.util.FastMath;
-
-import com.google.common.primitives.Floats;
-
 public strictfp class Vector {
 
     private float[] data_;
-
-    protected Vector() {
-    }
 
     public Vector(int size) {
         this(new float[size]);
@@ -139,7 +135,26 @@ public strictfp class Vector {
      * @param i
      */
     public void addRow(Matrix matrix, int i) {
+        if (matrix instanceof QMatrix) {
+            addRow((QMatrix) matrix, i);
+            return;
+        }
         addRow(matrix, i, 1);
+    }
+
+    /**
+     * <pre>{@code
+     * void Vector::addRow(const QMatrix& A, int64_t i) {
+     *  assert(i >= 0);
+     *  A.addToVector(*this, i);
+     * }}</pre>
+     *
+     * @param matrix {@link QMatrix}
+     * @param i
+     */
+    private void addRow(QMatrix matrix, int i) {
+        Validate.isTrue(i >= 0);
+        matrix.addToVector(this, i);
     }
 
     /**
@@ -154,7 +169,7 @@ public strictfp class Vector {
      * }
      * }</pre>
      *
-     * @param matrix
+     * @param matrix {@link Matrix}
      * @param i
      * @param a
      */

@@ -69,7 +69,7 @@ public class Utils {
      * @return String
      */
     public static String formatNumber(float f) {
-        return String.format(Locale.US, "%.5g", f).replaceAll("0+($|e)", "$1");
+        return String.format(Locale.US, "%.5g", f).replaceFirst("0+($|e)", "$1").replaceFirst("\\.$", "");
     }
 
     /**

@@ -1,5 +1,12 @@
 package cc.fasttext;
 
+import org.apache.commons.lang.Validate;
+import org.apache.commons.math3.distribution.UniformRealDistribution;
+import org.apache.commons.math3.random.RandomGenerator;
+import org.apache.commons.math3.util.FastMath;
+import ru.avicomp.io.FTInputStream;
+import ru.avicomp.io.FTOutputStream;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -7,14 +14,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.DoubleUnaryOperator;
 import java.util.stream.Collectors;
-
-import org.apache.commons.lang.Validate;
-import org.apache.commons.math3.distribution.UniformRealDistribution;
-import org.apache.commons.math3.random.RandomGenerator;
-import org.apache.commons.math3.util.FastMath;
-
-import ru.avicomp.io.FTInputStream;
-import ru.avicomp.io.FTOutputStream;
 
 /**
  * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.cc'>matrix.cc</a> and
@@ -34,9 +33,9 @@ public strictfp class Matrix {
     public Matrix(int m, int n) {
         Validate.isTrue(m > 0, "Wrong m-size: " + m);
         Validate.isTrue(n > 0, "Wrong n-size: " + n);
-        m_ = m;
-        n_ = n;
-        data_ = new float[m][n];
+        this.m_ = m;
+        this.n_ = n;
+        this.data_ = new float[m][n];
     }
 
     public Matrix copy() {
@@ -373,6 +372,6 @@ public strictfp class Matrix {
 
     @Override
     public String toString() {
-        return String.format("%s[(n)%dx(m)%d]%s", getClass().getSimpleName(), n_, m_, getData());
+        return String.format("%s[m=%d, n=%d]", getClass().getSimpleName(), m_, n_);
     }
 }

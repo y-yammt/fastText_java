@@ -1,5 +1,12 @@
 package cc.fasttext;
 
+import com.google.common.primitives.UnsignedLong;
+import org.apache.commons.math3.distribution.UniformRealDistribution;
+import org.apache.commons.math3.random.RandomGenerator;
+import ru.avicomp.io.FTInputStream;
+import ru.avicomp.io.FTOutputStream;
+import ru.avicomp.io.FTReader;
+
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.Reader;
@@ -10,14 +17,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
-
-import org.apache.commons.math3.distribution.UniformRealDistribution;
-import org.apache.commons.math3.random.RandomGenerator;
-
-import com.google.common.primitives.UnsignedLong;
-import ru.avicomp.io.FTInputStream;
-import ru.avicomp.io.FTOutputStream;
-import ru.avicomp.io.FTReader;
 
 public strictfp class Dictionary {
 
@@ -1049,7 +1048,7 @@ public strictfp class Dictionary {
         return pdiscard_;
     }
 
-    public Map<Long, Integer> getWord2int() {
+    Map<Long, Integer> getWord2int() {
         return word2int_;
     }
 

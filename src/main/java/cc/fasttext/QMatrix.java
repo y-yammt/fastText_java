@@ -1,14 +1,12 @@
 package cc.fasttext;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.function.IntFunction;
-
 import org.apache.commons.math3.random.RandomGenerator;
-
 import ru.avicomp.io.FTInputStream;
 import ru.avicomp.io.FTOutputStream;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.function.IntFunction;
 
 /**
  * TODO: implement
@@ -54,7 +52,7 @@ public strictfp class QMatrix extends Matrix {
     public QMatrix(Matrix matrix, IntFunction<RandomGenerator> randomProvider, int dsub, boolean qnorm) {
         this.qnorm_ = qnorm;
         this.m_ = matrix.m_;
-        this.n_ = matrix.m_;
+        this.n_ = matrix.n_;
         this.codesize_ = this.m_ * ((this.n_ + dsub - 1) / dsub);
         if (codesize_ > 0) {
             codes_ = new byte[codesize_];
@@ -65,6 +63,14 @@ public strictfp class QMatrix extends Matrix {
             npq_ = new ProductQuantizer(randomProvider, 1, 1);
         }
         quantize(matrix);
+    }
+
+    ProductQuantizer getPQ() {
+        return pq_;
+    }
+
+    ProductQuantizer getNPQ() {
+        return npq_;
     }
 
     @Override
@@ -106,17 +112,14 @@ public strictfp class QMatrix extends Matrix {
      * @param matrix
      */
     private void quantize(Matrix matrix) {
-        float[] data;
         if (qnorm_) {
-            Matrix temp = matrix.copy();
-            Vector norms = new Vector(temp.getM());
-            temp.l2NormRow(norms);
-            temp.divideRow(norms);
+            matrix = matrix.copy();
+            Vector norms = new Vector(matrix.getM());
+            matrix.l2NormRow(norms);
+            matrix.divideRow(norms);
             quantizeNorm(norms);
-            data = temp.flatData();
-        } else {
-            data = matrix.flatData();
         }
+        float[] data = matrix.flatData();
         pq_.train(getM(), data);
         pq_.computeCodes(data, codes_, getM());
     }
@@ -149,7 +152,7 @@ public strictfp class QMatrix extends Matrix {
      * @param x
      * @param t
      */
-    public void addToVector(Vector x, int t) {
+    void addToVector(Vector x, int t) {
         float norm = 1;
         if (qnorm_) {
             norm = npq_.getCentroids(0, normCodes[t]).get(0);
@@ -284,8 +287,4 @@ public strictfp class QMatrix extends Matrix {
         npq_.load(in);
     }
 
-    @Override
-    public String toString() {
-        return String.format("QMatrix{qnorm_=%s, codesize_=%d, codes_=%s, normCodes=%s, pq_=%s, npq_=%s}", qnorm_, codesize_, Arrays.toString(codes_), Arrays.toString(normCodes), pq_, npq_);
-    }
 }

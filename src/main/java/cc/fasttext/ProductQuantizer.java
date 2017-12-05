@@ -1,5 +1,15 @@
 package cc.fasttext;
 
+import com.google.common.primitives.Bytes;
+import com.google.common.primitives.Floats;
+import com.google.common.primitives.Ints;
+import org.apache.commons.math3.distribution.UniformRealDistribution;
+import org.apache.commons.math3.random.RandomAdaptor;
+import org.apache.commons.math3.random.RandomGenerator;
+import org.apache.commons.math3.util.FastMath;
+import ru.avicomp.io.FTInputStream;
+import ru.avicomp.io.FTOutputStream;
+
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -8,21 +18,10 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
-import org.apache.commons.math3.distribution.UniformRealDistribution;
-import org.apache.commons.math3.random.RandomAdaptor;
-import org.apache.commons.math3.random.RandomGenerator;
-import org.apache.commons.math3.util.FastMath;
-
-import com.google.common.primitives.Bytes;
-import com.google.common.primitives.Floats;
-import com.google.common.primitives.Ints;
-import ru.avicomp.io.FTInputStream;
-import ru.avicomp.io.FTOutputStream;
-
 /**
- * TODO: implement
  * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/productquantizer.cc'>productquantizer.cc</a> and
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/productquantizer.h'>productquantizer.h</>
+ *
  * Created by @szuev on 27.10.2017.
  */
 public strictfp class ProductQuantizer {
@@ -86,7 +85,11 @@ public strictfp class ProductQuantizer {
     public List<Float> getCentroids(int m, byte b) {
         int i = Byte.toUnsignedInt(b);
         int index = m == nsubq_ - 1 ? m * KSUB * dsub_ + i * lastdsub_ : (m * KSUB + i) * dsub_;
-        return shift(centroids_, index);
+        return shiftFloats(centroids_, index);
+    }
+
+    List<Float> getCentroids() {
+        return centroids_;
     }
 
     /**
@@ -107,7 +110,7 @@ public strictfp class ProductQuantizer {
     private float distL2(List<Float> x, List<Float> y, int d) {
         float dist = 0;
         for (int i = 0; i < d; i++) {
-            float tmp = get(x, i) - get(y, i);
+            float tmp = getFloat(x, i) - getFloat(y, i);
             dist += tmp * tmp;
         }
         return dist;
@@ -140,7 +143,7 @@ public strictfp class ProductQuantizer {
         float dis = distL2(x, c, d);
         code.set(0, (byte) 0);
         for (int j = 1; j < KSUB; j++) {
-            c = shift(c, d);
+            c = shiftFloats(c, d);
             float disij = distL2(x, c, d);
             if (disij < dis) {
                 code.set(0, (byte) j);
@@ -168,7 +171,7 @@ public strictfp class ProductQuantizer {
     private void eStep(float[] x, List<Float> centroids, List<Byte> codes, int d, int n) {
         List<Float> _x = asFloatList(x);
         for (int i = 0; i < n; i++) {
-            assignCentroid(shift(_x, i * d), centroids, shift(codes, i), d);
+            assignCentroid(shiftFloats(_x, i * d), centroids, shiftBytes(codes, i), d);
         }
     }
 
@@ -226,18 +229,18 @@ public strictfp class ProductQuantizer {
         List<Integer> nelts = asIntList(new int[KSUB]);
         // `memset(centroids, 0, sizeof(real) * d * ksub_);` :
         IntStream.range(0, d * KSUB).forEach(i -> centroids.set(i, 0f));
+
         List<Float> x = asFloatList(x0);
-        List<Float> c = centroids;
         for (int i = 0; i < n; i++) {
             int k = Byte.toUnsignedInt(codes.get(i));
-            c = shift(c, k * d);
+            List<Float> c = shiftFloats(centroids, k * d);
             for (int j = 0; j < d; j++) {
-                set(c, j, get(c, j) + get(x, j));
+                c.set(j, c.get(j) + x.get(j));
             }
             nelts.set(k, nelts.get(k) + 1);
-            x = shift(x, d);
+            x = shiftFloats(x, d);
         }
-        c = centroids;
+        List<Float> c = centroids;
         for (int k = 0; k < KSUB; k++) {
             float z = (float) nelts.get(k);
             if (z != 0) {
@@ -245,7 +248,7 @@ public strictfp class ProductQuantizer {
                     c.set(j, c.get(j) / z);
                 }
             }
-            c = shift(c, d);
+            c = shiftFloats(c, d);
         }
 
         UniformRealDistribution runiform = new UniformRealDistribution(rng, 0, 1);
@@ -320,11 +323,16 @@ public strictfp class ProductQuantizer {
                 // `memcpy (xslice + j * d, x + perm[j] * dim_ + m * dsub_, d * sizeof(real))` :
                 long srcPos = perm.get(j) * dim_ + m * dsub_;
                 if (srcPos > Integer.MAX_VALUE) {
-                    // todo: wtf?
-                    continue;
+                    throw new ArrayStoreException("Source start index too big : " + srcPos);
                 }
                 int dstPos = j * d;
-                System.arraycopy(data, (int) srcPos, xslice, dstPos, d);
+                try {
+                    System.arraycopy(data, (int) srcPos, xslice, dstPos, d);
+                } catch (ArrayStoreException | ArrayIndexOutOfBoundsException e) {
+                    throw new IllegalArgumentException("Can't copy arrays: " +
+                            "data.length=" + data.length + ", src-pos=" + srcPos + ", " +
+                            "xslice.length=" + xslice.length + ", dst-pos=" + dstPos, e);
+                }
             }
             kmeans(xslice, getCentroids(m, (byte) 0), np, d);
         }
@@ -384,7 +392,7 @@ public strictfp class ProductQuantizer {
             if (m == nsubq_ - 1) {
                 d = lastdsub_;
             }
-            assignCentroid(shift(x, m * dsub_), getCentroids(m, (byte) 0), shift(code, m), d);
+            assignCentroid(shiftFloats(x, m * dsub_), getCentroids(m, (byte) 0), shiftBytes(code, m), d);
         }
     }
 
@@ -396,14 +404,14 @@ public strictfp class ProductQuantizer {
      * }}</pre>
      *
      * @param data
-     * @param code
+     * @param codes
      * @param n
      */
-    public void computeCodes(float[] data, byte[] code, int n) {
+    public void computeCodes(float[] data, byte[] codes, int n) {
         List<Float> _x = asFloatList(data);
-        List<Byte> _c = asByteList(code);
+        List<Byte> _c = asByteList(codes);
         for (int i = 0; i < n; i++) {
-            computeCode(shift(_x, i * dim_), shift(_c, i * nsubq_));
+            computeCode(shiftFloats(_x, i * dim_), shiftBytes(_c, i * nsubq_));
         }
     }
 
@@ -438,7 +446,7 @@ public strictfp class ProductQuantizer {
     private float mulCode(float[] data, byte[] codes, int t) {
         float res = 0;
         int d = dsub_;
-        List<Byte> code = shift(asByteList(codes), nsubq_ * t);
+        List<Byte> code = shiftBytes(asByteList(codes), nsubq_ * t);
         for (int m = 0; m < nsubq_; m++) {
             List<Float> c = getCentroids(m, code.get(m));
             if (m == nsubq_ - 1) {
@@ -478,7 +486,7 @@ public strictfp class ProductQuantizer {
 
     private void addCode(float[] data, byte[] codes, int t, float alpha) {
         int d = dsub_;
-        List<Byte> code = shift(asByteList(codes), nsubq_ * t);
+        List<Byte> code = shiftBytes(asByteList(codes), nsubq_ * t);
         for (int m = 0; m < nsubq_; m++) {
             List<Float> c = getCentroids(m, code.get(m));
             if (m == nsubq_ - 1) {
@@ -544,38 +552,54 @@ public strictfp class ProductQuantizer {
         //return IntStream.of(unsignedBytes).mapToObj(i -> (byte) i).collect(Collectors.toList());
     }
 
-    public static List<Float> asFloatList(float... values) {
-        return Floats.asList(values);
-    }
-
     public static List<Integer> asIntList(int... values) {
         return Ints.asList(values);
     }
 
-    private static float get(List<Float> array, int index) {
+    public static List<Float> asFloatList(float... values) {
+        return Floats.asList(values);
+        //return new ArrayList<>(Floats.asList(values));
+    }
+
+    private float getFloat(List<Float> array, int index) {
         if (index >= array.size()) {
             return Float.NaN;
+            //return rng.nextFloat();
         }
+        /*while (index >= array.size()) {
+            array.add(rng.nextFloat());
+        }*/
         return array.get(index);
     }
 
-    private static void set(List<Float> array, int index, float value) {
+    private void setFloat(List<Float> array, int index, float value) {
+        /*if (index >= array.size()) {
+            throw new ArrayIndexOutOfBoundsException("index: " + index + ", size: " + array.size());
+        }*/
         if (index >= array.size()) {
             return;
         }
         array.set(index, value);
     }
 
-    private static byte getByte(List<Byte> array, int index) {
-        if (index >= array.size()) {
-            return Byte.MIN_VALUE;
-        }
-        return array.get(index);
+    private List<Byte> shiftBytes(List<Byte> bytes, int index) {
+        /*while (index >= bytes.size()) {
+           bytes.add((byte) rng.nextInt(256));
+        }*/
+        return shift(bytes, index);
+    }
+
+    private List<Float> shiftFloats(List<Float> floats, int index) {
+        /*while (index >= floats.size()) {
+            floats.add(rng.nextFloat());
+        }*/
+        return shift(floats, index);
     }
 
     public static <T> List<T> shift(List<T> array, int index) {
         if (index >= array.size()) {
             return Collections.emptyList();
+            //throw new ArrayIndexOutOfBoundsException("index: " + index + ", size: " + array.size());
         }
         return array.subList(index, array.size());
     }
