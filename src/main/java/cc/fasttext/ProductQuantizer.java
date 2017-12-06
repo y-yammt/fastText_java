@@ -1,15 +1,5 @@
 package cc.fasttext;
 
-import com.google.common.primitives.Bytes;
-import com.google.common.primitives.Floats;
-import com.google.common.primitives.Ints;
-import org.apache.commons.math3.distribution.UniformRealDistribution;
-import org.apache.commons.math3.random.RandomAdaptor;
-import org.apache.commons.math3.random.RandomGenerator;
-import org.apache.commons.math3.util.FastMath;
-import ru.avicomp.io.FTInputStream;
-import ru.avicomp.io.FTOutputStream;
-
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -17,6 +7,17 @@ import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
+
+import org.apache.commons.math3.distribution.UniformRealDistribution;
+import org.apache.commons.math3.random.RandomAdaptor;
+import org.apache.commons.math3.random.RandomGenerator;
+import org.apache.commons.math3.util.FastMath;
+
+import com.google.common.primitives.Bytes;
+import com.google.common.primitives.Floats;
+import com.google.common.primitives.Ints;
+import ru.avicomp.io.FTInputStream;
+import ru.avicomp.io.FTOutputStream;
 
 /**
  * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/productquantizer.cc'>productquantizer.cc</a> and
@@ -43,6 +44,10 @@ public strictfp class ProductQuantizer {
 
     private RandomGenerator rng;
 
+    ProductQuantizer(IntFunction<RandomGenerator> randomProvider) {
+        this.rng = randomProvider.apply(SEED);
+    }
+
     /**
      * <pre>{@code ProductQuantizer::ProductQuantizer(int32_t dim, int32_t dsub):
      *  dim_(dim), nsubq_(dim / dsub), dsub_(dsub), centroids_(dim * ksub_), rng(seed_) {
@@ -57,11 +62,11 @@ public strictfp class ProductQuantizer {
      * @param dsub
      */
     public ProductQuantizer(IntFunction<RandomGenerator> randomProvider, int dim, int dsub) {
+        this(randomProvider);
         this.dim_ = dim;
         this.nsubq_ = dim / dsub;
         this.dsub_ = dsub;
         this.centroids_ = asFloatList(new float[dim * KSUB]);
-        this.rng = randomProvider.apply(SEED);
         this.lastdsub_ = dim_ % dsub;
         if (this.lastdsub_ == 0) {
             this.lastdsub_ = dsub_;

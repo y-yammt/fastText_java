@@ -2,6 +2,7 @@ package cc.fasttext;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
@@ -21,6 +22,12 @@ import ru.avicomp.io.impl.LocalIOStreams;
  */
 public class Main {
     private static IOStreams fileSystem = new LocalIOStreams();
+    // temp solution:
+    private static final PrintStream NULL = new PrintStream(new OutputStream() {
+        @Override
+        public void write(int b) {
+        }
+    });
 
     public static void setFileSystem(IOStreams fileSystem) {
         Main.fileSystem = Objects.requireNonNull(fileSystem, "Null file system.");
@@ -338,9 +345,11 @@ public class Main {
      * }}</pre>
      *
      * @param inputs
-     * @throws Exception
+     * @throws IOException
+     * @throws ExecutionException
+     * @throws IllegalArgumentException
      */
-    public static void train(String[] inputs) throws Exception {
+    public static void train(String[] inputs) throws IOException, ExecutionException, IllegalArgumentException {
         if (inputs.length == 0) {
             throw Usage.TRAIN.toException("Empty args specified.", Usage.ARGS);
         }
@@ -400,9 +409,11 @@ public class Main {
      *  exit(0);
      * }}</pre>
      *
-     * @param inputs
+     * @throws IOException
+     * @throws ExecutionException
+     * @throws IllegalArgumentException
      */
-    public static void quantize(String[] inputs) throws IOException, ExecutionException {
+    public static void quantize(String[] inputs) throws IOException, ExecutionException, IllegalArgumentException {
         if (inputs.length == 0) {
             throw Usage.QUANTIZE.toException("Empty args specified.", Usage.ARGS);
         }
@@ -485,7 +496,7 @@ public class Main {
      * @throws IOException if something is wrong.
      */
     public static FastText loadModel(String file) throws IOException {
-        return FastText.loadModel(fileSystem, file);
+        return FastText.loadModel(fileSystem, NULL, file);
     }
 
     /**

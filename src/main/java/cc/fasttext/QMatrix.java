@@ -1,12 +1,13 @@
 package cc.fasttext;
 
-import org.apache.commons.math3.random.RandomGenerator;
-import ru.avicomp.io.FTInputStream;
-import ru.avicomp.io.FTOutputStream;
-
 import java.io.IOException;
 import java.util.List;
 import java.util.function.IntFunction;
+
+import org.apache.commons.math3.random.RandomGenerator;
+
+import ru.avicomp.io.FTInputStream;
+import ru.avicomp.io.FTOutputStream;
 
 /**
  * TODO: implement
@@ -279,9 +280,13 @@ public strictfp class QMatrix extends Matrix {
         for (int i = 0; i < codesize_; i++) {
             codes_[i] = in.readByte();
         }
+        // todo: need pass rnd-factory somewhere from outside
+        pq_ = new ProductQuantizer(Args.DEFAULT_RANDOM_GENERATOR_FACTORY);
         pq_.load(in);
         if (!qnorm_) return;
-        for (int i = 0; i < codesize_; i++) {
+        npq_ = new ProductQuantizer(Args.DEFAULT_RANDOM_GENERATOR_FACTORY);
+        normCodes = new byte[this.m_];
+        for (int i = 0; i < m_; i++) {
             normCodes[i] = in.readByte();
         }
         npq_.load(in);

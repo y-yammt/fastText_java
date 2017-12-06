@@ -23,34 +23,10 @@ import ru.avicomp.ShellUtils;
 import ru.avicomp.TestsBase;
 
 /**
- * Original script:
- * <p>
- * <pre>{@code
- * #!/usr/bin/env bash
- * myshuf() {
- *  perl -MList::Util=shuffle -e 'print shuffle(<>);' "$@";
- * }
- * normalize_text() {
- *  tr '[:upper:]' '[:lower:]' | sed -e 's/^/__label__/g' | \
- *  sed -e "s/'/ ' /g" -e 's/"//g' -e 's/\./ \. /g' -e 's/<br \/>/ /g' \
- *  -e 's/,/ , /g' -e 's/(/ ( /g' -e 's/)/ ) /g' -e 's/\!/ \! /g' \
- *  -e 's/\?/ \? /g' -e 's/\;/ /g' -e 's/\:/ /g' | tr -s " " | myshuf
- * }
- * RESULTDIR=result
- * DATADIR=data
- * mkdir -p "${RESULTDIR}"
- * mkdir -p "${DATADIR}"
- * if [ ! -f "${DATADIR}/dbpedia.train" ]
- * then
- *  wget -c "https://github.com/le-scientifique/torchDatasets/raw/master/dbpedia_csv.tar.gz" -O "${DATADIR}/dbpedia_csv.tar.gz"
- *  tar -xzvf "${DATADIR}/dbpedia_csv.tar.gz" -C "${DATADIR}"
- *  cat "${DATADIR}/dbpedia_csv/train.csv" | normalize_text > "${DATADIR}/dbpedia.train"
- *  cat "${DATADIR}/dbpedia_csv/test.csv" | normalize_text > "${DATADIR}/dbpedia.test"
- * fi
- * make
- * ./fasttext supervised -input "${DATADIR}/dbpedia.train" -output "${RESULTDIR}/dbpedia" -dim 10 -lr 0.1 -wordNgrams 2 -minCount 1 -bucket 10000000 -epoch 5 -thread 4
- * ./fasttext test "${RESULTDIR}/dbpedia.bin" "${DATADIR}/dbpedia.test"
- * ./fasttext predict "${RESULTDIR}/dbpedia.bin" "${DATADIR}/dbpedia.test" > "${RESULTDIR}/dbpedia.test.predict"</pre>
+ * Based on
+ * <a href='https://github.com/facebookresearch/fastText/blob/master/classification-example.sh'>classification-example.sh</a> and
+ * <a href='https://github.com/facebookresearch/fastText/blob/master/quantization-example.sh'>quantization-example.sh</a>
+ * scripts.
  * <p>
  * Created by @szuev on 01.11.2017.
  */
@@ -102,21 +78,69 @@ public class ClassificationExampleTest {
     @Test
     public void test01TrainModel() throws Exception {
         Path bin = TestsBase.DESTINATION_DIR.resolve(DBPEDIA_MODEL + ".bin");
-        Main.train(TestsBase.cmd("supervised -input %s -output %s -dim 10 -lr 0.1 " +
-                "-wordNgrams 2 -minCount 1 -bucket 10000000 -epoch 5 -thread 4", train, model));
+        Path vec = TestsBase.DESTINATION_DIR.resolve(DBPEDIA_MODEL + ".vec");
+        Path out = TestsBase.DESTINATION_DIR.resolve(DBPEDIA_MODEL + ".output");
+        Main.train(TestsBase.cmd("supervised" +
+                " -input %s" +
+                " -output %s" +
+                " -dim 10" +
+                " -lr 0.1" +
+                " -wordNgrams 2" +
+                " -minCount 1" +
+                " -bucket 10000000" +
+                " -epoch 5" +
+                " -thread 4" +
+                " -saveOutput 555", train, model));
+        Assert.assertTrue("No .bin found", Files.exists(bin));
+        Assert.assertTrue("No .vec found", Files.exists(vec));
+        Assert.assertTrue("No .output found", Files.exists(out));
         Assert.assertEquals("Incorrect size of dbpedia model", DBPEDIA_MODEL_BIN_SIZE, Files.size(bin));
-    }
-
-    private Path getModelBinPath() throws Exception {
-        Path bin = TestsBase.DESTINATION_DIR.resolve(DBPEDIA_MODEL + ".bin");
-        if (!Files.exists(bin)) {
-            test01TrainModel();
-        }
-        return bin;
+        // todo: validate .output and .vec
     }
 
     @Test
-    public void test02Test() throws Exception {
+    public void test02QuantizeModel() throws Exception {
+        Path model = TestsBase.DESTINATION_DIR.resolve(DBPEDIA_MODEL);
+        Path ftz = TestsBase.DESTINATION_DIR.resolve(DBPEDIA_MODEL + ".ftz");
+        Path vec = TestsBase.DESTINATION_DIR.resolve(DBPEDIA_MODEL + ".vec");
+        Main.quantize(TestsBase.cmd("quantize" +
+                " -input %s" +
+                " -output %s" +
+                " -qnorm" +
+                " -retrain" +
+                " -epoch 1" +
+                " -cutoff 100000", train, model));
+        Assert.assertTrue("No .ftz found", Files.exists(ftz));
+        Assert.assertTrue("No .vec found", Files.exists(vec));
+    }
+
+    private Path getModelBinPath() throws Exception {
+        Path res = TestsBase.DESTINATION_DIR.resolve(DBPEDIA_MODEL + ".bin");
+        if (!Files.exists(res)) {
+            test01TrainModel();
+        }
+        return res;
+    }
+
+    private Path getModelFtzPath() throws Exception {
+        Path res = TestsBase.DESTINATION_DIR.resolve(DBPEDIA_MODEL + ".ftz");
+        if (!Files.exists(res)) {
+            test02QuantizeModel();
+        }
+        return res;
+    }
+
+    @Test
+    public void test03TestBin() throws Exception {
+        testTest(getModelBinPath(), false);
+    }
+
+    @Test
+    public void test04TestVtz() throws Exception { // todo: fix
+        testTest(getModelFtzPath(), true);
+    }
+
+    private void testTest(Path model, boolean quant) throws IOException {
         // output:
         // N	70000
         // P@2: 0,495
@@ -127,11 +151,9 @@ public class ClassificationExampleTest {
         double expectedP = 0.5;
         double delta = 0.05;
         int k = 2;
-        LOGGER.info("Test <test>");
-        Path model = getModelBinPath();
-        LOGGER.debug("Test file {}, Model.bin {}", test, model);
+        LOGGER.info("Test file {}, Model.bin {}", test, model);
         FastText f = Main.loadModel(model.toString());
-
+        Assert.assertEquals(quant, f.getModel().isQuant());
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         try (InputStream in = Files.newInputStream(test);
              PrintStream out = new PrintStream(output, true, StandardCharsets.UTF_8.name())) {
@@ -150,7 +172,7 @@ public class ClassificationExampleTest {
     }
 
     @Test
-    public void test03PredictFile() throws Exception {
+    public void test05PredictFile() throws Exception {
         LOGGER.info("Test prediction");
         Path result = Paths.get(ClassificationExampleTest.class.getResource("/dbpedia.cut.test.predict").toURI());
         Path test = Paths.get(ClassificationExampleTest.class.getResource("/dbpedia.cut.test").toURI());
@@ -178,7 +200,7 @@ public class ClassificationExampleTest {
     }
 
     @Test
-    public void test03PredictProbStdIn() throws Exception {
+    public void test06PredictProbStdIn() throws Exception {
         LOGGER.info("Test predict with probabilities");
         Path model = getModelBinPath();
         List<String> testData = Arrays.asList("predict", "test");

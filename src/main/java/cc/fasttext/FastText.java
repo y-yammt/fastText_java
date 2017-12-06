@@ -450,7 +450,7 @@ public strictfp class FastText {
      * @throws IOException
      */
     public void saveVectors(String file) throws IOException {
-        write("vectors", file, dict.nwords(), dict::getWord, i -> getWordVector(dict.getWord(i)));
+        writeVectors("vectors", file, dict.nwords(), dict::getWord, i -> getWordVector(dict.getWord(i)));
     }
 
     /**
@@ -484,7 +484,7 @@ public strictfp class FastText {
         if (getModel().isQuant()) {
             throw new IllegalStateException("Saving output is not supported for quantized models.");
         }
-        write("output", file,
+        writeVectors("output", file,
                 ModelName.SUP.equals(args.model()) ? dict.nlabels() : dict.nwords(),
                 i -> ModelName.SUP.equals(args.model()) ? dict.getLabel(i) : dict.getWord(i),
                 i -> {
@@ -494,7 +494,18 @@ public strictfp class FastText {
                 });
     }
 
-    private void write(String name, String file, int lines, IntFunction<String> word, IntFunction<Vector> vector) throws IOException {
+    /**
+     * Writes vectors info to the specified file.
+     * Auxiliary method.
+     *
+     * @param name   String, name to log
+     * @param file   String, Path (URI) to file
+     * @param lines  int first line
+     * @param word   function to get String word
+     * @param vector function to get {@link Vector vector}
+     * @throws IOException in case of io error
+     */
+    private void writeVectors(String name, String file, int lines, IntFunction<String> word, IntFunction<Vector> vector) throws IOException {
         if (!getFileSystem().canWrite(file)) {
             throw new IOException("Can't write to " + file);
         }
@@ -596,6 +607,7 @@ public strictfp class FastText {
     }
 
     /**
+     * todo: move to {@link Trainer factory}
      * Loads model by fileRef(String) and {@link IOStreams file-system} object.
      * <p>
      * <pre>{@code void FastText::loadModel(const std::string& filename) {
@@ -610,22 +622,30 @@ public strictfp class FastText {
      *  ifs.close();
      * }}</pre>
      *
-     * @param fs      {@link IOStreams} the file system
-     * @param fileRef String, not null
+     * @param fs      {@link IOStreams} the file system, not null
+     * @param logs    {@link PrintStream} to log process, not null
+     * @param fileRef String, not null, not null
      * @return new {@link FastText model} instance
      * @throws IOException              if something is wrong while read file
      * @throws IllegalArgumentException if file is wrong
      */
-    public static FastText loadModel(IOStreams fs, String fileRef) throws IOException, IllegalArgumentException {
+    public static FastText loadModel(IOStreams fs, PrintStream logs, String fileRef) throws IOException, IllegalArgumentException {
         if (!fs.canRead(Objects.requireNonNull(fileRef, "Null file ref specified."))) {
             throw new IOException("Model file cannot be opened for loading: <" + fileRef + ">");
         }
         try (InputStream in = fs.openInput(fileRef)) {
-            return loadModel(in).setFileSystem(fs);
+            logs.print("Load model " + fileRef + " ...");
+            FastText res = loadModel(in).setFileSystem(fs).setLogs(logs);
+            logs.println(" done.");
+            return res;
+        } catch (Exception e) {
+            logs.println(" error.");
+            throw e;
         }
     }
 
     /**
+     * todo: move to {@link Trainer factory}
      * Loads model from any InputStream.
      * Original methods:
      * <pre>{@code void FastText::loadModel(std::istream& in) {
@@ -740,6 +760,7 @@ public strictfp class FastText {
     }
 
     /**
+     * todo: should not accept logs, should return statistic object.
      * Tests.
      * <pre>{@code void FastText::test(std::istream& in, int32_t k) {
      *  int32_t nexamples = 0, nlabels = 0;
@@ -800,7 +821,7 @@ public strictfp class FastText {
     }
 
     /**
-     * TODO: dont' print. return statistic.
+     * TODO: don't print. return some statistic object.
      * Tests and prints to standard output
      *
      * @param in {@link InputStream} to read data
@@ -865,6 +886,7 @@ public strictfp class FastText {
     }
 
     /**
+     * todo: must not accept PrintStream: all std-out tasks should be delegated to the {@link Main}
      * Predicts most likely labels.
      * Original code:
      * <pre>{@code void FastText::predict(std::istream& in, int32_t k, bool print_prob) {
@@ -942,6 +964,7 @@ public strictfp class FastText {
     }
 
     /**
+     * todo: move to {@link Trainer factory}
      * <pre>{@code void FastText::loadVectors(std::string filename) {
      *  std::ifstream in(filename);
      *  std::vector<std::string> words;
