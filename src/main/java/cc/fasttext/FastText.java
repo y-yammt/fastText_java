@@ -10,6 +10,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -445,40 +446,70 @@ public strictfp class FastText {
      *
      * }</pre>
      *
+     * @param file
      * @throws IOException
      */
-    public void saveVectors() throws IOException {
-        if (StringUtils.isEmpty(args.output)) { // todo: do we need this validation
-            if (args.verbose() > 1) {
-                logs.println("output is empty, skip save vector file");
-            }
-            return;
+    public void saveVectors(String file) throws IOException {
+        write("vectors", file, dict.nwords(), dict::getWord, i -> getWordVector(dict.getWord(i)));
+    }
+
+    /**
+     * <pre>{@code void FastText::saveOutput() {
+     *  std::ofstream ofs(args_->output + ".output");
+     *  if (!ofs.is_open()) {
+     *      std::cerr << "Error opening file for saving vectors." << std::endl;
+     *      exit(EXIT_FAILURE);
+     *  }
+     *  if (quant_) {
+     *      std::cerr << "Option -saveOutput is not supported for quantized models." << std::endl;
+     *      return;
+     *  }
+     *  int32_t n = (args_->model == model_name::sup) ? dict_->nlabels() : dict_->nwords();
+     *  ofs << n << " " << args_->dim << std::endl;
+     *  Vector vec(args_->dim);
+     *  for (int32_t i = 0; i < n; i++) {
+     *      std::string word = (args_->model == model_name::sup) ? dict_->getLabel(i) : dict_->getWord(i);
+     *      vec.zero();
+     *      vec.addRow(*output_, i);
+     *      ofs << word << " " << vec << std::endl;
+     *  }
+     *  ofs.close();
+     * }
+     * }</pre>
+     *
+     * @param file
+     * @throws IOException
+     */
+    public void saveOutput(String file) throws IOException {
+        if (getModel().isQuant()) {
+            throw new IllegalStateException("Saving output is not supported for quantized models.");
         }
-        // validate and prepare:
-        String file = args.output + ".vec";
-        getFileSystem().prepareParent(file);
+        write("output", file,
+                ModelName.SUP.equals(args.model()) ? dict.nlabels() : dict.nwords(),
+                i -> ModelName.SUP.equals(args.model()) ? dict.getLabel(i) : dict.getWord(i),
+                i -> {
+                    Vector vec = new Vector(args.dim());
+                    vec.addRow(model.output(), i);
+                    return vec;
+                });
+    }
+
+    private void write(String name, String file, int lines, IntFunction<String> word, IntFunction<Vector> vector) throws IOException {
         if (!getFileSystem().canWrite(file)) {
             throw new IOException("Can't write to " + file);
         }
         if (args.verbose() > 1) {
-            logs.println("Saving Vectors to " + file);
+            logs.println("Saving " + name + " to " + file);
         }
         try (Writer writer = new BufferedWriter(new OutputStreamWriter(getFileSystem().createOutput(file), args.charset()))) {
-            writer.write(dict.nwords() + " " + args.dim() + "\n");
-            for (int i = 0; i < dict.nwords(); i++) {
-                String word = dict.getWord(i);
-                Vector vec = getWordVector(word);
-                writer.write(word);
+            writer.write(lines + " " + args.dim() + "\n");
+            for (int i = 0; i < lines; i++) {
+                writer.write(word.apply(i));
                 writer.write(" ");
-                writer.write(vec.toString());
+                writer.write(vector.apply(i).toString());
                 writer.write("\n");
             }
-            writer.flush();
         }
-    }
-
-    public void saveOutput() {
-        // TODO:
     }
 
     /**
@@ -494,7 +525,7 @@ public strictfp class FastText {
      * @param out {@link FTOutputStream} binary just opened output stream
      * @throws IOException if something is wrong
      */
-    private void signModel(FTOutputStream out) throws IOException {
+    private static void signModel(FTOutputStream out) throws IOException {
         out.writeInt(FASTTEXT_FILEFORMAT_MAGIC_INT32);
         out.writeInt(FASTTEXT_VERSION);
     }
@@ -534,18 +565,10 @@ public strictfp class FastText {
      * }
      * }</pre>
      *
+     * @param file
      * @throws IOException
      */
-    public void saveModel() throws IOException {
-        if (StringUtils.isEmpty(args.output)) {
-            if (args.verbose() > 1) {
-                logs.println("Output is empty, skip save model file");
-            }
-            return;
-        }
-        // validate and prepare (todo: move to the beginning):
-        String file = args.output + (model.isQuant() ? ".ftz" : ".bin");
-        getFileSystem().prepareParent(file);
+    public void saveModel(String file) throws IOException {
         if (!getFileSystem().canWrite(file)) {
             throw new IOException("Can't write to " + file);
         }
@@ -963,7 +986,7 @@ public strictfp class FastText {
      * @return
      * @throws IOException
      * @throws IllegalArgumentException
-     * @see #saveVectors()
+     * @see #saveVectors(String)
      */
     private static Matrix loadVectors(Dictionary dict, Args args, IOStreams fs, String file) throws IOException, IllegalArgumentException {
         if (!fs.canRead(file)) {

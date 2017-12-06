@@ -8,6 +8,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 import java.util.function.IntConsumer;
+import java.util.stream.Stream;
 
 import org.apache.commons.lang.StringUtils;
 
@@ -341,29 +342,45 @@ public class Main {
      */
     public static void train(String[] inputs) throws Exception {
         if (inputs.length == 0) {
-            throw Usage.TRAIN.toException("Empty args specified", Usage.ARGS);
+            throw Usage.TRAIN.toException("Empty args specified.", Usage.ARGS);
         }
-        Map<String, String> map = toMap(inputs);
-        Args.ModelName model = Args.ModelName.fromName(inputs[0]);
+        Map<String, String> args = toMap(inputs);
+        Args.ModelName type = Args.ModelName.fromName(inputs[0]);
 
-        String textData = map.get("-input");
-        if (StringUtils.isEmpty(textData)) {
+        String data = args.get("-input");
+        if (StringUtils.isEmpty(data)) {
             throw Usage.TRAIN.toException("Empty -input", Usage.ARGS);
+        } else if (!fileSystem.canRead(data)) {
+            throw Usage.TRAIN.toException("Wrong -input: can't read " + data, Usage.ARGS);
         }
-        String modelName = map.get("-output");
-        if (StringUtils.isEmpty(modelName)) {
+        String model = args.get("-output");
+        if (StringUtils.isEmpty(model)) {
             throw Usage.TRAIN.toException("Empty -output", Usage.ARGS);
         }
-        String preTrainedVectors = map.get("-pretrainedVectors");
-        Args args = parseArgs(model, map);
-        // todo: check all files before processing
-        FastText fasttext = FastText.train(args, fileSystem, System.out, textData, preTrainedVectors);
-        // todo: change signature: save to specified file (see modelName)
-        fasttext.saveModel();
-        fasttext.saveVectors();
-        if (args.saveOutput() > 0) {
-            fasttext.saveOutput();
+        String out = null;
+        if (args.containsKey("-saveOutput")) {
+            String saveOutput = args.get("-saveOutput");
+            if (!saveOutput.matches("\\d+")) {
+                throw Usage.TRAIN.toException("Wrong -saveOutput: " + saveOutput, Usage.ARGS);
+            }
+            if (Integer.parseInt(saveOutput) > 0) {
+                out = model + ".output";
+            }
         }
+        String bin = model + ".bin";
+        String vec = model + ".vec";
+        if (Stream.of(bin, vec, out).filter(Objects::nonNull).anyMatch(file -> !fileSystem.canWrite(file))) {
+            throw Usage.TRAIN.toException("Wrong -output: can't write model " + data, Usage.ARGS);
+        }
+        String vectors = args.get("-pretrainedVectors");
+        if (!StringUtils.isEmpty(vectors) && !fileSystem.canRead(vectors)) {
+            throw Usage.TRAIN.toException("Wrong -pretrainedVectors: can't read " + vectors, Usage.ARGS);
+        }
+        FastText fasttext = FastText.train(parseArgs(type, args), fileSystem, System.out, data, vectors);
+        fasttext.saveModel(bin);
+        fasttext.saveVectors(vec);
+        if (out == null) return;
+        fasttext.saveOutput(out);
     }
 
     /**
@@ -386,38 +403,45 @@ public class Main {
      * @param inputs
      */
     public static void quantize(String[] inputs) throws IOException, ExecutionException {
-        if (inputs.length < 3) { // ex: quantize -output <model-name-uri|mode-bin>
-            throw Usage.QUANTIZE.toException("Model name or model path is mandatory (see -output).", Usage.ARGS);
+        if (inputs.length == 0) {
+            throw Usage.QUANTIZE.toException("Empty args specified.", Usage.ARGS);
         }
         Map<String, String> map = toMap(inputs);
-        String modelBin = map.get("-output");
-        if (StringUtils.isEmpty(modelBin)) {
-            throw Usage.QUANTIZE.toException("No model (see -output)", Usage.ARGS);
+        String model = map.get("-output");
+        if (StringUtils.isEmpty(model)) {
+            throw Usage.QUANTIZE.toException("No model (-output)", Usage.ARGS);
         }
-        if (!modelBin.endsWith(".bin")) {
-            modelBin += ".bin";
+        String bin = model + ".bin";
+        if (!fileSystem.canRead(bin)) {
+            throw Usage.QUANTIZE.toException("Wrong -output: can't read file " + bin, Usage.ARGS);
         }
-        String textData = null;
+        String data = null;
         if (map.containsKey("-retrain")) {
-            textData = map.get("-input");
-            if (StringUtils.isEmpty(textData)) {
-                throw Usage.QUANTIZE.toException("Wrong args: -input is required if -retrain specified", Usage.ARGS);
+            data = map.get("-input");
+            if (StringUtils.isEmpty(data)) {
+                throw Usage.QUANTIZE.toException("Wrong args: -input is required if -retrain specified.", Usage.ARGS);
+            } else if (!fileSystem.canRead(data)) {
+                throw Usage.QUANTIZE.toException("Wrong -input: can't read file " + data, Usage.ARGS);
             }
         }
-        // todo: check all files before processing
-        Args args = parseArgs(Args.ModelName.SUP, map);
-        FastText dst = loadModel(modelBin).quantize(args, textData);
-        dst.saveModel();
-        dst.saveVectors();
-        if (args.saveOutput() > 0) {
-            dst.saveOutput();
+        String ftz = model + ".ftz";
+        String vec = model + ".vec";
+        if (!fileSystem.canWrite(ftz) || !fileSystem.canWrite(vec)) {
+            throw Usage.QUANTIZE.toException("Wrong -output: can't write model " + model, Usage.ARGS);
         }
+        if (map.containsKey("-saveOutput")) {
+            throw Usage.QUANTIZE.toException("Option -saveOutput is not supported for quantized models", Usage.ARGS);
+        }
+        Args args = parseArgs(Args.ModelName.SUP, map);
+        FastText fasttext = loadModel(bin).quantize(args, data);
+        fasttext.saveModel(ftz);
+        fasttext.saveVectors(vec);
     }
 
     public static void main(String... args) {
         try {
             run(args);
-        } catch (IllegalArgumentException e) {
+        } catch (Usage.WrongInputException e) {
             System.out.print(e.getMessage());
         } catch (Exception e) {
             e.printStackTrace();
@@ -775,7 +799,14 @@ public class Main {
         }
 
         private static IllegalArgumentException createException(String msg) {
-            return new IllegalArgumentException(msg);
+            return new WrongInputException(msg);
+        }
+
+        static class WrongInputException extends IllegalArgumentException {
+
+            WrongInputException(String s) {
+                super(s);
+            }
         }
     }
 }

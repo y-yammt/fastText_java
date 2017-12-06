@@ -7,6 +7,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import org.apache.commons.lang.StringUtils;
+
 import ru.avicomp.io.IOStreams;
 import ru.avicomp.io.ScrollableInputStream;
 
@@ -17,6 +19,7 @@ public class LocalIOStreams implements IOStreams {
 
     @Override
     public OutputStream createOutput(String uri) throws IOException {
+        prepareForWrite(uri);
         return Files.newOutputStream(Paths.get(uri));
     }
 
@@ -27,14 +30,18 @@ public class LocalIOStreams implements IOStreams {
 
     @Override
     public boolean canRead(String uri) {
+        if (StringUtils.isEmpty(uri)) return false;
         Path file = Paths.get(uri);
         return Files.isRegularFile(file) && Files.isReadable(file);
     }
 
     @Override
-    public boolean canWrite(String uri) {
+    public boolean canWrite(String uri) { // '-' is reserved for std::out
+        if (StringUtils.isEmpty(uri) || "-".equals(uri)) {
+            return false;
+        }
         Path parent = getParent(uri);
-        return parent != null && Files.isWritable(parent);
+        return parent != null;
     }
 
     private Path getParent(String path) {
@@ -46,8 +53,13 @@ public class LocalIOStreams implements IOStreams {
         return res;
     }
 
-    @Override
-    public void prepareParent(String uri) throws IOException {
+    /**
+     * Prepares the file to write: creates all parents and deletes previous version of file.
+     *
+     * @param uri String, path identifier to file entity.
+     * @throws IOException if something goes wrong while preparation.
+     */
+    public void prepareForWrite(String uri) throws IOException {
         Path parent = getParent(uri);
         if (parent == null) throw new IOException("No parent for " + uri);
         Files.createDirectories(parent);

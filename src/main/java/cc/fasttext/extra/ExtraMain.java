@@ -169,11 +169,6 @@ public class ExtraMain {
         }
 
         @Override
-        public void prepareParent(String uri) throws IOException {
-            chooseFS(uri).prepareParent(uri);
-        }
-
-        @Override
         public ScrollableInputStream openScrollable(String uri) throws IOException, UnsupportedOperationException {
             return chooseFS(uri).openScrollable(uri);
         }
