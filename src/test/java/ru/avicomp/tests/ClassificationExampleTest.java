@@ -46,7 +46,7 @@ public class ClassificationExampleTest {
 
     // expected size of model for dbpedia_csv/train.csv file:
     private static final long DBPEDIA_MODEL_BIN_SIZE = 447_481_878;
-    // 1_623_284
+    // ~ 1_623_284
     private static final long DBPEDIA_MODEL_FTZ_SIZE = 1_623_778;
 
     private static Path train, test, model;
@@ -139,7 +139,7 @@ public class ClassificationExampleTest {
     }
 
     @Test
-    public void test04TestVtz() throws Exception { // todo: fix
+    public void test04TestFtz() throws Exception {
         testTest(getModelFtzPath(), true);
     }
 
@@ -154,7 +154,7 @@ public class ClassificationExampleTest {
         double expectedP = 0.5;
         double delta = 0.05;
         int k = 2;
-        LOGGER.info("Test file {}, Model.bin {}", test, model);
+        LOGGER.info("Test 'test'. Data={}, Model={}", test, model.toRealPath());
         FastText f = Main.loadModel(model.toString());
         Assert.assertEquals(quant, f.getModel().isQuant());
         ByteArrayOutputStream output = new ByteArrayOutputStream();
@@ -175,20 +175,30 @@ public class ClassificationExampleTest {
     }
 
     @Test
-    public void test05PredictFile() throws Exception {
-        LOGGER.info("Test prediction");
+    public void test05PredictFileBin() throws Exception {
+        testPredictFile(getModelBinPath(), false, 0);
+    }
+
+    @Test
+    public void test06PredictFileFtz() throws Exception {
+        // precision issue: original (cpp+) fasttext also shows one difference when use ftz model:
+        testPredictFile(getModelFtzPath(), true, 1);
+    }
+
+    private void testPredictFile(Path model, boolean quant, int allowedDeviation) throws Exception {
         Path result = Paths.get(ClassificationExampleTest.class.getResource("/dbpedia.cut.test.predict").toURI());
         Path test = Paths.get(ClassificationExampleTest.class.getResource("/dbpedia.cut.test").toURI());
+        LOGGER.info("Test 'prediction'. Data={}, Model={}", test, model.toRealPath());
         List<String> expected = Files.lines(result)
                 .map(String::trim)
                 .collect(Collectors.toList());
 
-
-        String bin = getModelBinPath().toString();
+        String bin = model.toString();
         FastText f = Main.loadModel(bin);
+        Assert.assertEquals(quant, f.getModel().isQuant());
 
         List<String> actual;
-        LOGGER.info("predict {} {} 1", bin, test);
+        LOGGER.info("Cmd: 'predict {} {} 1'", bin, test);
         try (ByteArrayOutputStream array = new ByteArrayOutputStream();
              PrintStream out = new PrintStream(array);
              InputStream in = Files.newInputStream(test)) {
@@ -199,14 +209,30 @@ public class ClassificationExampleTest {
                     .collect(Collectors.toList());
         }
         Assert.assertEquals(expected.size(), actual.size());
-        Assert.assertEquals(expected, actual);
+        LOGGER.debug("E: {}", expected);
+        LOGGER.debug("A: {}", actual);
+        List<String> errors = new ArrayList<>();
+        for (int i = 0; i < actual.size(); i++) {
+            if (expected.get(i).equals(actual.get(i))) continue;
+            errors.add(String.format("Wrong label #%d: expected('%s')!=actual('%s')", i, expected.get(i), actual.get(i)));
+        }
+        errors.forEach(LOGGER::error);
+        Assert.assertTrue("Errors: " + errors.size(), errors.size() <= allowedDeviation);
     }
 
     @Test
-    public void test06PredictProbStdIn() throws Exception {
-        LOGGER.info("Test predict with probabilities");
-        Path model = getModelBinPath();
+    public void test07PredictProbStdInBin() throws Exception {
+        testPredictProbStdIn(getModelBinPath());
+    }
+
+    @Test
+    public void test08PredictProbStdInFtz() throws Exception {
+        testPredictProbStdIn(getModelFtzPath());
+    }
+
+    private void testPredictProbStdIn(Path model) throws Exception {
         List<String> testData = Arrays.asList("predict", "test");
+        LOGGER.info("Test predict with probabilities. TestData={}, Model={}", testData, model.toRealPath());
         List<Map<String, List<Float>>> res7 = predictProb(model, testData, 7);
         List<Map<String, List<Float>>> res5 = predictProb(model, testData, 5);
 
