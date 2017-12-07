@@ -1,5 +1,19 @@
 package cc.fasttext;
 
+import cc.fasttext.Args.ModelName;
+import cc.fasttext.Dictionary.EntryType;
+import com.google.common.collect.ImmutableListMultimap;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.TreeMultimap;
+import org.apache.commons.lang.StringUtils;
+import org.apache.commons.math3.distribution.UniformIntegerDistribution;
+import org.apache.commons.math3.util.FastMath;
+import ru.avicomp.io.FTInputStream;
+import ru.avicomp.io.FTOutputStream;
+import ru.avicomp.io.FTReader;
+import ru.avicomp.io.IOStreams;
+import ru.avicomp.io.impl.LocalIOStreams;
+
 import java.io.*;
 import java.lang.ref.Reference;
 import java.lang.ref.SoftReference;
@@ -13,21 +27,6 @@ import java.util.function.BiConsumer;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
-import org.apache.commons.lang.StringUtils;
-import org.apache.commons.math3.distribution.UniformIntegerDistribution;
-import org.apache.commons.math3.util.FastMath;
-
-import cc.fasttext.Args.ModelName;
-import cc.fasttext.Dictionary.EntryType;
-import com.google.common.collect.ImmutableListMultimap;
-import com.google.common.collect.Multimap;
-import com.google.common.collect.TreeMultimap;
-import ru.avicomp.io.FTInputStream;
-import ru.avicomp.io.FTOutputStream;
-import ru.avicomp.io.FTReader;
-import ru.avicomp.io.IOStreams;
-import ru.avicomp.io.impl.LocalIOStreams;
 
 /**
  * FastText class, can be used as a lib in other projects
@@ -1080,11 +1079,11 @@ public strictfp class FastText {
      */
     private List<Integer> selectEmbeddings(int cutoff) {
         Vector norms = model.input().l2NormRow();
-        List<Integer> idx = IntStream.iterate(0, operand -> ++operand).limit(norms.size()).boxed().collect(Collectors.toList());
-        int eosid = dict.getId(Dictionary.EOS);
+        List<Integer> idx = IntStream.iterate(0, i -> ++i).limit(model.input().getM()).boxed().collect(Collectors.toList());
+        int eosId = dict.getId(Dictionary.EOS);
         idx.sort((i1, i2) -> {
-            boolean res = eosid == i1 || (eosid != i2 && norms.get(i1) > norms.get(i2));
-            return res ? -1 : i1.compareTo(i2);
+            boolean res = eosId == i1 || (eosId != i2 && norms.get(i1) > norms.get(i2));
+            return res ? -1 : 1;
         });
         return idx.subList(0, cutoff);
     }
@@ -1148,8 +1147,7 @@ public strictfp class FastText {
         Matrix input_;
         Matrix output_ = model.output().copy();
         if (qargs.cutoff() > 0 && qargs.cutoff() < model.input().getM()) {
-            List<Integer> idx = selectEmbeddings(qargs.cutoff());
-            qdict.prune(idx);
+            List<Integer> idx = qdict.prune(selectEmbeddings(qargs.cutoff()));
             input_ = new Matrix(idx.size(), qargs.dim());
             for (int i = 0; i < idx.size(); i++) {
                 for (int j = 0; j < qargs.dim(); j++) {

@@ -3,6 +3,7 @@ package cc.fasttext;
 import cc.fasttext.Args.LossName;
 import cc.fasttext.Args.ModelName;
 import com.google.common.collect.TreeMultimap;
+import org.apache.commons.lang.Validate;
 import org.apache.commons.math3.random.RandomAdaptor;
 import org.apache.commons.math3.random.RandomGenerator;
 import org.apache.commons.math3.util.FastMath;
@@ -273,7 +274,7 @@ public strictfp class Model {
      * @param hidden
      */
     public void computeHidden(List<Integer> input, Vector hidden) {
-        Utils.checkArgument(hidden.size() == hsz_);
+        Validate.isTrue(hidden.size() == hsz_, "Wrong size of hidden vector: " + hidden.size() + "!=" + hsz_);
         hidden.zero();
         for (Integer it : input) {
             if (isQuant()) {

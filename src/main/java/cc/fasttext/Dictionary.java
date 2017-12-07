@@ -882,8 +882,9 @@ public strictfp class Dictionary {
      * }}</pre>
      *
      * @param idx
+     * @return
      */
-    void prune(List<Integer> idx) {
+    List<Integer> prune(List<Integer> idx) {
         List<Integer> words = new ArrayList<>();
         List<Integer> ngrams = new ArrayList<>();
         for (Integer it : idx) {
@@ -894,14 +895,14 @@ public strictfp class Dictionary {
             }
         }
         Collections.sort(words);
-        idx = words;
+        List<Integer> res = new ArrayList<>(words);
         if (!ngrams.isEmpty()) {
             int j = 0;
             for (int ngram : ngrams) {
                 pruneidx_.put(ngram - nwords_, j);
                 j++;
             }
-            idx.addAll(ngrams);
+            res.addAll(ngrams);
         }
         pruneidx_size_ = pruneidx_.size();
         word2int_.clear();
@@ -918,6 +919,7 @@ public strictfp class Dictionary {
         size_ = nwords_ + nlabels_;
         words_ = words_.subList(0, size_);
         initNgrams();
+        return res;
     }
 
     /**

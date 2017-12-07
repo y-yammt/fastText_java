@@ -1,5 +1,17 @@
 package ru.avicomp.tests;
 
+import cc.fasttext.FastText;
+import cc.fasttext.Main;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.FixMethodOrder;
+import org.junit.Test;
+import org.junit.runners.MethodSorters;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import ru.avicomp.ShellUtils;
+import ru.avicomp.TestsBase;
+
 import java.io.*;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -8,19 +20,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
-
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.FixMethodOrder;
-import org.junit.Test;
-import org.junit.runners.MethodSorters;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import cc.fasttext.FastText;
-import cc.fasttext.Main;
-import ru.avicomp.ShellUtils;
-import ru.avicomp.TestsBase;
 
 /**
  * Based on
@@ -47,6 +46,8 @@ public class ClassificationExampleTest {
 
     // expected size of model for dbpedia_csv/train.csv file:
     private static final long DBPEDIA_MODEL_BIN_SIZE = 447_481_878;
+    // 1_623_284
+    private static final long DBPEDIA_MODEL_FTZ_SIZE = 1_623_778;
 
     private static Path train, test, model;
 
@@ -94,7 +95,7 @@ public class ClassificationExampleTest {
         Assert.assertTrue("No .bin found", Files.exists(bin));
         Assert.assertTrue("No .vec found", Files.exists(vec));
         Assert.assertTrue("No .output found", Files.exists(out));
-        Assert.assertEquals("Incorrect size of dbpedia model", DBPEDIA_MODEL_BIN_SIZE, Files.size(bin));
+        Assert.assertEquals("Incorrect size of dbpedia.bin model", DBPEDIA_MODEL_BIN_SIZE, Files.size(bin));
         // todo: validate .output and .vec
     }
 
@@ -112,6 +113,8 @@ public class ClassificationExampleTest {
                 " -cutoff 100000", train, model));
         Assert.assertTrue("No .ftz found", Files.exists(ftz));
         Assert.assertTrue("No .vec found", Files.exists(vec));
+        // 0.5 kb allowed diff:
+        Assert.assertEquals("Incorrect size of dbpedia.ftz model", DBPEDIA_MODEL_FTZ_SIZE, Files.size(ftz), 500);
     }
 
     private Path getModelBinPath() throws Exception {
