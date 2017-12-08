@@ -2,10 +2,7 @@ package cc.fasttext;
 
 import cc.fasttext.Args.ModelName;
 import cc.fasttext.Dictionary.EntryType;
-import cc.fasttext.io.FTInputStream;
-import cc.fasttext.io.FTOutputStream;
-import cc.fasttext.io.FTReader;
-import cc.fasttext.io.IOStreams;
+import cc.fasttext.io.*;
 import cc.fasttext.io.impl.LocalIOStreams;
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.Multimap;
@@ -13,6 +10,8 @@ import com.google.common.collect.TreeMultimap;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.math3.distribution.UniformIntegerDistribution;
 import org.apache.commons.math3.util.FastMath;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.lang.ref.Reference;
@@ -30,7 +29,8 @@ import java.util.stream.IntStream;
 
 /**
  * FastText class, can be used as a lib in other projects.
- * Assuming to be immutable.
+ * Assuming to be 'immutable' (if only methods of this class are called, modify model would cause change state of instance)
+ *
  * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/fasttext.cc'>fasttext.cc</a> and
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/fasttext.h'>fasttext.h</a>
  *
@@ -40,7 +40,9 @@ public strictfp class FastText {
     public static final int FASTTEXT_VERSION = 12;
     public static final int FASTTEXT_FILEFORMAT_MAGIC_INT32 = 793712314;
 
-    public static final Factory DEFAULT_FACTORY = new Factory(new LocalIOStreams(), System.out);
+    private static final Logger LOGGER = LoggerFactory.getLogger(FastText.class);
+
+    public static final Factory DEFAULT_FACTORY = new Factory(new LocalIOStreams(), new PrintLogs.Flat(LOGGER::debug));
 
     private static final double FIND_NN_THRESHOLD = 1e-8;
     private final Args args;
@@ -49,7 +51,7 @@ public strictfp class FastText {
     private final int version;
 
     private IOStreams fs = DEFAULT_FACTORY.getFileSystem();
-    private PrintStream logs = DEFAULT_FACTORY.getLogs();
+    private PrintLogs logs = DEFAULT_FACTORY.getLogs();
 
     private Reference<Matrix> precomputedWordVectors;
 
@@ -58,6 +60,10 @@ public strictfp class FastText {
         this.dict = dict;
         this.model = model;
         this.version = version;
+    }
+
+    public static FastText train(Args args, String file) throws IOException, ExecutionException {
+        return train(args, file, null);
     }
 
     public static FastText train(Args args, String dataFileURI, String vectorsFileURI) throws IOException, ExecutionException {
@@ -102,11 +108,11 @@ public strictfp class FastText {
     /**
      * Sets logs.
      *
-     * @param out {@link PrintStream} set output to log
+     * @param out {@link PrintLogs} set output to log
      * @return this {@link FastText} object
      */
-    public FastText setLogs(PrintStream out) {
-        this.logs = Objects.requireNonNull(out, "Null out");
+    public FastText setLogs(PrintLogs out) {
+        this.logs = Objects.requireNonNull(out, "Null logs.");
         return this;
     }
 
@@ -620,7 +626,7 @@ public strictfp class FastText {
     }
 
     /**
-     * todo: should not accept logs, should return statistic object.
+     * todo: should not accept PrintStream, should return statistic object.
      * Tests.
      * <pre>{@code void FastText::test(std::istream& in, int32_t k) {
      *  int32_t nexamples = 0, nlabels = 0;
@@ -689,7 +695,7 @@ public strictfp class FastText {
      * @throws IOException if wrong i/o
      */
     public void test(InputStream in, int k) throws IOException {
-        test(in, this.logs, k);
+        test(in, System.out, k);
     }
 
     /**
@@ -777,7 +783,7 @@ public strictfp class FastText {
      * @param printProb if true include also probabilities to output
      * @throws IOException if something wrong.
      */
-    public void predict(InputStream in, PrintStream out, int k, boolean printProb) throws IOException {
+    public void predict(InputStream in, PrintLogs out, int k, boolean printProb) throws IOException {
         Objects.requireNonNull(in, "Null input");
         Objects.requireNonNull(out, "Null output");
         if (k <= 0) throw new IllegalArgumentException("Negative factor");
@@ -806,7 +812,7 @@ public strictfp class FastText {
      * @throws IOException if something is wrong.
      */
     public void predict(InputStream in, int k, boolean printProb) throws IOException {
-        predict(in, logs, k, printProb);
+        predict(in, this.logs, k, printProb);
     }
 
     /**
@@ -953,7 +959,9 @@ public strictfp class FastText {
 
     /**
      * A factory to produce new {@link FastText} interface.
+     *
      * @see IOStreams
+     * @see PrintLogs
      * <p>
      * Created by @szuev on 07.12.2017.
      */
@@ -962,9 +970,9 @@ public strictfp class FastText {
         private static final int BUFF_SIZE = 100 * 1024;
 
         private final IOStreams fs;
-        private final PrintStream logs;
+        private final PrintLogs logs;
 
-        public Factory(IOStreams factory, PrintStream logs) {
+        public Factory(IOStreams factory, PrintLogs logs) {
             this.fs = Objects.requireNonNull(factory, "Null io-factory.");
             this.logs = Objects.requireNonNull(logs, "Null logs");
         }
@@ -973,7 +981,7 @@ public strictfp class FastText {
             return new Factory(fs, this.logs);
         }
 
-        public Factory setLogs(PrintStream logs) {
+        public Factory setLogs(PrintLogs logs) {
             return new Factory(this.fs, logs);
         }
 
@@ -981,7 +989,7 @@ public strictfp class FastText {
             return fs;
         }
 
-        public PrintStream getLogs() {
+        public PrintLogs getLogs() {
             return logs;
         }
 

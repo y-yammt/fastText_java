@@ -2,6 +2,7 @@ package ru.avicomp.tests;
 
 import cc.fasttext.FastText;
 import cc.fasttext.Main;
+import cc.fasttext.io.PrintLogs;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.FixMethodOrder;
@@ -155,12 +156,12 @@ public class ClassificationExampleTest {
         double delta = 0.05;
         int k = 2;
         LOGGER.info("Test 'test'. Data={}, Model={}", test, model.toRealPath());
-        FastText f = FastText.load(model.toString());
-        Assert.assertEquals(quant, f.getModel().isQuant());
+        FastText fastText = FastText.load(model.toString());
+        Assert.assertEquals(quant, fastText.getModel().isQuant());
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         try (InputStream in = Files.newInputStream(test);
              PrintStream out = new PrintStream(output, true, StandardCharsets.UTF_8.name())) {
-            f.test(in, out, k);
+            fastText.test(in, out, k);
         }
         String res = new String(output.toByteArray(), StandardCharsets.UTF_8);
         LOGGER.debug("Output: {}", res);
@@ -194,16 +195,16 @@ public class ClassificationExampleTest {
                 .collect(Collectors.toList());
 
         String bin = model.toString();
-        FastText f = FastText.load(bin);
-        Assert.assertEquals(quant, f.getModel().isQuant());
+        FastText fastText = FastText.load(bin);
+        Assert.assertEquals(quant, fastText.getModel().isQuant());
 
         List<String> actual;
         LOGGER.info("Cmd: 'predict {} {} 1'", bin, test);
         try (ByteArrayOutputStream array = new ByteArrayOutputStream();
              PrintStream out = new PrintStream(array);
              InputStream in = Files.newInputStream(test)) {
-            f.setLogs(out);
-            f.predict(in, 1, false);
+            fastText.setLogs(new PrintLogs.Stream(out));
+            fastText.predict(in, 1, false);
             actual = Arrays.stream(array.toString(StandardCharsets.UTF_8.name()).split("\n"))
                     .map(String::trim)
                     .collect(Collectors.toList());

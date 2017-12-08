@@ -3,12 +3,12 @@ package cc.fasttext;
 import cc.fasttext.io.FTInputStream;
 import cc.fasttext.io.FTOutputStream;
 import cc.fasttext.io.FTReader;
+import cc.fasttext.io.PrintLogs;
 import com.google.common.primitives.UnsignedLong;
 import org.apache.commons.math3.distribution.UniformRealDistribution;
 import org.apache.commons.math3.random.RandomGenerator;
 
 import java.io.IOException;
-import java.io.PrintStream;
 import java.io.Reader;
 import java.nio.charset.Charset;
 import java.util.*;
@@ -365,7 +365,7 @@ public strictfp class Dictionary {
      * @throws IOException
      * @throws IllegalStateException
      */
-    long readFromFile(FTReader reader, PrintStream logs) throws IOException, IllegalStateException {
+    long readFromFile(FTReader reader, PrintLogs logs) throws IOException, IllegalStateException {
         long minThreshold = 1;
         String word;
         while ((word = readWord(reader)) != null) {

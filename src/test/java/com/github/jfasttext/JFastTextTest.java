@@ -2,7 +2,7 @@ package com.github.jfasttext;
 
 import cc.fasttext.Args;
 import cc.fasttext.FastText;
-import cc.fasttext.Main;
+import cc.fasttext.io.PrintLogs;
 import com.google.common.collect.Multimap;
 import com.google.common.primitives.Doubles;
 import org.junit.After;
@@ -14,16 +14,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.avicomp.TestsBase;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
-import java.io.PrintStream;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 /**
@@ -43,17 +42,19 @@ public class JFastTextTest {
     @Test
     public void test01TrainSupervisedCmd() throws Exception {
         LOGGER.info("Training supervised model ...");
-        Path input = Paths.get(JFastTextTest.class.getResource("/labeled_data.txt").toURI());
-        Path out = TestsBase.DESTINATION_DIR.resolve("supervised.model");
-        Main.train(TestsBase.cmd("supervised -input %s -output %s", input, out));
+        Path input = Paths.get(JFastTextTest.class.getResource("/labeled_data.txt").toURI()).toRealPath();
+        Path out = TestsBase.DESTINATION_DIR.resolve("supervised.model.bin");
+        Args args = new Args.Builder().setModel(Args.ModelName.SUP).build();
+        testTrain(args, input, out);
     }
 
     @Test
     public void test02TrainSkipgramCmd() throws Exception {
         LOGGER.info("Training skipgram word-embedding ...");
         Path input = Paths.get(JFastTextTest.class.getResource("/unlabeled_data.txt").toURI());
-        Path out = TestsBase.DESTINATION_DIR.resolve("skipgram.model");
-        Main.train(TestsBase.cmd("skipgram -input %s -output %s -bucket 100 -minCount 1", input, out));
+        Path out = TestsBase.DESTINATION_DIR.resolve("skipgram.model.bin");
+        Args args = new Args.Builder().setModel(Args.ModelName.SG).setBucket(100).setMinCount(1).build();
+        testTrain(args, input, out);
     }
 
     @Test
@@ -61,7 +62,16 @@ public class JFastTextTest {
         LOGGER.info("Training cbow word-embedding ...");
         Path input = Paths.get(JFastTextTest.class.getResource("/unlabeled_data.txt").toURI());
         Path out = TestsBase.DESTINATION_DIR.resolve("cbow.model");
-        Main.train(TestsBase.cmd("cbow -input %s -output %s -bucket 100 -minCount 1", input, out));
+        Args args = new Args.Builder().setModel(Args.ModelName.CBOW).setBucket(100).setMinCount(1).build();
+        testTrain(args, input, out);
+    }
+
+    private void testTrain(Args args, Path data, Path bin) throws IOException, ExecutionException {
+        LOGGER.debug("Args={}", args);
+        LOGGER.debug("Input='{}'", data);
+        LOGGER.debug("Output='{}'", bin);
+        FastText.train(args, data.toString()).saveModel(bin.toString());
+        Assert.assertTrue("Can't find " + args.model().getName() + " model.bin", Files.exists(bin));
     }
 
     @Test
@@ -74,7 +84,7 @@ public class JFastTextTest {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         try (InputStream in = new ByteArrayInputStream(text.getBytes(StandardCharsets.UTF_8.name()));
              PrintStream out = new PrintStream(output, true, StandardCharsets.UTF_8.name())) {
-            jft.predict(in, out, 1, false);
+            jft.predict(in, new PrintLogs.Stream(out), 1, false);
         }
         String label = output.toString(StandardCharsets.UTF_8.name()).trim();
         LOGGER.info("Text: '{}', label: '{}'", text, label);

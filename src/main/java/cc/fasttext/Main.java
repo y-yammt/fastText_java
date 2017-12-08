@@ -1,19 +1,18 @@
 package cc.fasttext;
 
 import cc.fasttext.io.IOStreams;
+import cc.fasttext.io.PrintLogs;
 import cc.fasttext.io.impl.LocalIOStreams;
 import org.apache.commons.lang.StringUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 import java.util.function.IntConsumer;
-import java.util.stream.Stream;
 
 /**
  * Main class with static methods to run FastText as application from command line.
@@ -24,11 +23,7 @@ import java.util.stream.Stream;
  */
 public class Main {
     // todo:
-    private static FastText.Factory factory = new FastText.Factory(new LocalIOStreams(), new PrintStream(new OutputStream() {
-        @Override
-        public void write(int b) {
-        }
-    }));
+    private static FastText.Factory factory = new FastText.Factory(new LocalIOStreams(), PrintLogs.NULL);
 
     public static void setFileSystem(IOStreams fileSystem) {
         factory = factory.setFileSystem(fileSystem);
@@ -77,7 +72,8 @@ public class Main {
             throw Usage.TEST.toException();
         }
         FastText fasttext = loadModel(input[1]);
-        fasttext.setLogs(System.out);
+        // todo: should print here, not delegate to FastText
+        fasttext.setLogs(new PrintLogs.Stream(System.out));
         String infile = input[2];
         if ("-".equals(infile)) {
             fasttext.test(System.in, k);
@@ -132,7 +128,8 @@ public class Main {
         }
         boolean printProb = "predict-prob".equalsIgnoreCase(input[0]);
         FastText fasttext = loadModel(input[1]);
-        fasttext.setLogs(System.out);
+        // todo: change - no logs should be passed, just print here
+        fasttext.setLogs(new PrintLogs.Stream(System.out));
         String infile = input[2];
         if ("-".equals(infile)) { // read from pipe:
             fasttext.predict(System.in, k, printProb);
@@ -379,14 +376,14 @@ public class Main {
         }
         String bin = model + ".bin";
         String vec = model + ".vec";
-        if (Stream.of(bin, vec, out).filter(Objects::nonNull).anyMatch(file -> !fileSystem().canWrite(file))) {
+        if (java.util.stream.Stream.of(bin, vec, out).filter(Objects::nonNull).anyMatch(file -> !fileSystem().canWrite(file))) {
             throw Usage.TRAIN.toException("Wrong -output: can't write model " + data, Usage.ARGS);
         }
         String vectors = args.get("-pretrainedVectors");
         if (!StringUtils.isEmpty(vectors) && !fileSystem().canRead(vectors)) {
             throw Usage.TRAIN.toException("Wrong -pretrainedVectors: can't read " + vectors, Usage.ARGS);
         }
-        FastText fasttext = factory.setLogs(System.out).train(parseArgs(type, args), data, vectors);
+        FastText fasttext = factory.setLogs(PrintLogs.STANDARD).train(parseArgs(type, args), data, vectors);
         fasttext.saveModel(bin);
         fasttext.saveVectors(vec);
         if (out == null) return;
@@ -446,7 +443,7 @@ public class Main {
             throw Usage.QUANTIZE.toException("Option -saveOutput is not supported for quantized models", Usage.ARGS);
         }
         Args args = parseArgs(Args.ModelName.SUP, map);
-        FastText fasttext = factory.setLogs(System.out).load(bin).quantize(args, data);
+        FastText fasttext = factory.setLogs(PrintLogs.STANDARD).load(bin).quantize(args, data);
         fasttext.saveModel(ftz);
         fasttext.saveVectors(vec);
     }
