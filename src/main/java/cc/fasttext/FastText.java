@@ -2,17 +2,17 @@ package cc.fasttext;
 
 import cc.fasttext.Args.ModelName;
 import cc.fasttext.Dictionary.EntryType;
+import cc.fasttext.io.FTInputStream;
+import cc.fasttext.io.FTOutputStream;
+import cc.fasttext.io.FTReader;
+import cc.fasttext.io.IOStreams;
+import cc.fasttext.io.impl.LocalIOStreams;
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.TreeMultimap;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.math3.distribution.UniformIntegerDistribution;
 import org.apache.commons.math3.util.FastMath;
-import ru.avicomp.io.FTInputStream;
-import ru.avicomp.io.FTOutputStream;
-import ru.avicomp.io.FTReader;
-import ru.avicomp.io.IOStreams;
-import ru.avicomp.io.impl.LocalIOStreams;
 
 import java.io.*;
 import java.lang.ref.Reference;

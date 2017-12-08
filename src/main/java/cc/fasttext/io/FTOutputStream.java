@@ -1,11 +1,11 @@
-package ru.avicomp.io;
+package cc.fasttext.io;
+
+import com.google.common.io.LittleEndianDataOutputStream;
 
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Objects;
-
-import com.google.common.io.LittleEndianDataOutputStream;
 
 
 /**

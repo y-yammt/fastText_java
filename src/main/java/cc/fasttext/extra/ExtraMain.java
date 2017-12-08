@@ -2,13 +2,13 @@ package cc.fasttext.extra;
 
 import cc.fasttext.Main;
 import cc.fasttext.extra.io.HadoopIOStreams;
+import cc.fasttext.io.IOStreams;
+import cc.fasttext.io.ScrollableInputStream;
+import cc.fasttext.io.impl.LocalIOStreams;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import ru.avicomp.io.IOStreams;
-import ru.avicomp.io.ScrollableInputStream;
-import ru.avicomp.io.impl.LocalIOStreams;
 
 import java.io.IOException;
 import java.io.InputStream;

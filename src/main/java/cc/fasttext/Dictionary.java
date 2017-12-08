@@ -1,11 +1,11 @@
 package cc.fasttext;
 
+import cc.fasttext.io.FTInputStream;
+import cc.fasttext.io.FTOutputStream;
+import cc.fasttext.io.FTReader;
 import com.google.common.primitives.UnsignedLong;
 import org.apache.commons.math3.distribution.UniformRealDistribution;
 import org.apache.commons.math3.random.RandomGenerator;
-import ru.avicomp.io.FTInputStream;
-import ru.avicomp.io.FTOutputStream;
-import ru.avicomp.io.FTReader;
 
 import java.io.IOException;
 import java.io.PrintStream;

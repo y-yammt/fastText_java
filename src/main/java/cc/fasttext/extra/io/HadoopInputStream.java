@@ -1,12 +1,11 @@
 package cc.fasttext.extra.io;
 
-import java.io.IOException;
-
+import cc.fasttext.io.ScrollableInputStream;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 
-import ru.avicomp.io.ScrollableInputStream;
+import java.io.IOException;
 
 /**
  * Created by @szuev on 30.10.2017.

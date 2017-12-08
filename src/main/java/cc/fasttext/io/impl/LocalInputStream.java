@@ -1,11 +1,11 @@
-package ru.avicomp.io.impl;
+package cc.fasttext.io.impl;
+
+import cc.fasttext.io.ScrollableInputStream;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Path;
 import java.util.Objects;
-
-import ru.avicomp.io.ScrollableInputStream;
 
 /**
  * The simple version of {@link org.apache.hadoop.fs.RawLocalFileSystem.LocalFSFileInputStream}

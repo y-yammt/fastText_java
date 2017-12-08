@@ -2,13 +2,13 @@ package ru.avicomp.tests;
 
 import cc.fasttext.Main;
 import cc.fasttext.extra.ExtraMain;
+import cc.fasttext.io.IOStreams;
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.avicomp.TestsBase;
-import ru.avicomp.io.IOStreams;
 
 /**
  * For manual running only

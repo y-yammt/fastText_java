@@ -1,5 +1,7 @@
 package cc.fasttext;
 
+import cc.fasttext.io.FTInputStream;
+import cc.fasttext.io.FTOutputStream;
 import com.google.common.primitives.Bytes;
 import com.google.common.primitives.Floats;
 import com.google.common.primitives.Ints;
@@ -7,8 +9,6 @@ import org.apache.commons.math3.distribution.UniformRealDistribution;
 import org.apache.commons.math3.random.RandomAdaptor;
 import org.apache.commons.math3.random.RandomGenerator;
 import org.apache.commons.math3.util.FastMath;
-import ru.avicomp.io.FTInputStream;
-import ru.avicomp.io.FTOutputStream;
 
 import java.io.IOException;
 import java.util.Collections;

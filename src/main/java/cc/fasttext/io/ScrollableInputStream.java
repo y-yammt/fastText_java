@@ -1,4 +1,4 @@
-package ru.avicomp.io;
+package cc.fasttext.io;
 
 import java.io.IOException;
 import java.io.InputStream;

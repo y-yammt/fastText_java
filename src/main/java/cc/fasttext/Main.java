@@ -1,8 +1,8 @@
 package cc.fasttext;
 
+import cc.fasttext.io.IOStreams;
+import cc.fasttext.io.impl.LocalIOStreams;
 import org.apache.commons.lang.StringUtils;
-import ru.avicomp.io.IOStreams;
-import ru.avicomp.io.impl.LocalIOStreams;
 
 import java.io.IOException;
 import java.io.InputStream;

@@ -1,8 +1,8 @@
 package cc.fasttext;
 
+import cc.fasttext.io.FTInputStream;
+import cc.fasttext.io.FTOutputStream;
 import org.apache.commons.math3.random.RandomGenerator;
-import ru.avicomp.io.FTInputStream;
-import ru.avicomp.io.FTOutputStream;
 
 import java.io.IOException;
 import java.util.List;

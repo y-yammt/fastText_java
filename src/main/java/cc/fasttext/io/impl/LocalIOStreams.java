@@ -1,4 +1,8 @@
-package ru.avicomp.io.impl;
+package cc.fasttext.io.impl;
+
+import cc.fasttext.io.IOStreams;
+import cc.fasttext.io.ScrollableInputStream;
+import org.apache.commons.lang.StringUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -6,11 +10,6 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-
-import org.apache.commons.lang.StringUtils;
-
-import ru.avicomp.io.IOStreams;
-import ru.avicomp.io.ScrollableInputStream;
 
 /**
  * Created by @szuev on 30.10.2017.
