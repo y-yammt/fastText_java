@@ -17,7 +17,7 @@ import java.util.function.IntFunction;
  * See:
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/args.cc'>args.cc</a> and
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/args.h'>args.h</a>
- * TODO: retrain, input, output - must be excluded, charset, random factory - must be moved to fastText
+ * TODO: retrain, input, output - must be excluded, charset, random factory - should be moved somewhere (to {@link FastText})
  */
 public final strictfp class Args {
     public static final String DEFAULT_LABEL = "__label__";
@@ -55,7 +55,7 @@ public final strictfp class Args {
     private int cutoff;
     // additional:
     private Charset charset = StandardCharsets.UTF_8;
-    // todo: will be moved to Fasttext.java
+    // todo: will be moved to FastText.java
     private IntFunction<RandomGenerator> randomFactory = DEFAULT_RANDOM_GENERATOR_FACTORY;
 
     public IntFunction<RandomGenerator> randomFactory() {

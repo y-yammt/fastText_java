@@ -8,6 +8,7 @@ import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.TreeMultimap;
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.Validate;
 import org.apache.commons.math3.distribution.UniformIntegerDistribution;
 import org.apache.commons.math3.util.FastMath;
 import org.slf4j.Logger;
@@ -30,7 +31,7 @@ import java.util.stream.IntStream;
 /**
  * FastText class, can be used as a lib in other projects.
  * Assuming to be 'immutable' (if only methods of this class are called, modify model would cause change state of instance)
- *
+ * <p>
  * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/fasttext.cc'>fasttext.cc</a> and
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/fasttext.h'>fasttext.h</a>
  *
@@ -388,6 +389,7 @@ public strictfp class FastText {
     }
 
     /**
+     * TODO: must not accept PrintStream: it is work for {@link Main}
      * <pre>{@code void FastText::ngramVectors(std::string word) {
      *  std::vector<int32_t> ngrams;
      *  std::vector<std::string> substrings;
@@ -466,8 +468,9 @@ public strictfp class FastText {
      *
      * @param file, String file uri path, not null
      * @throws IOException if an I/O error occurs
+     * @throws IllegalArgumentException if no possible to write file
      */
-    public void saveVectors(String file) throws IOException {
+    public void saveVectors(String file) throws IOException, IllegalArgumentException {
         writeVectors("vectors", file, dict.nwords(), dict::getWord, i -> getWordVector(dict.getWord(i)));
     }
 
@@ -499,8 +502,10 @@ public strictfp class FastText {
      *
      * @param file, String file uri path, not null
      * @throws IOException if an I/O error occurs
+     * @throws IllegalArgumentException if no possible to write file
+     * @throws IllegalStateException if model is quantized
      */
-    public void saveOutput(String file) throws IOException {
+    public void saveOutput(String file) throws IOException, IllegalArgumentException, IllegalStateException {
         if (getModel().isQuant()) {
             throw new IllegalStateException("Saving output is not supported for quantized models.");
         }
@@ -524,10 +529,11 @@ public strictfp class FastText {
      * @param word   function to get String word
      * @param vector function to get {@link Vector vector}
      * @throws IOException in case of io error
+     * @throws IllegalArgumentException if no possible to write file
      */
-    private void writeVectors(String name, String file, int lines, IntFunction<String> word, IntFunction<Vector> vector) throws IOException {
+    private void writeVectors(String name, String file, int lines, IntFunction<String> word, IntFunction<Vector> vector) throws IOException, IllegalArgumentException {
         if (!getFileSystem().canWrite(file)) {
-            throw new IOException("Can't write to " + file);
+            throw new IllegalArgumentException("Can't write to " + file);
         }
         if (args.verbose() > 1) {
             logs.println("Saving " + name + " to " + file);
@@ -595,12 +601,13 @@ public strictfp class FastText {
      * }
      * }</pre>
      *
-     * @param file
-     * @throws IOException
+     * @param file the full file path to save binary model (*.bin or .*ftz)
+     * @throws IOException in case of i/o error
+     * @throws IllegalArgumentException if no possible to write file
      */
-    public void saveModel(String file) throws IOException {
+    public void saveModel(String file) throws IOException, IllegalArgumentException {
         if (!getFileSystem().canWrite(file)) {
-            throw new IOException("Can't write to " + file);
+            throw new IllegalArgumentException("Can't write to " + file);
         }
         if (args.verbose() > 1) {
             logs.println("Saving model to " + file);
@@ -626,8 +633,8 @@ public strictfp class FastText {
     }
 
     /**
-     * todo: should not accept PrintStream, should return statistic object.
-     * Tests.
+     * Performs testing.
+     *
      * <pre>{@code void FastText::test(std::istream& in, int32_t k) {
      *  int32_t nexamples = 0, nlabels = 0;
      *  double precision = 0.0;
@@ -654,17 +661,14 @@ public strictfp class FastText {
      * }
      * }</pre>
      *
-     * @param in  {@link InputStream} to read data
-     * @param out {@link PrintStream} to write data
-     * @param k   the number of result labels
+     * @param in {@link InputStream} to read data
+     * @param k  the number of result labels
+     * @return {@link TestInfo} object.
      * @throws IOException if something wrong while reading/writing
      */
-    public void test(InputStream in, PrintStream out, int k) throws IOException {
+    public TestInfo test(InputStream in, int k) throws IOException {
         Objects.requireNonNull(in, "Null input");
-        Objects.requireNonNull(out, "Null output");
-        if (k <= 0) throw new IllegalArgumentException("Negative factor");
-        Objects.requireNonNull(model, "No model: please load or train it before");
-
+        Validate.isTrue(k > 0, "Negative factor");
         int nexamples = 0, nlabels = 0;
         double precision = 0.0;
         List<Integer> line = new ArrayList<>();
@@ -680,22 +684,24 @@ public strictfp class FastText {
             nexamples++;
             nlabels += labels.size();
         }
-        out.printf("N\t%d%n", nexamples);
-        out.printf(Locale.US, "P@%d: %.3f%n", k, precision / (k * nexamples));
-        out.printf(Locale.US, "R@%d: %.3f%n", k, precision / nlabels);
-        out.printf(Locale.US, "Number of examples: %d%n", nexamples);
+        return new TestInfo(k, precision, nexamples, nlabels);
     }
 
     /**
-     * TODO: don't print. return some statistic object.
-     * Tests and prints to standard output
-     *
-     * @param in {@link InputStream} to read data
-     * @param k  int, positive
-     * @throws IOException if wrong i/o
+     * Tests a file
+     * @param file file path uri, not null
+     * @param k  the number of result labels
+     * @return {@link TestInfo} object.
+     * @throws IOException if something wrong while reading/writing
+     * @throws IllegalArgumentException in case wrong file specified.
      */
-    public void test(InputStream in, int k) throws IOException {
-        test(in, System.out, k);
+    public TestInfo test(String file, int k) throws IOException {
+        if (!fs.canRead(file)) {
+            throw new IllegalArgumentException("Can't read file " + file);
+        }
+        try (InputStream in = fs.openInput(file)) {
+            return test(in, k);
+        }
     }
 
     /**
@@ -786,8 +792,8 @@ public strictfp class FastText {
     public void predict(InputStream in, PrintLogs out, int k, boolean printProb) throws IOException {
         Objects.requireNonNull(in, "Null input");
         Objects.requireNonNull(out, "Null output");
-        if (k <= 0) throw new IllegalArgumentException("Negative factor");
-        Objects.requireNonNull(model, "No model: please load or train it before");
+        Validate.isTrue(k > 0, "Negative factor");
+
         FTReader reader = new FTReader(in, args.charset());
         while (!reader.end()) {
             Multimap<String, Float> predictions = predict(reader, k);
@@ -956,6 +962,47 @@ public strictfp class FastText {
         Model model = new Model(input, output, qargs, 0).setQuantizePointer(qinput, qoutput);
         return new FastText(qargs, qdict, model, FASTTEXT_VERSION);
     }
+
+    /**
+     * File statistics produced by {@link #test(InputStream, int)},
+     * Immutable inner object.
+     */
+    public class TestInfo {
+        private final double precision;
+        private final int examples;
+        private final int labels;
+        private final int k;
+
+        private TestInfo(int k, double precision, int numExamples, int numLabels) {
+            this.k = k;
+            this.precision = precision;
+            this.examples = numExamples;
+            this.labels = numLabels;
+        }
+
+        public double getPrecision() {
+            return precision;
+        }
+
+        public int getNExamples() {
+            return examples;
+        }
+
+        public int getNLabels() {
+            return labels;
+        }
+
+        public int getK() {
+            return k;
+        }
+
+        @Override
+        public String toString() {
+            return new Formatter(Locale.US).format("N\t%d%nP@%d: %.3f%nR@%d: %.3f%nNumber of examples: %d%n",
+                    examples, k, precision / (k * examples), k, precision / labels, examples).toString();
+        }
+    }
+
 
     /**
      * A factory to produce new {@link FastText} interface.
@@ -1299,6 +1346,7 @@ public strictfp class FastText {
         }
 
         private void printInfo(Args args, Instant start, Instant end, long tokenCount_, float progress, float loss) {
+            if (PrintLogs.NULL.equals(logs)) return;
             Duration d = Duration.between(start, end);
             float t = d.get(ChronoUnit.SECONDS) + d.get(ChronoUnit.NANOS) / 1_000_000_000f;
             float wst = tokenCount_ / t;

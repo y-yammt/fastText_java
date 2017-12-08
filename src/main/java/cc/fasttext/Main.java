@@ -16,13 +16,15 @@ import java.util.function.IntConsumer;
 
 /**
  * Main class with static methods to run FastText as application from command line.
- * The output to std:out.
+ * The output to std:out, the input from std:in or from command line.
+ * This and only this class must work with standard i/o and perform exit (from main method only).
  *
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/main.cc'>main.cc</a>
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/main.h'>main.h</a>
  */
 public class Main {
-    // todo:
+
+    private static final PrintLogs STD_OUT = PrintLogs.STANDARD;
     private static FastText.Factory factory = new FastText.Factory(new LocalIOStreams(), PrintLogs.NULL);
 
     public static void setFileSystem(IOStreams fileSystem) {
@@ -72,19 +74,9 @@ public class Main {
             throw Usage.TEST.toException();
         }
         FastText fasttext = loadModel(input[1]);
-        // todo: should print here, not delegate to FastText
-        fasttext.setLogs(new PrintLogs.Stream(System.out));
         String infile = input[2];
-        if ("-".equals(infile)) {
-            fasttext.test(System.in, k);
-            return;
-        }
-        if (!fasttext.getFileSystem().canRead(infile)) {
-            throw new IOException("Input file cannot be opened!");
-        }
-        try (InputStream in = fasttext.getFileSystem().openInput(infile)) {
-            fasttext.test(in, k);
-        }
+        FastText.TestInfo res = "-".equals(infile) ? fasttext.test(System.in, k) : fasttext.test(infile, k);
+        STD_OUT.println(res.toString());
     }
 
     /**
@@ -383,7 +375,7 @@ public class Main {
         if (!StringUtils.isEmpty(vectors) && !fileSystem().canRead(vectors)) {
             throw Usage.TRAIN.toException("Wrong -pretrainedVectors: can't read " + vectors, Usage.ARGS);
         }
-        FastText fasttext = factory.setLogs(PrintLogs.STANDARD).train(parseArgs(type, args), data, vectors);
+        FastText fasttext = factory.setLogs(STD_OUT).train(parseArgs(type, args), data, vectors);
         fasttext.saveModel(bin);
         fasttext.saveVectors(vec);
         if (out == null) return;
@@ -443,7 +435,7 @@ public class Main {
             throw Usage.QUANTIZE.toException("Option -saveOutput is not supported for quantized models", Usage.ARGS);
         }
         Args args = parseArgs(Args.ModelName.SUP, map);
-        FastText fasttext = factory.setLogs(PrintLogs.STANDARD).load(bin).quantize(args, data);
+        FastText fasttext = factory.setLogs(STD_OUT).load(bin).quantize(args, data);
         fasttext.saveModel(ftz);
         fasttext.saveVectors(vec);
     }

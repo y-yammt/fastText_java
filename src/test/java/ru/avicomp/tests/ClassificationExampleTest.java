@@ -158,13 +158,13 @@ public class ClassificationExampleTest {
         LOGGER.info("Test 'test'. Data={}, Model={}", test, model.toRealPath());
         FastText fastText = FastText.load(model.toString());
         Assert.assertEquals(quant, fastText.getModel().isQuant());
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
-        try (InputStream in = Files.newInputStream(test);
-             PrintStream out = new PrintStream(output, true, StandardCharsets.UTF_8.name())) {
-            fastText.test(in, out, k);
-        }
-        String res = new String(output.toByteArray(), StandardCharsets.UTF_8);
-        LOGGER.debug("Output: {}", res);
+        FastText.TestInfo info = fastText.test(test.toString(), k);
+        Assert.assertNotNull(info);
+        Assert.assertEquals("Wrong k", k, info.getK());
+        Assert.assertEquals("Wrong number examples", expectedN, info.getNExamples());
+
+        String res = info.toString();
+        LOGGER.debug("Output: {}", info);
         String[] lines = res.split("\n");
         Assert.assertEquals(4, lines.length);
         int n = Integer.parseInt(lines[0].replaceAll("[^\\d]", ""));
