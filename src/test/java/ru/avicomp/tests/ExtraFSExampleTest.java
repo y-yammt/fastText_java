@@ -1,13 +1,12 @@
 package ru.avicomp.tests;
 
+import cc.fasttext.Main;
+import cc.fasttext.extra.ExtraMain;
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import cc.fasttext.Main;
-import cc.fasttext.extra.ExtraMain;
 import ru.avicomp.TestsBase;
 import ru.avicomp.io.IOStreams;
 
@@ -24,7 +23,7 @@ public class ExtraFSExampleTest {
     private static final Logger LOGGER = LoggerFactory.getLogger(ExtraFSExampleTest.class);
 
     @Test
-    public void hadoopCboxThread4Dim128Ws5Epoch10MinCount5test() throws Exception {
+    public void testHadoopCboxThread4Dim128Ws5Epoch10MinCount5() throws Exception {
         //System.setProperty("java.library.path", "/opt/hadoop-2.8.1/lib/native");
         IOStreams fs = ExtraMain.getFileSystem();
 

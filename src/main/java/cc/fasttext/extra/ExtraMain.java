@@ -1,5 +1,15 @@
 package cc.fasttext.extra;
 
+import cc.fasttext.Main;
+import cc.fasttext.extra.io.HadoopIOStreams;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import ru.avicomp.io.IOStreams;
+import ru.avicomp.io.ScrollableInputStream;
+import ru.avicomp.io.impl.LocalIOStreams;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -17,20 +27,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileSystem;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import cc.fasttext.Main;
-import cc.fasttext.extra.io.HadoopIOStreams;
-import ru.avicomp.io.IOStreams;
-import ru.avicomp.io.ScrollableInputStream;
-import ru.avicomp.io.impl.LocalIOStreams;
-
 /**
  * Supports read/write from/to HDFS and LocalFS
- * TODO: not ready
  * TODO: add support reading from web.
  * Created by @szuev on 28.11.2017.
  */

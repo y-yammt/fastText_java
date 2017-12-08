@@ -1,16 +1,14 @@
 package cc.fasttext;
 
+import org.apache.commons.math3.random.RandomGenerator;
+import ru.avicomp.io.FTInputStream;
+import ru.avicomp.io.FTOutputStream;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.function.IntFunction;
 
-import org.apache.commons.math3.random.RandomGenerator;
-
-import ru.avicomp.io.FTInputStream;
-import ru.avicomp.io.FTOutputStream;
-
 /**
- * TODO: implement
  * See <a href='https://github.com/facebookresearch/fastText/blob/master/src/qmatrix.cc'>qmatrix.cc</a> &
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/qmatrix.h'>qmatrix.h</a>
  * <p>

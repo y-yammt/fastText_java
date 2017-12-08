@@ -1,5 +1,9 @@
 package cc.fasttext;
 
+import org.apache.commons.lang.StringUtils;
+import ru.avicomp.io.IOStreams;
+import ru.avicomp.io.impl.LocalIOStreams;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -11,30 +15,27 @@ import java.util.function.DoubleConsumer;
 import java.util.function.IntConsumer;
 import java.util.stream.Stream;
 
-import org.apache.commons.lang.StringUtils;
-
-import ru.avicomp.io.IOStreams;
-import ru.avicomp.io.impl.LocalIOStreams;
-
 /**
+ * Main class with static methods to run FastText as application from command line.
+ * The output to std:out.
+ *
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/main.cc'>main.cc</a>
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/main.h'>main.h</a>
  */
 public class Main {
-    private static IOStreams fileSystem = new LocalIOStreams();
-    // temp solution:
-    private static final PrintStream NULL = new PrintStream(new OutputStream() {
+    // todo:
+    private static FastText.Factory factory = new FastText.Factory(new LocalIOStreams(), new PrintStream(new OutputStream() {
         @Override
         public void write(int b) {
         }
-    });
+    }));
 
     public static void setFileSystem(IOStreams fileSystem) {
-        Main.fileSystem = Objects.requireNonNull(fileSystem, "Null file system.");
+        factory = factory.setFileSystem(fileSystem);
     }
 
-    public static IOStreams getFileSystem() {
-        return fileSystem;
+    public static IOStreams fileSystem() {
+        return factory.getFileSystem();
     }
 
     /**
@@ -162,9 +163,9 @@ public class Main {
      *  exit(0);
      * }}</pre>
      *
-     * @param input
-     * @throws IOException
-     * @throws IllegalArgumentException
+     * @param input input parameters, array of strings, not null
+     * @throws IOException if an I/O error occurs
+     * @throws IllegalArgumentException if input is wrong
      */
     public static void printWordVectors(String[] input) throws IOException, IllegalArgumentException {
         if (input.length != 2) {
@@ -196,9 +197,9 @@ public class Main {
      *  exit(0);
      * }}</pre>
      *
-     * @param input
-     * @throws IOException
-     * @throws IllegalArgumentException
+     * @param input input parameters, array of strings, not null
+     * @throws IOException if an I/O error occurs
+     * @throws IllegalArgumentException if input is wrong
      */
     public static void printSentenceVectors(String[] input) throws IOException, IllegalArgumentException {
         if (input.length != 2) {
@@ -224,9 +225,9 @@ public class Main {
      *  exit(0);
      * }}</pre>
      *
-     * @param input
-     * @throws IOException
-     * @throws IllegalArgumentException
+     * @param input input parameters, array of strings, not null
+     * @throws IOException if an I/O error occurs
+     * @throws IllegalArgumentException if input is wrong
      */
     public static void printNgrams(String[] input) throws IOException, IllegalArgumentException {
         if (input.length != 3) {
@@ -253,9 +254,9 @@ public class Main {
      *  exit(0);
      * }}</pre>
      *
-     * @param input
-     * @throws IOException
-     * @throws IllegalArgumentException
+     * @param input input parameters, array of strings, not null
+     * @throws IOException if an I/O error occurs
+     * @throws IllegalArgumentException if input is wrong
      */
     public static void nn(String[] input) throws IOException, IllegalArgumentException {
         int k = 10;
@@ -298,9 +299,9 @@ public class Main {
      *  exit(0);
      * }}</pre>
      *
-     * @param input
-     * @throws IOException
-     * @throws IllegalArgumentException
+     * @param input input parameters, array of strings, not null
+     * @throws IOException if an I/O error occurs
+     * @throws IllegalArgumentException if input is wrong
      */
     public static void analogies(String[] input) throws IOException, IllegalArgumentException {
         int k = 10;
@@ -344,22 +345,22 @@ public class Main {
      *  }
      * }}</pre>
      *
-     * @param inputs
-     * @throws IOException
-     * @throws ExecutionException
-     * @throws IllegalArgumentException
+     * @param input input parameters, array of strings, not null
+     * @throws IOException if an I/O error occurs
+     * @throws ExecutionException if any error occurs while training in several threads.
+     * @throws IllegalArgumentException if input is wrong
      */
-    public static void train(String[] inputs) throws IOException, ExecutionException, IllegalArgumentException {
-        if (inputs.length == 0) {
+    public static void train(String[] input) throws IOException, ExecutionException, IllegalArgumentException {
+        if (input.length == 0) {
             throw Usage.TRAIN.toException("Empty args specified.", Usage.ARGS);
         }
-        Map<String, String> args = toMap(inputs);
-        Args.ModelName type = Args.ModelName.fromName(inputs[0]);
+        Map<String, String> args = toMap(input);
+        Args.ModelName type = Args.ModelName.fromName(input[0]);
 
         String data = args.get("-input");
         if (StringUtils.isEmpty(data)) {
             throw Usage.TRAIN.toException("Empty -input", Usage.ARGS);
-        } else if (!fileSystem.canRead(data)) {
+        } else if (!fileSystem().canRead(data)) {
             throw Usage.TRAIN.toException("Wrong -input: can't read " + data, Usage.ARGS);
         }
         String model = args.get("-output");
@@ -378,14 +379,14 @@ public class Main {
         }
         String bin = model + ".bin";
         String vec = model + ".vec";
-        if (Stream.of(bin, vec, out).filter(Objects::nonNull).anyMatch(file -> !fileSystem.canWrite(file))) {
+        if (Stream.of(bin, vec, out).filter(Objects::nonNull).anyMatch(file -> !fileSystem().canWrite(file))) {
             throw Usage.TRAIN.toException("Wrong -output: can't write model " + data, Usage.ARGS);
         }
         String vectors = args.get("-pretrainedVectors");
-        if (!StringUtils.isEmpty(vectors) && !fileSystem.canRead(vectors)) {
+        if (!StringUtils.isEmpty(vectors) && !fileSystem().canRead(vectors)) {
             throw Usage.TRAIN.toException("Wrong -pretrainedVectors: can't read " + vectors, Usage.ARGS);
         }
-        FastText fasttext = FastText.train(parseArgs(type, args), fileSystem, System.out, data, vectors);
+        FastText fasttext = factory.setLogs(System.out).train(parseArgs(type, args), data, vectors);
         fasttext.saveModel(bin);
         fasttext.saveVectors(vec);
         if (out == null) return;
@@ -409,21 +410,22 @@ public class Main {
      *  exit(0);
      * }}</pre>
      *
-     * @throws IOException
-     * @throws ExecutionException
-     * @throws IllegalArgumentException
+     * @param input input parameters, array of strings, not null
+     * @throws IOException if an I/O error occurs during load or retraining.
+     * @throws ExecutionException if any error occurs while training in several threads.
+     * @throws IllegalArgumentException if input is wrong
      */
-    public static void quantize(String[] inputs) throws IOException, ExecutionException, IllegalArgumentException {
-        if (inputs.length == 0) {
+    public static void quantize(String[] input) throws IOException, ExecutionException, IllegalArgumentException {
+        if (input.length == 0) {
             throw Usage.QUANTIZE.toException("Empty args specified.", Usage.ARGS);
         }
-        Map<String, String> map = toMap(inputs);
+        Map<String, String> map = toMap(input);
         String model = map.get("-output");
         if (StringUtils.isEmpty(model)) {
             throw Usage.QUANTIZE.toException("No model (-output)", Usage.ARGS);
         }
         String bin = model + ".bin";
-        if (!fileSystem.canRead(bin)) {
+        if (!fileSystem().canRead(bin)) {
             throw Usage.QUANTIZE.toException("Wrong -output: can't read file " + bin, Usage.ARGS);
         }
         String data = null;
@@ -431,20 +433,20 @@ public class Main {
             data = map.get("-input");
             if (StringUtils.isEmpty(data)) {
                 throw Usage.QUANTIZE.toException("Wrong args: -input is required if -retrain specified.", Usage.ARGS);
-            } else if (!fileSystem.canRead(data)) {
+            } else if (!fileSystem().canRead(data)) {
                 throw Usage.QUANTIZE.toException("Wrong -input: can't read file " + data, Usage.ARGS);
             }
         }
         String ftz = model + ".ftz";
         String vec = model + ".vec";
-        if (!fileSystem.canWrite(ftz) || !fileSystem.canWrite(vec)) {
+        if (!fileSystem().canWrite(ftz) || !fileSystem().canWrite(vec)) {
             throw Usage.QUANTIZE.toException("Wrong -output: can't write model " + model, Usage.ARGS);
         }
         if (map.containsKey("-saveOutput")) {
             throw Usage.QUANTIZE.toException("Option -saveOutput is not supported for quantized models", Usage.ARGS);
         }
         Args args = parseArgs(Args.ModelName.SUP, map);
-        FastText fasttext = loadModel(bin).quantize(args, data);
+        FastText fasttext = factory.setLogs(System.out).load(bin).quantize(args, data);
         fasttext.saveModel(ftz);
         fasttext.saveVectors(vec);
     }
@@ -467,10 +469,10 @@ public class Main {
         String command = args[0];
         if ("skipgram".equalsIgnoreCase(command) || "cbow".equalsIgnoreCase(command) || "supervised".equalsIgnoreCase(command)) {
             train(args);
-        } else if ("test".equalsIgnoreCase(command)) {
-            test(args);
         } else if ("quantize".equalsIgnoreCase(command)) {
             quantize(args);
+        } else if ("test".equalsIgnoreCase(command)) {
+            test(args);
         } else if ("print-word-vectors".equalsIgnoreCase(command)) {
             printWordVectors(args);
         } else if ("print-sentence-vectors".equalsIgnoreCase(command)) {
@@ -495,17 +497,8 @@ public class Main {
      * @return {@link FastText}
      * @throws IOException if something is wrong.
      */
-    public static FastText loadModel(String file) throws IOException {
-        return FastText.loadModel(fileSystem, NULL, file);
-    }
-
-    /**
-     * Creates an empty Args
-     *
-     * @return {@link Args}
-     */
-    public static Args createArgs() {
-        return new Args.Builder().build();
+    private static FastText loadModel(String file) throws IOException {
+        return factory.load(file);
     }
 
     /**
@@ -614,10 +607,10 @@ public class Main {
      *  }
      * }}</pre>
      *
-     * @param model
-     * @param args
-     * @return
-     * @throws IllegalArgumentException
+     * @param model {@link Args.ModelName}, not null
+     * @param args Map of input parameters, see {@link #toMap(String...)}
+     * @return {@link Args}
+     * @throws IllegalArgumentException if input is wrong
      */
     public static Args parseArgs(Args.ModelName model, Map<String, String> args) throws IllegalArgumentException {
         Args.Builder builder = new Args.Builder().setModel(model);
@@ -652,11 +645,7 @@ public class Main {
             builder.setLossName(Args.LossName.fromName(args.get("-loss")));
         }
 
-        Args res = builder.build();
-        // todo: temporary - should not be in args
-        res.input = args.get("-input");
-        res.output = args.get("-output");
-        return res;
+        return builder.build();
     }
 
     /**
@@ -665,8 +654,8 @@ public class Main {
      * "[cbow=null, -thread=4, -dim=128, -ws=5, -epoch=10, -minCount=5, -input=%s, -output=%s]"
      *
      * @param input array of strings
-     * @return Map
-     * @throws IllegalArgumentException
+     * @return Map of strings as keys and values
+     * @throws IllegalArgumentException if input is wrong or help is requested
      */
     public static Map<String, String> toMap(String... input) throws IllegalArgumentException {
         Map<String, String> res = new LinkedHashMap<>();
@@ -716,6 +705,9 @@ public class Main {
         setter.accept(Boolean.parseBoolean(value));
     }
 
+    /**
+     * Usage helper.
+     */
     private enum Usage {
         COMMON("usage: {fasttext} <command> <args>\n\n"
                 + "The commands supported by fasttext are:\n\n"

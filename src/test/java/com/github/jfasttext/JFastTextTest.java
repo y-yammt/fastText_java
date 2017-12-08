@@ -1,5 +1,19 @@
 package com.github.jfasttext;
 
+import cc.fasttext.Args;
+import cc.fasttext.FastText;
+import cc.fasttext.Main;
+import com.google.common.collect.Multimap;
+import com.google.common.primitives.Doubles;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.FixMethodOrder;
+import org.junit.Test;
+import org.junit.runners.MethodSorters;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import ru.avicomp.TestsBase;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -12,23 +26,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.FixMethodOrder;
-import org.junit.Test;
-import org.junit.runners.MethodSorters;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import cc.fasttext.Args;
-import cc.fasttext.FastText;
-import cc.fasttext.Main;
-import com.google.common.collect.Multimap;
-import com.google.common.primitives.Doubles;
-import ru.avicomp.TestsBase;
-
 /**
  * Modified <a href='https://github.com/vinhkhuc/JFastText/blob/master/src/test/java/com/github/jfasttext/JFastTextTest.java'>JFastTextTest</a>
+ *
  * Created by @szuev on 24.10.2017.
  */
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
@@ -67,7 +67,7 @@ public class JFastTextTest {
     @Test
     public void test04Predict() throws Exception {
         LOGGER.info("Test predict");
-        FastText jft = Main.loadModel(TestsBase.DESTINATION_DIR.resolve("supervised.model.bin").toString());
+        FastText jft = FastText.load(TestsBase.DESTINATION_DIR.resolve("supervised.model.bin").toString());
 
         String text = "I like soccer";
 
@@ -84,7 +84,7 @@ public class JFastTextTest {
     @Test
     public void test05PredictProba() throws Exception {
         LOGGER.info("Test predict-proba");
-        FastText jft = Main.loadModel(TestsBase.DESTINATION_DIR.resolve("supervised.model.bin").toString());
+        FastText jft = FastText.load(TestsBase.DESTINATION_DIR.resolve("supervised.model.bin").toString());
         String text = "What is the most popular sport in the US ?";
         // '{__label__football=[-0.6931472]}'
         Multimap<String, Float> predictedProbLabel = jft.predict(text, 1);
@@ -103,7 +103,7 @@ public class JFastTextTest {
     @Test
     public void test06MultiPredictProba() throws Exception {
         LOGGER.info("Test multi-predict-proba");
-        FastText jft = Main.loadModel(TestsBase.DESTINATION_DIR.resolve("supervised.model.bin").toString());
+        FastText jft = FastText.load(TestsBase.DESTINATION_DIR.resolve("supervised.model.bin").toString());
 
         String text = "Do you like soccer ?";
         Multimap<String, Float> predictedProbLabel = jft.predict(text, 2);
@@ -136,7 +136,7 @@ public class JFastTextTest {
                 0.0049015884, 0.009060863);
 
         LOGGER.info("Test get vector");
-        FastText jft = Main.loadModel(TestsBase.DESTINATION_DIR.resolve("supervised.model.bin").toString());
+        FastText jft = FastText.load(TestsBase.DESTINATION_DIR.resolve("supervised.model.bin").toString());
         String word = "soccer";
         List<Double> vec = jft.getWordVector(word).getData()
                 .stream().mapToDouble(d -> d).boxed().collect(Collectors.toList());

@@ -8,7 +8,7 @@ import static org.junit.Assert.assertEquals;
 
 public class DictionaryTest {
 
-	private Dictionary dictionary = new Dictionary(Main.createArgs());
+    private Dictionary dictionary = new Dictionary(new Args.Builder().build());
 
 	@Test
 	public void testHash() {

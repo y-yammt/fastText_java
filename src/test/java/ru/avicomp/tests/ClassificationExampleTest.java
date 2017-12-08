@@ -155,7 +155,7 @@ public class ClassificationExampleTest {
         double delta = 0.05;
         int k = 2;
         LOGGER.info("Test 'test'. Data={}, Model={}", test, model.toRealPath());
-        FastText f = Main.loadModel(model.toString());
+        FastText f = FastText.load(model.toString());
         Assert.assertEquals(quant, f.getModel().isQuant());
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         try (InputStream in = Files.newInputStream(test);
@@ -194,7 +194,7 @@ public class ClassificationExampleTest {
                 .collect(Collectors.toList());
 
         String bin = model.toString();
-        FastText f = Main.loadModel(bin);
+        FastText f = FastText.load(bin);
         Assert.assertEquals(quant, f.getModel().isQuant());
 
         List<String> actual;

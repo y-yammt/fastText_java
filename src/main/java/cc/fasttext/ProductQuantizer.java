@@ -1,5 +1,15 @@
 package cc.fasttext;
 
+import com.google.common.primitives.Bytes;
+import com.google.common.primitives.Floats;
+import com.google.common.primitives.Ints;
+import org.apache.commons.math3.distribution.UniformRealDistribution;
+import org.apache.commons.math3.random.RandomAdaptor;
+import org.apache.commons.math3.random.RandomGenerator;
+import org.apache.commons.math3.util.FastMath;
+import ru.avicomp.io.FTInputStream;
+import ru.avicomp.io.FTOutputStream;
+
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -7,17 +17,6 @@ import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
-
-import org.apache.commons.math3.distribution.UniformRealDistribution;
-import org.apache.commons.math3.random.RandomAdaptor;
-import org.apache.commons.math3.random.RandomGenerator;
-import org.apache.commons.math3.util.FastMath;
-
-import com.google.common.primitives.Bytes;
-import com.google.common.primitives.Floats;
-import com.google.common.primitives.Ints;
-import ru.avicomp.io.FTInputStream;
-import ru.avicomp.io.FTOutputStream;
 
 /**
  * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/productquantizer.cc'>productquantizer.cc</a> and
@@ -554,7 +553,6 @@ public strictfp class ProductQuantizer {
 
     public static List<Byte> asByteList(byte... unsignedByteInts) { // uint8_t
         return Bytes.asList(unsignedByteInts);
-        //return IntStream.of(unsignedBytes).mapToObj(i -> (byte) i).collect(Collectors.toList());
     }
 
     public static List<Integer> asIntList(int... values) {
@@ -563,48 +561,26 @@ public strictfp class ProductQuantizer {
 
     public static List<Float> asFloatList(float... values) {
         return Floats.asList(values);
-        //return new ArrayList<>(Floats.asList(values));
     }
 
     private float getFloat(List<Float> array, int index) {
         if (index >= array.size()) {
             return Float.NaN;
-            //return rng.nextFloat();
         }
-        /*while (index >= array.size()) {
-            array.add(rng.nextFloat());
-        }*/
         return array.get(index);
     }
 
-    private void setFloat(List<Float> array, int index, float value) {
-        /*if (index >= array.size()) {
-            throw new ArrayIndexOutOfBoundsException("index: " + index + ", size: " + array.size());
-        }*/
-        if (index >= array.size()) {
-            return;
-        }
-        array.set(index, value);
-    }
-
     private List<Byte> shiftBytes(List<Byte> bytes, int index) {
-        /*while (index >= bytes.size()) {
-           bytes.add((byte) rng.nextInt(256));
-        }*/
         return shift(bytes, index);
     }
 
     private List<Float> shiftFloats(List<Float> floats, int index) {
-        /*while (index >= floats.size()) {
-            floats.add(rng.nextFloat());
-        }*/
         return shift(floats, index);
     }
 
     public static <T> List<T> shift(List<T> array, int index) {
         if (index >= array.size()) {
             return Collections.emptyList();
-            //throw new ArrayIndexOutOfBoundsException("index: " + index + ", size: " + array.size());
         }
         return array.subList(index, array.size());
     }

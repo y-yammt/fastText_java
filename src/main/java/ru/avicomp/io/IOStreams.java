@@ -5,7 +5,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 /**
- * Factory to create {@link java.io.InputStream} and {@link java.io.OutputStream} with the same nature depending on file System.
+ * Abstract factory to create {@link java.io.InputStream} and {@link java.io.OutputStream} with the same nature
+ * depending on the encapsulated file system.
  * <p>
  * Created by @szuev on 24.10.2017.
  */

@@ -18,6 +18,10 @@ import java.util.function.Function;
 import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
+/**
+ * See <a href='https://github.com/facebookresearch/fastText/blob/master/src/dictionary.cc'>dictionary.cc</a> &
+ * <a href='https://github.com/facebookresearch/fastText/blob/master/src/dictionary.h'>dictionary.h</a>
+ */
 public strictfp class Dictionary {
 
     private static final int MAX_VOCAB_SIZE = 30_000_000;

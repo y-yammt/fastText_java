@@ -25,9 +25,7 @@ public final strictfp class Args {
     public static final IntFunction<RandomGenerator> DEFAULT_RANDOM_GENERATOR_FACTORY = Well19937c::new;
     // basic:
     private ModelName model = ModelName.SG;
-    // todo: input & output should not be in args
-    public String input;
-    public String output;
+
     private int verbose = 2;
     // dictionary:
     private int minCount = 5;

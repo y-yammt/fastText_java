@@ -29,33 +29,43 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
- * FastText class, can be used as a lib in other projects
+ * FastText class, can be used as a lib in other projects.
+ * Assuming to be immutable.
  * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/fasttext.cc'>fasttext.cc</a> and
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/fasttext.h'>fasttext.h</a>
  *
  * @author Ivan
  */
 public strictfp class FastText {
-
     public static final int FASTTEXT_VERSION = 12;
     public static final int FASTTEXT_FILEFORMAT_MAGIC_INT32 = 793712314;
 
-    private static final IOStreams DEFAULT_FS = new LocalIOStreams();
-    private static final PrintStream DEFAULT_LOGS = System.out;
+    public static final Factory DEFAULT_FACTORY = new Factory(new LocalIOStreams(), System.out);
 
+    private static final double FIND_NN_THRESHOLD = 1e-8;
     private final Args args;
     private final Dictionary dict;
     private final Model model;
     private final int version;
 
-    private IOStreams fs = DEFAULT_FS;
-    private PrintStream logs = DEFAULT_LOGS;
+    private IOStreams fs = DEFAULT_FACTORY.getFileSystem();
+    private PrintStream logs = DEFAULT_FACTORY.getLogs();
+
+    private Reference<Matrix> precomputedWordVectors;
 
     private FastText(Args args, Dictionary dict, Model model, int version) {
         this.args = args;
         this.dict = dict;
         this.model = model;
         this.version = version;
+    }
+
+    public static FastText train(Args args, String dataFileURI, String vectorsFileURI) throws IOException, ExecutionException {
+        return DEFAULT_FACTORY.train(args, dataFileURI, vectorsFileURI);
+    }
+
+    public static FastText load(String modelFileURI) throws IOException, IllegalArgumentException {
+        return DEFAULT_FACTORY.load(modelFileURI);
     }
 
     public Args getArgs() {
@@ -74,20 +84,26 @@ public strictfp class FastText {
         return version;
     }
 
-    public FastText setFileSystem(IOStreams fs) {
-        this.fs = Objects.requireNonNull(fs, "Null file system specified.");
-        return this;
-    }
-
     public IOStreams getFileSystem() {
         return fs;
     }
 
     /**
-     * Sets output to log.
+     * Sets file-system.
+     *
+     * @param fs {@link IOStreams}
+     * @return this {@link FastText} object
+     */
+    public FastText setFileSystem(IOStreams fs) {
+        this.fs = Objects.requireNonNull(fs, "Null file system specified.");
+        return this;
+    }
+
+    /**
+     * Sets logs.
      *
      * @param out {@link PrintStream} set output to log
-     * @return
+     * @return this {@link FastText} object
      */
     public FastText setLogs(PrintStream out) {
         this.logs = Objects.requireNonNull(out, "Null out");
@@ -205,9 +221,9 @@ public strictfp class FastText {
      *  std::cerr << " done." << std::endl;
      * }}</pre>
      *
-     * @return
+     * @return {@link Matrix}
      */
-    private Matrix precomputeWordVectors() {
+    private Matrix computeWordVectors() {
         logs.print("Pre-computing word vectors...");
         Matrix res = new Matrix(dict.nwords(), args.dim());
         for (int i = 0; i < dict.nwords(); i++) {
@@ -222,18 +238,14 @@ public strictfp class FastText {
         return res;
     }
 
-    private Reference<Matrix> precomputedWordVectors;
-
     Matrix getPrecomputedWordVectors() {
         Matrix res;
         if (precomputedWordVectors != null && (res = precomputedWordVectors.get()) != null) {
             return res;
         }
-        precomputedWordVectors = new SoftReference<>(res = precomputeWordVectors());
+        precomputedWordVectors = new SoftReference<>(res = computeWordVectors());
         return res;
     }
-
-    private static final double FIND_NN_THRESHOLD = 1e-8;
 
     /**
      * <pre>{@code
@@ -272,7 +284,6 @@ public strictfp class FastText {
         if (FastMath.abs(queryNorm) < FIND_NN_THRESHOLD) {
             queryNorm = 1;
         }
-
         TreeMultimap<Float, String> heap = TreeMultimap.create(Comparator.reverseOrder(), Comparator.reverseOrder());
         Multimap<Float, String> res = TreeMultimap.create(Comparator.reverseOrder(), Comparator.reverseOrder());
         for (int i = 0; i < dict.nwords(); i++) {
@@ -426,6 +437,8 @@ public strictfp class FastText {
     }
 
     /**
+     * Saves vectors.
+     * <p>
      * <pre>{@code
      * void FastText::saveVectors() {
      *  std::ofstream ofs(args_->output + ".vec");
@@ -445,14 +458,16 @@ public strictfp class FastText {
      *
      * }</pre>
      *
-     * @param file
-     * @throws IOException
+     * @param file, String file uri path, not null
+     * @throws IOException if an I/O error occurs
      */
     public void saveVectors(String file) throws IOException {
         writeVectors("vectors", file, dict.nwords(), dict::getWord, i -> getWordVector(dict.getWord(i)));
     }
 
     /**
+     * Saves output.
+     * <p>
      * <pre>{@code void FastText::saveOutput() {
      *  std::ofstream ofs(args_->output + ".output");
      *  if (!ofs.is_open()) {
@@ -476,8 +491,8 @@ public strictfp class FastText {
      * }
      * }</pre>
      *
-     * @param file
-     * @throws IOException
+     * @param file, String file uri path, not null
+     * @throws IOException if an I/O error occurs
      */
     public void saveOutput(String file) throws IOException {
         if (getModel().isQuant()) {
@@ -523,7 +538,7 @@ public strictfp class FastText {
     }
 
     /**
-     * Writes versions to the model.
+     * Writes versions to the model file bin.
      * <pre>{@code
      * void FastText::signModel(std::ostream& out) {
      *  const int32_t magic = FASTTEXT_FILEFORMAT_MAGIC_INT32;
@@ -539,7 +554,6 @@ public strictfp class FastText {
         out.writeInt(FASTTEXT_FILEFORMAT_MAGIC_INT32);
         out.writeInt(FASTTEXT_VERSION);
     }
-
 
     /**
      * <pre>{@code
@@ -603,159 +617,6 @@ public strictfp class FastText {
                 model.output().save(out);
             }
         }
-    }
-
-    /**
-     * todo: move to {@link Trainer factory}
-     * Loads model by fileRef(String) and {@link IOStreams file-system} object.
-     * <p>
-     * <pre>{@code void FastText::loadModel(const std::string& filename) {
-     *  std::ifstream ifs(filename, std::ifstream::binary);
-     *  if (!ifs.is_open()) {
-     *      throw std::invalid_argument(filename + " cannot be opened for loading!");
-     *  }
-     *  if (!checkModel(ifs)) {
-     *      throw std::invalid_argument(filename + " has wrong file format!");
-     *  }
-     *  loadModel(ifs);
-     *  ifs.close();
-     * }}</pre>
-     *
-     * @param fs      {@link IOStreams} the file system, not null
-     * @param logs    {@link PrintStream} to log process, not null
-     * @param fileRef String, not null, not null
-     * @return new {@link FastText model} instance
-     * @throws IOException              if something is wrong while read file
-     * @throws IllegalArgumentException if file is wrong
-     */
-    public static FastText loadModel(IOStreams fs, PrintStream logs, String fileRef) throws IOException, IllegalArgumentException {
-        if (!fs.canRead(Objects.requireNonNull(fileRef, "Null file ref specified."))) {
-            throw new IOException("Model file cannot be opened for loading: <" + fileRef + ">");
-        }
-        try (InputStream in = fs.openInput(fileRef)) {
-            logs.print("Load model " + fileRef + " ...");
-            FastText res = loadModel(in).setFileSystem(fs).setLogs(logs);
-            logs.println(" done.");
-            return res;
-        } catch (Exception e) {
-            logs.println(" error.");
-            throw e;
-        }
-    }
-
-    /**
-     * todo: move to {@link Trainer factory}
-     * Loads model from any InputStream.
-     * Original methods:
-     * <pre>{@code void FastText::loadModel(std::istream& in) {
-     *  args_ = std::make_shared<Args>();
-     *  dict_ = std::make_shared<Dictionary>(args_);
-     *  input_ = std::make_shared<Matrix>();
-     *  output_ = std::make_shared<Matrix>();
-     *  qinput_ = std::make_shared<QMatrix>();
-     *  qoutput_ = std::make_shared<QMatrix>();
-     *  args_->load(in);
-     *  if (version == 11 && args_->model == model_name::sup) {
-     *      // backward compatibility: old supervised models do not use char ngrams.
-     *      args_->maxn = 0;
-     *  }
-     *  dict_->load(in);
-     *  bool quant_input;
-     *  in.read((char*) &quant_input, sizeof(bool));
-     *  if (quant_input) {
-     *      quant_ = true;
-     *      qinput_->load(in);
-     *  } else {
-     *      input_->load(in);
-     *  }
-     *  if (!quant_input && dict_->isPruned()) {
-     *      std::cerr << "Invalid model file.\n"  << "Please download the updated model from www.fasttext.cc.\n"
-     *          << "See issue #332 on Github for more information.\n";
-     *      exit(1);
-     *  }
-     *  in.read((char*) &args_->qout, sizeof(bool));
-     *  if (quant_ && args_->qout) {
-     *      qoutput_->load(in);
-     *  } else {
-     *      output_->load(in);
-     *  }
-     *  model_ = std::make_shared<Model>(input_, output_, args_, 0);
-     *  model_->quant_ = quant_;
-     *  model_->setQuantizePointer(qinput_, qoutput_, args_->qout);
-     *  if (args_->model == model_name::sup) {
-     *      model_->setTargetCounts(dict_->getCounts(entry_type::label));
-     *  } else {
-     *      model_->setTargetCounts(dict_->getCounts(entry_type::word));
-     *  }
-     * }}</pre>
-     * <pre>{@code bool FastText::checkModel(std::istream& in) {
-     *  int32_t magic;
-     *  in.read((char*)&(magic), sizeof(int32_t));
-     *  if (magic != FASTTEXT_FILEFORMAT_MAGIC_INT32) {
-     *      return false;
-     *  }
-     *  in.read((char*)&(version), sizeof(int32_t));
-     *  if (version > FASTTEXT_VERSION) {
-     *      return false;
-     *  }
-     *  return true;
-     * }}</pre>
-     *
-     * @param in {@link InputStream}
-     * @return new {@link FastText model} instance
-     * @throws IOException              if something is wrong while read file
-     * @throws IllegalArgumentException if file is wrong
-     */
-    public static FastText loadModel(InputStream in) throws IOException, IllegalArgumentException {
-        FTInputStream inputStream = new FTInputStream(new BufferedInputStream(in));
-        int magic = inputStream.readInt();
-        if (FASTTEXT_FILEFORMAT_MAGIC_INT32 != magic) {
-            throw new IllegalArgumentException("Model file has wrong format!");
-        }
-        int version = inputStream.readInt();
-        if (version > FASTTEXT_VERSION) {
-            throw new IllegalArgumentException("Model file has wrong format!");
-        }
-        Args args = Args.load(inputStream);
-        if (version == 11 && args.model() == ModelName.SUP) {
-            // backward compatibility: old supervised models do not use char ngrams.
-            args = new Args.Builder().copy(args).setMaxN(0).build();
-        }
-        Dictionary dict = new Dictionary(args);
-        dict.load(inputStream);
-        boolean quantInput = inputStream.readBoolean();
-        Matrix input = new Matrix();
-        QMatrix qinput = new QMatrix();
-        boolean quant;
-        if (quantInput) {
-            qinput.load(inputStream);
-            quant = true;
-        } else {
-            input.load(inputStream);
-            quant = false;
-        }
-
-        if (!quantInput && dict.isPruned()) {
-            throw new IllegalArgumentException("Invalid model file.\nPlease download the updated model from " +
-                    "www.fasttext.cc.\nSee issue #332 on Github for more information.\n");
-        }
-        // todo warn: after following line different args in the dictionary and this object:
-        args = new Args.Builder().copy(args).setQOut(inputStream.readBoolean()).build();
-        Matrix output = new Matrix();
-        QMatrix qoutput = new QMatrix();
-        if (quant && args.qout()) {
-            qoutput.load(inputStream);
-        } else {
-            output.load(inputStream);
-        }
-
-        Model model = new Model(input, output, args, 0).setQuantizePointer(qinput, qoutput, args.qout());
-        if (ModelName.SUP.equals(args.model())) {
-            model.setTargetCounts(dict.getCounts(EntryType.LABEL));
-        } else {
-            model.setTargetCounts(dict.getCounts(EntryType.WORD));
-        }
-        return new FastText(args, dict, model, version);
     }
 
     /**
@@ -963,104 +824,6 @@ public strictfp class FastText {
     }
 
     /**
-     * todo: move to {@link Trainer factory}
-     * <pre>{@code void FastText::loadVectors(std::string filename) {
-     *  std::ifstream in(filename);
-     *  std::vector<std::string> words;
-     *  std::shared_ptr<Matrix> mat; // temp. matrix for pretrained vectors
-     *  int64_t n, dim;
-     *  if (!in.is_open()) {
-     *      std::cerr << "Pretrained vectors file cannot be opened!" << std::endl;
-     *      exit(EXIT_FAILURE);
-     *  }
-     *  in >> n >> dim;
-     *  if (dim != args_->dim) {
-     *      std::cerr << "Dimension of pretrained vectors does not match -dim option" << std::endl;
-     *      exit(EXIT_FAILURE);
-     *  }
-     *  mat = std::make_shared<Matrix>(n, dim);
-     *  for (size_t i = 0; i < n; i++) {
-     *      std::string word;
-     *      in >> word;
-     *      words.push_back(word);
-     *      dict_->add(word);
-     *      for (size_t j = 0; j < dim; j++) {
-     *          in >> mat->data_[i * dim + j];
-     *      }
-     *  }
-     *  in.close();
-     *  dict_->threshold(1, 0);
-     *  input_ = std::make_shared<Matrix>(dict_->nwords()+args_->bucket, args_->dim);
-     *  input_->uniform(1.0 / args_->dim);
-     *  for (size_t i = 0; i < n; i++) {
-     *      int32_t idx = dict_->getId(words[i]);
-     *      if (idx < 0 || idx >= dict_->nwords()) continue;
-     *      for (size_t j = 0; j < dim; j++) {
-     *          input_->data_[idx * dim + j] = mat->data_[i * dim + j];
-     *      }
-     *  }
-     * }}</pre>
-     *
-     * @param dict
-     * @param args
-     * @param fs
-     * @param file
-     * @return
-     * @throws IOException
-     * @throws IllegalArgumentException
-     * @see #saveVectors(String)
-     */
-    private static Matrix loadVectors(Dictionary dict, Args args, IOStreams fs, String file) throws IOException, IllegalArgumentException {
-        if (!fs.canRead(file)) {
-            throw new IllegalArgumentException("Pre-trained vectors file cannot be opened!");
-        }
-        Matrix mat;
-        List<String> words;
-        int n, dim;
-        try (BufferedReader in = new BufferedReader(new InputStreamReader(fs.openInput(file), args.charset()))) {
-            String first = in.readLine();
-            if (!first.matches("\\d+\\s+\\d+")) {
-                throw new IllegalArgumentException("Wrong pre-trained vectors file: first line should contain 'n dim' pair");
-            }
-            n = Integer.parseInt(first.split("\\s+")[0]);
-            dim = Integer.parseInt(first.split("\\s+")[1]);
-            if (dim != args.dim()) {
-                throw new IllegalArgumentException("Dimension of pretrained vectors does not match -dim option: found " + dim + ", expected " + args.dim());
-            }
-            mat = new Matrix(n, dim);
-            words = new ArrayList<>(n);
-            for (int i = 0; i < n; i++) {
-                String line = in.readLine();
-                String word;
-                String[] array;
-                if (StringUtils.isEmpty(line) || (array = line.split("\\s+")).length == 0 || StringUtils.isEmpty(word = array[0])) {
-                    throw new IllegalArgumentException("Wrong line: " + line);
-                }
-                List<Float> numbers = Arrays.stream(array).skip(1).limit(dim + 1).map(Float::parseFloat).collect(Collectors.toList());
-                if (numbers.size() < dim)
-                    throw new IllegalArgumentException("Wrong numbers in the line: " + numbers.size() + ". Expected " + dim);
-                words.add(word);
-                for (int j = 0; j < numbers.size(); j++) {
-                    mat.set(i, j, numbers.get(j));
-                }
-            }
-        }
-        dict.threshold(1, 0);
-        Matrix res = new Matrix(dict.nwords() + args.bucket(), args.dim());
-        res.uniform(args.randomFactory().apply(1), 1.0f / args.dim());
-        for (int i = 0; i < n; i++) {
-            int idx = dict.getId(words.get(i));
-            if (idx < 0 || idx >= dict.nwords())
-                continue;
-            for (int j = 0; j < dim; j++) {
-                res.set(idx, j, mat.get(i, j));
-            }
-            //System.arraycopy(mat.data_[i], 0, res.data_[idx], 0, dim);
-        }
-        return res;
-    }
-
-    /**
      * <pre>{@code std::vector<int32_t> FastText::selectEmbeddings(int32_t cutoff) const {
      *  Vector norms(input_->m_);
      *  input_->l2NormRow(norms);
@@ -1089,6 +852,10 @@ public strictfp class FastText {
     }
 
     /**
+     * Creates a quantized model from existing one.
+     * Note 1: unlike original c++ method, this one does not change state of current FastText object, so take care about memory!
+     * Note 2: Only for supervised models.
+     * <p>
      * <pre>{@code void FastText::quantize(std::shared_ptr<Args> qargs) {
      *  if (args_->model != model_name::sup) {
      *      throw std::invalid_argument("For now we only support quantization of supervised models");
@@ -1123,15 +890,18 @@ public strictfp class FastText {
      *  model_->quant_ = quant_;
      *  model_->setQuantizePointer(qinput_, qoutput_, args_->qout);
      * }}</pre>
-     * TODO: warn - model files will be overwritten.
      *
      * @param other
-     * @param dataFileToRetrain
-     * @return
+     * @param dataFileURIToRetrain String, the file uri with data to perform retrain, nullable
+     * @return new {@link FastText fasttext model} instance.
+     * @throws IOException              if an I/O error occurs while retraining.
+     * @throws ExecutionException       if any error occurs while retraining
+     * @throws IllegalStateException    in case model is already quantized.
+     * @throws IllegalArgumentException if some args are wrong.
      */
-    public FastText quantize(Args other, String dataFileToRetrain) throws IOException, ExecutionException {
+    public FastText quantize(Args other, String dataFileURIToRetrain) throws IOException, ExecutionException, IllegalStateException, IllegalArgumentException {
         if (model.isQuant()) {
-            throw new IllegalStateException("Already quantilizated.");
+            throw new IllegalStateException("Already quantized.");
         }
         if (!ModelName.SUP.equals(args.model())) {
             throw new IllegalArgumentException("For now we only support quantization of supervised models");
@@ -1144,17 +914,17 @@ public strictfp class FastText {
                 .setDSub(other.dsub())
                 .build();
         Dictionary qdict = this.dict.copy();
-        Matrix input_;
-        Matrix output_ = model.output().copy();
+        Matrix input;
+        Matrix output = model.output().copy();
         if (qargs.cutoff() > 0 && qargs.cutoff() < model.input().getM()) {
             List<Integer> idx = qdict.prune(selectEmbeddings(qargs.cutoff()));
-            input_ = new Matrix(idx.size(), qargs.dim());
+            input = new Matrix(idx.size(), qargs.dim());
             for (int i = 0; i < idx.size(); i++) {
                 for (int j = 0; j < qargs.dim(); j++) {
-                    input_.put(i, j, model.input().at(idx.get(i), j));
+                    input.put(i, j, model.input().at(idx.get(i), j));
                 }
             }
-            if (!StringUtils.isEmpty(dataFileToRetrain)) {
+            if (!StringUtils.isEmpty(dataFileURIToRetrain)) {
                 qargs = new Args.Builder()
                         .copy(qargs)
                         .setEpoch(other.epoch())
@@ -1162,404 +932,365 @@ public strictfp class FastText {
                         .setThread(other.thread())
                         .setVerbose(other.verbose())
                         .build();
-                Model model = new Trainer(qargs, fs, logs).train(dataFileToRetrain, null, qdict, input_, output_).model;
-                input_ = model.input();
-                output_ = model.output();
+                Model model = new Factory(fs, logs).newTrainer(qargs, dataFileURIToRetrain, qdict, input, output).train();
+                input = model.input();
+                output = model.output();
             }
         } else {
-            input_ = model.input().copy();
+            input = model.input().copy();
         }
 
-        QMatrix qinput_ = new QMatrix(input_, args.randomFactory(), qargs.dsub(), qargs.qnorm());
-        QMatrix qoutput_;
+        QMatrix qinput = new QMatrix(input, args.randomFactory(), qargs.dsub(), qargs.qnorm());
+        QMatrix qoutput;
         if (qargs.qout()) {
-            qoutput_ = new QMatrix(output_, args.randomFactory(), 2, qargs.qnorm());
+            qoutput = new QMatrix(output, args.randomFactory(), 2, qargs.qnorm());
         } else {
-            qoutput_ = new QMatrix();
+            qoutput = new QMatrix();
         }
-        Model model_ = new Model(input_, output_, qargs, 0).setQuantizePointer(qinput_, qoutput_, qargs.qout());
-        return new FastText(qargs, qdict, model_, FASTTEXT_VERSION);
-    }
-
-    public static FastText train(Args args, IOStreams fs, PrintStream logs, String dataFile, String vectorsFile) throws IOException, ExecutionException {
-        return new Trainer(args, fs, logs).train(dataFile, vectorsFile).setFileSystem(fs);
+        Model model = new Model(input, output, qargs, 0).setQuantizePointer(qinput, qoutput);
+        return new FastText(qargs, qdict, model, FASTTEXT_VERSION);
     }
 
     /**
-     * Auxiliary class to perform model training.
+     * A factory to produce new {@link FastText} interface.
+     * @see IOStreams
+     * <p>
+     * Created by @szuev on 07.12.2017.
      */
-    private static class Trainer {
+    public static class Factory {
         // todo: buff size is experimental
         private static final int BUFF_SIZE = 100 * 1024;
-        private final Args args;
+
         private final IOStreams fs;
         private final PrintStream logs;
 
-        private Dictionary dictionary;
-        private String fileName;
-        private long fileSize;
+        public Factory(IOStreams factory, PrintStream logs) {
+            this.fs = Objects.requireNonNull(factory, "Null io-factory.");
+            this.logs = Objects.requireNonNull(logs, "Null logs");
+        }
 
-        private Matrix input, output;
+        public Factory setFileSystem(IOStreams fs) {
+            return new Factory(fs, this.logs);
+        }
 
-        private Instant start;
-        private AtomicLong tokenCount;
+        public Factory setLogs(PrintStream logs) {
+            return new Factory(this.fs, logs);
+        }
 
-        private Trainer(Args args, IOStreams factory, PrintStream logs) {
-            this.args = args;
-            this.fs = factory;
-            this.logs = logs;
+        public IOStreams getFileSystem() {
+            return fs;
+        }
+
+        public PrintStream getLogs() {
+            return logs;
         }
 
         /**
-         * <pre>{@code void FastText::train(std::shared_ptr<Args> args) {
-         *  args_ = args;
-         *  dict_ = std::make_shared<Dictionary>(args_);
-         *  if (args_->input == "-") { // manage expectations
-         *      std::cerr << "Cannot use stdin for training!" << std::endl;
-         *      exit(EXIT_FAILURE);
-         *  }
-         *  std::ifstream ifs(args_->input);
+         * Loads model by file-reference (URI) using {@link IOStreams file-system}.
+         * <p>
+         * <pre>{@code void FastText::loadModel(const std::string& filename) {
+         *  std::ifstream ifs(filename, std::ifstream::binary);
          *  if (!ifs.is_open()) {
-         *      std::cerr << "Input file cannot be opened!" << std::endl;
-         *      exit(EXIT_FAILURE);
+         *      throw std::invalid_argument(filename + " cannot be opened for loading!");
          *  }
-         *  dict_->readFromFile(ifs);
+         *  if (!checkModel(ifs)) {
+         *      throw std::invalid_argument(filename + " has wrong file format!");
+         *  }
+         *  loadModel(ifs);
          *  ifs.close();
-         *  if (args_->pretrainedVectors.size() != 0) {
-         *      loadVectors(args_->pretrainedVectors);
-         *  } else {
-         *      input_ = std::make_shared<Matrix>(dict_->nwords()+args_->bucket, args_->dim);
-         *      input_->uniform(1.0 / args_->dim);
+         * }}</pre>
+         *
+         * @param uri String, path to file, not null
+         * @return new {@link FastText model} instance
+         * @throws IOException              if something is wrong while read file
+         * @throws IllegalArgumentException if file is wrong
+         */
+        public FastText load(String uri) throws IOException, IllegalArgumentException {
+            if (!fs.canRead(Objects.requireNonNull(uri, "Null file ref specified."))) {
+                throw new IOException("Model file cannot be opened for loading: <" + uri + ">");
+            }
+            try (InputStream in = fs.openInput(uri)) {
+                logs.print("Load model " + uri + " ...");
+                FastText res = load(in).setFileSystem(fs).setLogs(logs);
+                logs.println(" done.");
+                return res;
+            } catch (Exception e) {
+                logs.println(" error.");
+                throw e;
+            }
+        }
+
+        /**
+         * Loads model from any InputStream.
+         * <p>
+         * Original methods:
+         * <pre>{@code void FastText::loadModel(std::istream& in) {
+         *  args_ = std::make_shared<Args>();
+         *  dict_ = std::make_shared<Dictionary>(args_);
+         *  input_ = std::make_shared<Matrix>();
+         *  output_ = std::make_shared<Matrix>();
+         *  qinput_ = std::make_shared<QMatrix>();
+         *  qoutput_ = std::make_shared<QMatrix>();
+         *  args_->load(in);
+         *  if (version == 11 && args_->model == model_name::sup) {
+         *      // backward compatibility: old supervised models do not use char ngrams.
+         *      args_->maxn = 0;
          *  }
-         *  if (args_->model == model_name::sup) {
-         *      output_ = std::make_shared<Matrix>(dict_->nlabels(), args_->dim);
+         *  dict_->load(in);
+         *  bool quant_input;
+         *  in.read((char*) &quant_input, sizeof(bool));
+         *  if (quant_input) {
+         *      quant_ = true;
+         *      qinput_->load(in);
          *  } else {
-         *      output_ = std::make_shared<Matrix>(dict_->nwords(), args_->dim);
+         *      input_->load(in);
          *  }
-         *  output_->zero();
-         *  startThreads();
+         *  if (!quant_input && dict_->isPruned()) {
+         *      std::cerr << "Invalid model file.\n"  << "Please download the updated model from www.fasttext.cc.\n"
+         *          << "See issue #332 on Github for more information.\n";
+         *      exit(1);
+         *  }
+         *  in.read((char*) &args_->qout, sizeof(bool));
+         *  if (quant_ && args_->qout) {
+         *      qoutput_->load(in);
+         *  } else {
+         *      output_->load(in);
+         *  }
          *  model_ = std::make_shared<Model>(input_, output_, args_, 0);
+         *  model_->quant_ = quant_;
+         *  model_->setQuantizePointer(qinput_, qoutput_, args_->qout);
          *  if (args_->model == model_name::sup) {
          *      model_->setTargetCounts(dict_->getCounts(entry_type::label));
          *  } else {
          *      model_->setTargetCounts(dict_->getCounts(entry_type::word));
          *  }
          * }}</pre>
+         * <pre>{@code bool FastText::checkModel(std::istream& in) {
+         *  int32_t magic;
+         *  in.read((char*)&(magic), sizeof(int32_t));
+         *  if (magic != FASTTEXT_FILEFORMAT_MAGIC_INT32) {
+         *      return false;
+         *  }
+         *  in.read((char*)&(version), sizeof(int32_t));
+         *  if (version > FASTTEXT_VERSION) {
+         *      return false;
+         *  }
+         *  return true;
+         * }}</pre>
          *
-         * @param dataFile     String, not null. file ref to text data
-         * @param vectorsFile, String, nullable. The pre-trained vectors file.
-         * @return {@link FastText} new instance
-         * @throws IOException              if something wrong while reading file
-         * @throws ExecutionException       if something wrong while training in multithreading
-         * @throws IllegalArgumentException in case wrong file refs.
+         * @param in {@link InputStream}
+         * @return new {@link FastText model} instance
+         * @throws IOException              if something is wrong while read file
+         * @throws IllegalArgumentException if file is wrong
          */
-        public FastText train(String dataFile, String vectorsFile) throws IOException, ExecutionException, IllegalArgumentException {
-            return train(dataFile, vectorsFile, null, null, null);
+        public FastText load(InputStream in) throws IOException, IllegalArgumentException {
+            FTInputStream inputStream = new FTInputStream(new BufferedInputStream(in));
+            int magic = inputStream.readInt();
+            if (FASTTEXT_FILEFORMAT_MAGIC_INT32 != magic) {
+                throw new IllegalArgumentException("Model file has wrong format!");
+            }
+            int version = inputStream.readInt();
+            if (version > FASTTEXT_VERSION) {
+                throw new IllegalArgumentException("Model file has wrong format!");
+            }
+            Args args = Args.load(inputStream);
+            if (version == 11 && args.model() == ModelName.SUP) {
+                // backward compatibility: old supervised models do not use char ngrams.
+                args = new Args.Builder().copy(args).setMaxN(0).build();
+            }
+            Dictionary dict = new Dictionary(args);
+            dict.load(inputStream);
+            boolean quantInput = inputStream.readBoolean();
+            Matrix input = new Matrix();
+            QMatrix qinput = new QMatrix();
+            boolean quant;
+            if (quantInput) {
+                qinput.load(inputStream);
+                quant = true;
+            } else {
+                input.load(inputStream);
+                quant = false;
+            }
+
+            if (!quantInput && dict.isPruned()) {
+                throw new IllegalArgumentException("Invalid model file.\nPlease download the updated model from " +
+                        "www.fasttext.cc.\nSee issue #332 on Github for more information.\n");
+            }
+            // todo warn: after following line different args in the dictionary and this object:
+            args = new Args.Builder().copy(args).setQOut(inputStream.readBoolean()).build();
+            Matrix output = new Matrix();
+            QMatrix qoutput = new QMatrix();
+            if (quant && args.qout()) {
+                qoutput.load(inputStream);
+            } else {
+                output.load(inputStream);
+            }
+
+            Model model = new Model(input, output, args, 0).setQuantizePointer(qinput, qoutput);
+            if (ModelName.SUP.equals(args.model())) {
+                model.setTargetCounts(dict.getCounts(EntryType.LABEL));
+            } else {
+                model.setTargetCounts(dict.getCounts(EntryType.WORD));
+            }
+            return new FastText(args, dict, model, version);
         }
 
-        private FastText train(String dataFile, String vectorsFile, Dictionary dict, Matrix in, Matrix out) throws IOException, ExecutionException {
-            if ("-".equals(dataFile) || "-".equals(vectorsFile)) {
-                throw new IllegalArgumentException("Cannot use stdin for training!");
+        /**
+         * Loads matrix from file.
+         * <p>
+         * <pre>{@code void FastText::loadVectors(std::string filename) {
+         *  std::ifstream in(filename);
+         *  std::vector<std::string> words;
+         *  std::shared_ptr<Matrix> mat; // temp. matrix for pretrained vectors
+         *  int64_t n, dim;
+         *  if (!in.is_open()) {
+         *      std::cerr << "Pretrained vectors file cannot be opened!" << std::endl;
+         *      exit(EXIT_FAILURE);
+         *  }
+         *  in >> n >> dim;
+         *  if (dim != args_->dim) {
+         *      std::cerr << "Dimension of pretrained vectors does not match -dim option" << std::endl;
+         *      exit(EXIT_FAILURE);
+         *  }
+         *  mat = std::make_shared<Matrix>(n, dim);
+         *  for (size_t i = 0; i < n; i++) {
+         *      std::string word;
+         *      in >> word;
+         *      words.push_back(word);
+         *      dict_->add(word);
+         *      for (size_t j = 0; j < dim; j++) {
+         *          in >> mat->data_[i * dim + j];
+         *      }
+         *  }
+         *  in.close();
+         *  dict_->threshold(1, 0);
+         *  input_ = std::make_shared<Matrix>(dict_->nwords()+args_->bucket, args_->dim);
+         *  input_->uniform(1.0 / args_->dim);
+         *  for (size_t i = 0; i < n; i++) {
+         *      int32_t idx = dict_->getId(words[i]);
+         *      if (idx < 0 || idx >= dict_->nwords()) continue;
+         *      for (size_t j = 0; j < dim; j++) {
+         *          input_->data_[idx * dim + j] = mat->data_[i * dim + j];
+         *      }
+         *  }
+         * }}</pre>
+         *
+         * @param args       {@link Args} args object
+         * @param dictionary {@link Dictionary} object
+         * @param file       String, uri to file
+         * @return {@link Matrix}, the input matrix to construct new model
+         * @throws IOException              if some error during reading file occurs
+         * @throws IllegalArgumentException if some input arguments are wrong
+         * @see FastText#saveVectors(String)
+         */
+        private Matrix loadInput(Args args, Dictionary dictionary, String file) throws IOException, IllegalArgumentException {
+            if (!fs.canRead(file)) {
+                throw new IllegalArgumentException("Pre-trained vectors file cannot be opened!");
             }
-            if (!fs.canRead(dataFile)) {
-                throw new IllegalArgumentException("Input file cannot be opened: " + dataFile);
-            }
-            this.fileName = dataFile;
-            if (!StringUtils.isEmpty(vectorsFile) && !fs.canRead(vectorsFile)) {
-                throw new IllegalArgumentException("Pre-trained vectors file cannot be opened: " + vectorsFile);
-            }
-            if (dict == null) {
-                this.dictionary = new Dictionary(args);
-                try (FTReader r = createReader()) {
-                    this.fileSize = this.dictionary.readFromFile(r, logs);
+            Matrix mat;
+            List<String> words;
+            int n, dim;
+            try (BufferedReader in = new BufferedReader(new InputStreamReader(fs.openInput(file), args.charset()))) {
+                String first = in.readLine();
+                if (!first.matches("\\d+\\s+\\d+")) {
+                    throw new IllegalArgumentException("Wrong pre-trained vectors file: first line should contain 'n dim' pair");
                 }
-            } else {
-                this.dictionary = dict;
-                this.fileSize = fs.size(this.fileName);
-            }
-            if (in == null) {
-                if (!StringUtils.isEmpty(vectorsFile)) {
-                    input = FastText.loadVectors(this.dictionary, args, fs, vectorsFile);
-                } else {
-                    input = new Matrix(this.dictionary.nwords() + args.bucket(), args.dim());
-                    input.uniform(args.randomFactory().apply(1), 1.0f / args.dim());
+                n = Integer.parseInt(first.split("\\s+")[0]);
+                dim = Integer.parseInt(first.split("\\s+")[1]);
+                if (dim != args.dim()) {
+                    throw new IllegalArgumentException("Dimension of pretrained vectors does not match -dim option: found " + dim + ", expected " + args.dim());
                 }
-            } else {
-                this.input = in;
-            }
-            if (out == null) {
-                if (ModelName.SUP.equals(args.model())) {
-                    this.output = new Matrix(this.dictionary.nlabels(), args.dim());
-                } else {
-                    this.output = new Matrix(this.dictionary.nwords(), args.dim());
+                mat = new Matrix(n, dim);
+                words = new ArrayList<>(n);
+                for (int i = 0; i < n; i++) {
+                    String line = in.readLine();
+                    String word;
+                    String[] array;
+                    if (StringUtils.isEmpty(line) || (array = line.split("\\s+")).length == 0 || StringUtils.isEmpty(word = array[0])) {
+                        throw new IllegalArgumentException("Wrong line: " + line);
+                    }
+                    List<Float> numbers = Arrays.stream(array).skip(1).limit(dim + 1).map(Float::parseFloat).collect(Collectors.toList());
+                    if (numbers.size() < dim)
+                        throw new IllegalArgumentException("Wrong numbers in the line: " + numbers.size() + ". Expected " + dim);
+                    words.add(word);
+                    for (int j = 0; j < numbers.size(); j++) {
+                        mat.set(i, j, numbers.get(j));
+                    }
                 }
-            } else {
-                this.output = out;
             }
-            startThreads();
-            Model model = new Model(input, output, args, 0);
-            return new FastText(args, this.dictionary, model, FASTTEXT_VERSION);
+            dictionary.threshold(1, 0);
+            Matrix res = new Matrix(dictionary.nwords() + args.bucket(), args.dim());
+            res.uniform(args.randomFactory().apply(1), 1.0f / args.dim());
+            for (int i = 0; i < n; i++) {
+                int idx = dictionary.getId(words.get(i));
+                if (idx < 0 || idx >= dictionary.nwords())
+                    continue;
+                for (int j = 0; j < dim; j++) {
+                    res.set(idx, j, mat.get(i, j));
+                }
+            }
+            return res;
         }
 
-        private FTReader createReader() throws IOException {
+        /**
+         * Reads dictionary from file.
+         *
+         * @param args {@link Args} settings to construct new dictionary
+         * @param file String, file path, not null
+         * @return {@link Dictionary}
+         * @throws IOException if an I/O error occurs
+         */
+        private Dictionary readDictionary(Args args, String file) throws IOException {
+            Dictionary res = new Dictionary(args);
+            try (FTReader reader = createReader(args, file)) {
+                res.readFromFile(reader, logs);
+            }
+            return res;
+        }
+
+        private FTReader createReader(Args args, String fileName) throws IOException {
             return new FTReader(fs.openScrollable(fileName), args.charset(), BUFF_SIZE);
         }
 
-        /**
-         * <pre>{@code void FastText::startThreads() {
-         *  start = clock();
-         *  tokenCount = 0;
-         *  if (args_->thread > 1) {
-         *      std::vector<std::thread> threads;
-         *      for (int32_t i = 0; i < args_->thread; i++) {
-         *          threads.push_back(std::thread([=]() { trainThread(i); }));
-         *      }
-         *      for (auto it = threads.begin(); it != threads.end(); ++it) {
-         *          it->join();
-         *      }
-         *  } else {
-         *      trainThread(0);
-         *  }
-         * }}</pre>
-         *
-         * @throws ExecutionException
-         * @throws IOException
-         */
-        private void startThreads() throws ExecutionException, IOException {
-            this.start = Instant.now();
-            this.tokenCount = new AtomicLong(0);
-            BiConsumer<Float, Float> zeroPrinter = (progress, loss) -> {
-            };
-            BiConsumer<Float, Float> printer = args.verbose() > 1 ? this::printInfo : zeroPrinter;
-            if (args.thread() <= 1) {
-                trainThread(0, printer);
-                return;
+        private Matrix createInput(Args args, Dictionary dictionary) {
+            Matrix res = new Matrix(dictionary.nwords() + args.bucket(), args.dim());
+            res.uniform(args.randomFactory().apply(1), 1.0f / args.dim());
+            return res;
+        }
+
+        private Matrix createOutput(Args args, Dictionary dictionary) {
+            if (ModelName.SUP.equals(args.model())) {
+                return new Matrix(dictionary.nlabels(), args.dim());
             }
-            ExecutorService service = Executors.newFixedThreadPool(args.thread(), r -> {
-                Thread t = Executors.defaultThreadFactory().newThread(r);
-                t.setDaemon(true);
-                return t;
-            });
-            CompletionService<Void> completionService = new ExecutorCompletionService<>(service);
-            IntStream.range(0, args.thread()).forEach(id ->
-                    completionService.submit(() -> {
-                        Thread.currentThread().setName("FT-TrainThread-" + id);
-                        trainThread(id, id == 0 ? printer : zeroPrinter);
-                        return null;
-                    }));
-            service.shutdown();
-            int num = args.thread();
-            try {
-                while (num-- > 0) {
-                    completionService.take().get();
-                }
-            } catch (InterruptedException e) {
-                logs.println("Interrupted!");
-                Thread.currentThread().interrupt();
-            } finally {
-                service.shutdownNow();
+            return new Matrix(dictionary.nwords(), args.dim());
+        }
+
+        private Trainer newTrainer(Args args, String file, String vectors) throws IOException {
+            if (!fs.canRead(Objects.requireNonNull(file, "Null data file specified"))) {
+                throw new IllegalArgumentException("Input file cannot be opened: " + file);
             }
+            long size = fs.size(file);
+            Dictionary dic = readDictionary(args, file);
+            Matrix in = vectors == null ? createInput(args, dic) : loadInput(args, dic, vectors);
+            Matrix out = createOutput(args, dic);
+            return new Trainer(args, file, size, dic, in, out);
         }
 
-        /**
-         * <pre>{@code void FastText::trainThread(int32_t threadId) {
-         *  std::ifstream ifs(args_->input);
-         *  utils::seek(ifs, threadId * utils::size(ifs) / args_->thread);
-         *  Model model(input_, output_, args_, threadId);
-         *  if (args_->model == model_name::sup) {
-         *      model.setTargetCounts(dict_->getCounts(entry_type::label));
-         *  } else {
-         *      model.setTargetCounts(dict_->getCounts(entry_type::word));
-         *  }
-         *  const int64_t ntokens = dict_->ntokens();
-         *  int64_t localTokenCount = 0;
-         *  std::vector<int32_t> line, labels;
-         *  while (tokenCount < args_->epoch * ntokens) {
-         *      real progress = real(tokenCount) / (args_->epoch * ntokens);
-         *      real lr = args_->lr * (1.0 - progress);
-         *      if (args_->model == model_name::sup) {
-         *          localTokenCount += dict_->getLine(ifs, line, labels, model.rng);
-         *          supervised(model, lr, line, labels);
-         *      } else if (args_->model == model_name::cbow) {
-         *          localTokenCount += dict_->getLine(ifs, line, model.rng);
-         *          cbow(model, lr, line);
-         *      } else if (args_->model == model_name::sg) {
-         *          localTokenCount += dict_->getLine(ifs, line, model.rng);
-         *          skipgram(model, lr, line);
-         *      }
-         *      if (localTokenCount > args_->lrUpdateRate) {
-         *          tokenCount += localTokenCount;
-         *          localTokenCount = 0;
-         *          if (threadId == 0 && args_->verbose > 1) {
-         *              printInfo(progress, model.getLoss());
-         *          }
-         *      }
-         *  }
-         *  if (threadId == 0 && args_->verbose > 0) {
-         *      printInfo(1.0, model.getLoss());
-         *      std::cerr << std::endl;
-         *  }
-         *  ifs.close();
-         * }}</pre>
-         *
-         * @param threadId
-         * @param printer
-         * @throws IOException
-         */
-        private void trainThread(int threadId, BiConsumer<Float, Float> printer) throws IOException {
-            Model model = new Model(input, output, args, threadId);
-            try (FTReader reader = createReader()) {
-                long skip = threadId * fileSize / args.thread();
-                reader.skipBytes(skip);
-                if (ModelName.SUP.equals(args.model())) {
-                    model.setTargetCounts(dictionary.getCounts(EntryType.LABEL));
-                } else {
-                    model.setTargetCounts(dictionary.getCounts(EntryType.WORD));
-                }
-                long ntokens = dictionary.ntokens();
-                long localTokenCount = 0;
-                List<Integer> line = new ArrayList<>();
-                List<Integer> labels = new ArrayList<>();
-                while (tokenCount.longValue() < args.epoch() * ntokens) {
-                    float progress = tokenCount.floatValue() / (args.epoch() * ntokens);
-                    float lr = (float) (args.lr() * (1.0 - progress));
-                    if (ModelName.SUP.equals(args.model())) {
-                        localTokenCount += dictionary.getLine(reader, line, labels);
-                        supervised(model, lr, line, labels);
-                    } else if (ModelName.CBOW.equals(args.model())) {
-                        localTokenCount += dictionary.getLine(reader, line, model.rng);
-                        cbow(model, lr, line);
-                    } else if (ModelName.SG.equals(args.model())) {
-                        localTokenCount += dictionary.getLine(reader, line, model.rng);
-                        skipgram(model, lr, line);
-                    }
-                    if (localTokenCount > args.lrUpdateRate()) {
-                        tokenCount.addAndGet(localTokenCount);
-                        localTokenCount = 0;
-                        printer.accept(progress, model.getLoss());
-                    }
-                }
+        private Trainer newTrainer(Args args, String file, Dictionary dictionary, Matrix input, Matrix output) throws IOException {
+            if (!fs.canRead(Objects.requireNonNull(file, "Null data file specified"))) {
+                throw new IllegalArgumentException("Input file cannot be opened: " + file);
             }
-            printer.accept(1f, model.getLoss());
+            long size = fs.size(file);
+            return new Trainer(args, file, size, dictionary, input, output);
         }
 
-        /**
-         * <pre>{@code
-         * void FastText::supervised(Model& model, real lr, const std::vector<int32_t>& line, const std::vector<int32_t>& labels) {
-         *  if (labels.size() == 0 || line.size() == 0) return;
-         *  std::uniform_int_distribution<> uniform(0, labels.size() - 1);
-         *  int32_t i = uniform(model.rng);
-         *  model.update(line, labels[i], lr);
-         * }}</pre>
-         *
-         * @param model
-         * @param lr
-         * @param line
-         * @param labels
-         */
-        private void supervised(Model model, float lr, List<Integer> line, List<Integer> labels) {
-            if (labels.size() == 0 || line.size() == 0)
-                return;
-            UniformIntegerDistribution uniform = new UniformIntegerDistribution(model.rng, 0, labels.size() - 1);
-            int i = uniform.sample();
-            model.update(line, labels.get(i), lr);
+        public FastText train(Args args, String file, String vectors) throws IOException, ExecutionException {
+            Trainer trainer = newTrainer(args, file, vectors);
+            Model model = trainer.train();
+            return new FastText(args, trainer.dictionary, model, FASTTEXT_VERSION).setFileSystem(fs).setLogs(logs);
         }
 
-        /**
-         * <pre>{@code
-         * void FastText::cbow(Model& model, real lr, const std::vector<int32_t>& line) {
-         *  std::vector<int32_t> bow;
-         *  std::uniform_int_distribution<> uniform(1, args_->ws);
-         *  for (int32_t w = 0; w < line.size(); w++) {
-         *      int32_t boundary = uniform(model.rng);
-         *      bow.clear();
-         *      for (int32_t c = -boundary; c <= boundary; c++) {
-         *          if (c != 0 && w + c >= 0 && w + c < line.size()) {
-         *              const std::vector<int32_t>& ngrams = dict_->getSubwords(line[w + c]);
-         *              bow.insert(bow.end(), ngrams.cbegin(), ngrams.cend());
-         *          }
-         *      }
-         *      model.update(bow, line[w], lr);
-         *  }
-         * }}</pre>
-         *
-         * @param model
-         * @param lr
-         * @param line
-         */
-        private void cbow(Model model, float lr, List<Integer> line) {
-            UniformIntegerDistribution uniform = new UniformIntegerDistribution(model.rng, 1, args.ws());
-            for (int w = 0; w < line.size(); w++) {
-                List<Integer> bow = new ArrayList<>();
-                int boundary = uniform.sample();
-                for (int c = -boundary; c <= boundary; c++) {
-                    int wc;
-                    if (c != 0 && (wc = w + c) >= 0 && wc < line.size()) {
-                        List<Integer> ngrams = dictionary.getSubwords(line.get(wc));
-                        bow.addAll(ngrams);
-                    }
-                }
-                model.update(bow, line.get(w), lr);
-            }
-        }
-
-        /**
-         * <pre>{@code void FastText::skipgram(Model& model, real lr, const std::vector<int32_t>& line) {
-         *  std::uniform_int_distribution<> uniform(1, args_->ws);
-         *  for (int32_t w = 0; w < line.size(); w++) {
-         *      int32_t boundary = uniform(model.rng);
-         *      const std::vector<int32_t>& ngrams = dict_->getSubwords(line[w]);
-         *      for (int32_t c = -boundary; c <= boundary; c++) {
-         *          if (c != 0 && w + c >= 0 && w + c < line.size()) {
-         *              model.update(ngrams, line[w + c], lr);
-         *          }
-         *      }
-         *  }
-         * }}</pre>
-         *
-         * @param model
-         * @param lr
-         * @param line
-         */
-        private void skipgram(Model model, float lr, List<Integer> line) {
-            UniformIntegerDistribution uniform = new UniformIntegerDistribution(model.rng, 1, args.ws());
-            for (int w = 0; w < line.size(); w++) {
-                int boundary = uniform.sample();
-                List<Integer> ngrams = dictionary.getSubwords(line.get(w));
-                for (int c = -boundary; c <= boundary; c++) {
-                    int wc;
-                    if (c != 0 && (wc = w + c) >= 0 && wc < line.size()) {
-                        model.update(ngrams, line.get(wc), lr);
-                    }
-                }
-            }
-        }
-
-        /**
-         * <pre>{@code void FastText::printInfo(real progress, real loss) {
-         *  real t = real(clock() - start) / CLOCKS_PER_SEC;
-         *  real wst = real(tokenCount) / t;
-         *  real lr = args_->lr * (1.0 - progress);
-         *  int eta = int(t / progress * (1 - progress) / args_->thread);
-         *  int etah = eta / 3600;
-         *  int etam = (eta - etah * 3600) / 60;
-         *  std::cerr << std::fixed;
-         *  std::cerr << "\rProgress: " << std::setprecision(1) << 100 * progress << "%";
-         *  std::cerr << "  words/sec/thread: " << std::setprecision(0) << wst;
-         *  std::cerr << "  lr: " << std::setprecision(6) << lr;
-         *  std::cerr << "  loss: " << std::setprecision(6) << loss;
-         *  std::cerr << "  eta: " << etah << "h" << etam << "m ";
-         *  std::cerr << std::flush;
-         * }}</pre>
-         *
-         * @param progress
-         * @param loss
-         */
-        private void printInfo(float progress, float loss) {
-            printInfo(args, logs, start, Instant.now(), tokenCount.get(), progress, loss);
-        }
-
-        private static void printInfo(Args args, PrintStream logs, Instant start, Instant end, long tokenCount_, float progress, float loss) {
+        private void printInfo(Args args, Instant start, Instant end, long tokenCount_, float progress, float loss) {
             Duration d = Duration.between(start, end);
             float t = d.get(ChronoUnit.SECONDS) + d.get(ChronoUnit.NANOS) / 1_000_000_000f;
             float wst = tokenCount_ / t;
@@ -1570,6 +1301,339 @@ public strictfp class FastText {
             logs.printf("\rProgress: %.1f%% words/sec/thread: %.0f lr: %.6f loss: %.6f eta: %d h %d m", 100 * progress, wst, lr, loss, etaH, etaM);
             if (progress == 1) {
                 logs.println();
+            }
+        }
+
+        /**
+         * Auxiliary class to perform model training.
+         */
+        private class Trainer {
+            private final String file;
+            private final long size;
+
+            private final Args args;
+            private final Dictionary dictionary;
+
+            private final Matrix input;
+            private final Matrix output;
+
+            private Instant start;
+            private AtomicLong tokenCount;
+
+            private Trainer(Args args, String file, long size, Dictionary dictionary, Matrix input, Matrix output) {
+                this.args = Objects.requireNonNull(args, "Null args");
+                this.file = Objects.requireNonNull(file, "Null file");
+                this.size = size;
+                this.dictionary = Objects.requireNonNull(dictionary, "Null dictionary");
+                this.input = Objects.requireNonNull(input, "Null input matrix");
+                this.output = Objects.requireNonNull(output, "Null output matrix");
+            }
+
+            private FTReader createReader() throws IOException {
+                return Factory.this.createReader(args, file);
+            }
+
+            /**
+             * <pre>{@code void FastText::train(std::shared_ptr<Args> args) {
+             *  args_ = args;
+             *  dict_ = std::make_shared<Dictionary>(args_);
+             *  if (args_->input == "-") { // manage expectations
+             *      std::cerr << "Cannot use stdin for training!" << std::endl;
+             *      exit(EXIT_FAILURE);
+             *  }
+             *  std::ifstream ifs(args_->input);
+             *  if (!ifs.is_open()) {
+             *      std::cerr << "Input file cannot be opened!" << std::endl;
+             *      exit(EXIT_FAILURE);
+             *  }
+             *  dict_->readFromFile(ifs);
+             *  ifs.close();
+             *  if (args_->pretrainedVectors.size() != 0) {
+             *      loadVectors(args_->pretrainedVectors);
+             *  } else {
+             *      input_ = std::make_shared<Matrix>(dict_->nwords()+args_->bucket, args_->dim);
+             *      input_->uniform(1.0 / args_->dim);
+             *  }
+             *  if (args_->model == model_name::sup) {
+             *      output_ = std::make_shared<Matrix>(dict_->nlabels(), args_->dim);
+             *  } else {
+             *      output_ = std::make_shared<Matrix>(dict_->nwords(), args_->dim);
+             *  }
+             *  output_->zero();
+             *  startThreads();
+             *  model_ = std::make_shared<Model>(input_, output_, args_, 0);
+             *  if (args_->model == model_name::sup) {
+             *      model_->setTargetCounts(dict_->getCounts(entry_type::label));
+             *  } else {
+             *      model_->setTargetCounts(dict_->getCounts(entry_type::word));
+             *  }
+             * }}</pre>
+             *
+             * @return {@link Model} new instance
+             * @throws IOException              if something wrong while reading file
+             * @throws ExecutionException       if something wrong while training in multithreading
+             * @throws IllegalArgumentException in case wrong file refs.
+             */
+            public Model train() throws IOException, ExecutionException, IllegalArgumentException {
+                startThreads();
+                return new Model(input, output, args, 0);
+            }
+
+            /**
+             * Runs training treads and waits for finishing.
+             * <p>
+             * <pre>{@code void FastText::startThreads() {
+             *  start = clock();
+             *  tokenCount = 0;
+             *  if (args_->thread > 1) {
+             *      std::vector<std::thread> threads;
+             *      for (int32_t i = 0; i < args_->thread; i++) {
+             *          threads.push_back(std::thread([=]() { trainThread(i); }));
+             *      }
+             *      for (auto it = threads.begin(); it != threads.end(); ++it) {
+             *          it->join();
+             *      }
+             *  } else {
+             *      trainThread(0);
+             *  }
+             * }}</pre>
+             *
+             * @throws ExecutionException if any error occurs in any sub-treads
+             * @throws IOException        if an I/O error occurs
+             */
+            private void startThreads() throws ExecutionException, IOException {
+                this.start = Instant.now();
+                this.tokenCount = new AtomicLong(0);
+                BiConsumer<Float, Float> zeroPrinter = (progress, loss) -> {
+                };
+                BiConsumer<Float, Float> printer = args.verbose() > 1 ? this::printInfo : zeroPrinter;
+                if (args.thread() <= 1) {
+                    trainThread(0, printer);
+                    return;
+                }
+                ExecutorService service = Executors.newFixedThreadPool(args.thread(), r -> {
+                    Thread t = Executors.defaultThreadFactory().newThread(r);
+                    t.setDaemon(true);
+                    return t;
+                });
+                CompletionService<Void> completionService = new ExecutorCompletionService<>(service);
+                IntStream.range(0, args.thread()).forEach(id ->
+                        completionService.submit(() -> {
+                            Thread.currentThread().setName("FT-TrainThread-" + id);
+                            trainThread(id, id == 0 ? printer : zeroPrinter);
+                            return null;
+                        }));
+                service.shutdown();
+                int num = args.thread();
+                try {
+                    while (num-- > 0) {
+                        completionService.take().get();
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    service.shutdownNow();
+                }
+            }
+
+            /**
+             * <pre>{@code void FastText::trainThread(int32_t threadId) {
+             *  std::ifstream ifs(args_->input);
+             *  utils::seek(ifs, threadId * utils::size(ifs) / args_->thread);
+             *  Model model(input_, output_, args_, threadId);
+             *  if (args_->model == model_name::sup) {
+             *      model.setTargetCounts(dict_->getCounts(entry_type::label));
+             *  } else {
+             *      model.setTargetCounts(dict_->getCounts(entry_type::word));
+             *  }
+             *  const int64_t ntokens = dict_->ntokens();
+             *  int64_t localTokenCount = 0;
+             *  std::vector<int32_t> line, labels;
+             *  while (tokenCount < args_->epoch * ntokens) {
+             *      real progress = real(tokenCount) / (args_->epoch * ntokens);
+             *      real lr = args_->lr * (1.0 - progress);
+             *      if (args_->model == model_name::sup) {
+             *          localTokenCount += dict_->getLine(ifs, line, labels, model.rng);
+             *          supervised(model, lr, line, labels);
+             *      } else if (args_->model == model_name::cbow) {
+             *          localTokenCount += dict_->getLine(ifs, line, model.rng);
+             *          cbow(model, lr, line);
+             *      } else if (args_->model == model_name::sg) {
+             *          localTokenCount += dict_->getLine(ifs, line, model.rng);
+             *          skipgram(model, lr, line);
+             *      }
+             *      if (localTokenCount > args_->lrUpdateRate) {
+             *          tokenCount += localTokenCount;
+             *          localTokenCount = 0;
+             *          if (threadId == 0 && args_->verbose > 1) {
+             *              printInfo(progress, model.getLoss());
+             *          }
+             *      }
+             *  }
+             *  if (threadId == 0 && args_->verbose > 0) {
+             *      printInfo(1.0, model.getLoss());
+             *      std::cerr << std::endl;
+             *  }
+             *  ifs.close();
+             * }}</pre>
+             *
+             * @param threadId the id of thread, used as random seed
+             * @param printer  auxiliary object to print logs
+             * @throws IOException if an I/O error occurs
+             */
+            private void trainThread(int threadId, BiConsumer<Float, Float> printer) throws IOException {
+                Model model = new Model(input, output, args, threadId);
+                try (FTReader reader = createReader()) {
+                    long skip = threadId * size / args.thread();
+                    reader.skipBytes(skip);
+                    if (ModelName.SUP.equals(args.model())) {
+                        model.setTargetCounts(dictionary.getCounts(EntryType.LABEL));
+                    } else {
+                        model.setTargetCounts(dictionary.getCounts(EntryType.WORD));
+                    }
+                    long ntokens = dictionary.ntokens();
+                    long localTokenCount = 0;
+                    List<Integer> line = new ArrayList<>();
+                    List<Integer> labels = new ArrayList<>();
+                    while (tokenCount.longValue() < args.epoch() * ntokens) {
+                        float progress = tokenCount.floatValue() / (args.epoch() * ntokens);
+                        float lr = (float) (args.lr() * (1.0 - progress));
+                        if (ModelName.SUP.equals(args.model())) {
+                            localTokenCount += dictionary.getLine(reader, line, labels);
+                            supervised(model, lr, line, labels);
+                        } else if (ModelName.CBOW.equals(args.model())) {
+                            localTokenCount += dictionary.getLine(reader, line, model.rng);
+                            cbow(model, lr, line);
+                        } else if (ModelName.SG.equals(args.model())) {
+                            localTokenCount += dictionary.getLine(reader, line, model.rng);
+                            skipgram(model, lr, line);
+                        }
+                        if (localTokenCount > args.lrUpdateRate()) {
+                            tokenCount.addAndGet(localTokenCount);
+                            localTokenCount = 0;
+                            printer.accept(progress, model.getLoss());
+                        }
+                    }
+                }
+                printer.accept(1f, model.getLoss());
+            }
+
+            /**
+             * <pre>{@code
+             * void FastText::supervised(Model& model, real lr, const std::vector<int32_t>& line, const std::vector<int32_t>& labels) {
+             *  if (labels.size() == 0 || line.size() == 0) return;
+             *  std::uniform_int_distribution<> uniform(0, labels.size() - 1);
+             *  int32_t i = uniform(model.rng);
+             *  model.update(line, labels[i], lr);
+             * }}</pre>
+             *
+             * @param model  {@link Model}
+             * @param lr     float
+             * @param line   List of ints
+             * @param labels List of ints
+             */
+            private void supervised(Model model, float lr, List<Integer> line, List<Integer> labels) {
+                if (labels.size() == 0 || line.size() == 0)
+                    return;
+                UniformIntegerDistribution uniform = new UniformIntegerDistribution(model.rng, 0, labels.size() - 1);
+                int i = uniform.sample();
+                model.update(line, labels.get(i), lr);
+            }
+
+            /**
+             * <pre>{@code
+             * void FastText::cbow(Model& model, real lr, const std::vector<int32_t>& line) {
+             *  std::vector<int32_t> bow;
+             *  std::uniform_int_distribution<> uniform(1, args_->ws);
+             *  for (int32_t w = 0; w < line.size(); w++) {
+             *      int32_t boundary = uniform(model.rng);
+             *      bow.clear();
+             *      for (int32_t c = -boundary; c <= boundary; c++) {
+             *          if (c != 0 && w + c >= 0 && w + c < line.size()) {
+             *              const std::vector<int32_t>& ngrams = dict_->getSubwords(line[w + c]);
+             *              bow.insert(bow.end(), ngrams.cbegin(), ngrams.cend());
+             *          }
+             *      }
+             *      model.update(bow, line[w], lr);
+             *  }
+             * }}</pre>
+             *
+             * @param model {@link Model}
+             * @param lr    float
+             * @param line  List of ints
+             */
+            private void cbow(Model model, float lr, List<Integer> line) {
+                UniformIntegerDistribution uniform = new UniformIntegerDistribution(model.rng, 1, args.ws());
+                for (int w = 0; w < line.size(); w++) {
+                    List<Integer> bow = new ArrayList<>();
+                    int boundary = uniform.sample();
+                    for (int c = -boundary; c <= boundary; c++) {
+                        int wc;
+                        if (c != 0 && (wc = w + c) >= 0 && wc < line.size()) {
+                            List<Integer> ngrams = dictionary.getSubwords(line.get(wc));
+                            bow.addAll(ngrams);
+                        }
+                    }
+                    model.update(bow, line.get(w), lr);
+                }
+            }
+
+            /**
+             * <pre>{@code void FastText::skipgram(Model& model, real lr, const std::vector<int32_t>& line) {
+             *  std::uniform_int_distribution<> uniform(1, args_->ws);
+             *  for (int32_t w = 0; w < line.size(); w++) {
+             *      int32_t boundary = uniform(model.rng);
+             *      const std::vector<int32_t>& ngrams = dict_->getSubwords(line[w]);
+             *      for (int32_t c = -boundary; c <= boundary; c++) {
+             *          if (c != 0 && w + c >= 0 && w + c < line.size()) {
+             *              model.update(ngrams, line[w + c], lr);
+             *          }
+             *      }
+             *  }
+             * }}</pre>
+             *
+             * @param model {@link Model}
+             * @param lr    float
+             * @param line  List of ints
+             */
+            private void skipgram(Model model, float lr, List<Integer> line) {
+                UniformIntegerDistribution uniform = new UniformIntegerDistribution(model.rng, 1, args.ws());
+                for (int w = 0; w < line.size(); w++) {
+                    int boundary = uniform.sample();
+                    List<Integer> ngrams = dictionary.getSubwords(line.get(w));
+                    for (int c = -boundary; c <= boundary; c++) {
+                        int wc;
+                        if (c != 0 && (wc = w + c) >= 0 && wc < line.size()) {
+                            model.update(ngrams, line.get(wc), lr);
+                        }
+                    }
+                }
+            }
+
+            /**
+             * Prints debug train info to console or somewhere else.
+             * <p>
+             * <pre>{@code void FastText::printInfo(real progress, real loss) {
+             *  real t = real(clock() - start) / CLOCKS_PER_SEC;
+             *  real wst = real(tokenCount) / t;
+             *  real lr = args_->lr * (1.0 - progress);
+             *  int eta = int(t / progress * (1 - progress) / args_->thread);
+             *  int etah = eta / 3600;
+             *  int etam = (eta - etah * 3600) / 60;
+             *  std::cerr << std::fixed;
+             *  std::cerr << "\rProgress: " << std::setprecision(1) << 100 * progress << "%";
+             *  std::cerr << "  words/sec/thread: " << std::setprecision(0) << wst;
+             *  std::cerr << "  lr: " << std::setprecision(6) << lr;
+             *  std::cerr << "  loss: " << std::setprecision(6) << loss;
+             *  std::cerr << "  eta: " << etah << "h" << etam << "m ";
+             *  std::cerr << std::flush;
+             * }}</pre>
+             *
+             * @param progress float
+             * @param loss     float
+             */
+            private void printInfo(float progress, float loss) {
+                Factory.this.printInfo(args, start, Instant.now(), tokenCount.get(), progress, loss);
             }
         }
     }

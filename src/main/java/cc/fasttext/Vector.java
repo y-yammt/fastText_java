@@ -9,6 +9,10 @@ import java.util.Objects;
 import java.util.function.DoubleUnaryOperator;
 import java.util.stream.Collectors;
 
+/**
+ * See <a href='https://github.com/facebookresearch/fastText/blob/master/src/vector.cc'>vector.cc</a> &
+ * <a href='https://github.com/facebookresearch/fastText/blob/master/src/vector.h'>vector.h</a>
+ */
 public strictfp class Vector {
 
     private float[] data_;

@@ -77,16 +77,15 @@ public strictfp class Model {
      *  }
      * }}</pre>
      *
-     * @param qwi
-     * @param qwo
-     * @param qout
-     * @return
+     * @param qwi {@link QMatrix}, input
+     * @param qwo {@link QMatrix}, output
+     * @return this model instance
      */
-    Model setQuantizePointer(QMatrix qwi, QMatrix qwo, boolean qout) {
+    Model setQuantizePointer(QMatrix qwi, QMatrix qwo) {
         this.qwi_ = qwi;
         this.qwo_ = qwo;
-        if (qout) {
-            osz_ = qwo_.getM();
+        if (this.args_.qout()) {
+            this.osz_ = this.qwo_.getM();
         }
         return this;
     }
