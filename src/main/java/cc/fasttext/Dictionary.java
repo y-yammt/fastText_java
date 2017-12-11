@@ -4,7 +4,10 @@ import cc.fasttext.io.FTInputStream;
 import cc.fasttext.io.FTOutputStream;
 import cc.fasttext.io.FTReader;
 import cc.fasttext.io.PrintLogs;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
 import com.google.common.primitives.UnsignedLong;
+import org.apache.commons.lang.Validate;
 import org.apache.commons.math3.distribution.UniformRealDistribution;
 import org.apache.commons.math3.random.RandomGenerator;
 
@@ -12,7 +15,6 @@ import java.io.IOException;
 import java.io.Reader;
 import java.nio.charset.Charset;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
@@ -46,13 +48,13 @@ public strictfp class Dictionary {
     private Map<Integer, Integer> pruneidx_ = new HashMap<>();
     private final Args args;
 
-    public Dictionary(Args args) {
+    Dictionary(Args args) {
         this.args = args;
         word2int_ = new HashMap<>(MAX_VOCAB_SIZE);
         words_ = new ArrayList<>(MAX_VOCAB_SIZE);
     }
 
-    public long find(String w) {
+    long find(String w) {
         return find(w, hash(w));
     }
 
@@ -69,7 +71,7 @@ public strictfp class Dictionary {
      * @param h
      * @return
      */
-    public long find(String w, long h) {
+    long find(String w, long h) {
         long id = h % MAX_VOCAB_SIZE;
         while (!Objects.equals(word2int_.getOrDefault(id, WORDID_DEFAULT), WORDID_DEFAULT) &&
                 !Objects.equals(words_.get(word2int_.get(id)).word, w)) {
@@ -96,7 +98,7 @@ public strictfp class Dictionary {
      *
      * @param w
      */
-    public void add(String w) {
+    void add(String w) {
         long h = find(w);
         ntokens_++;
         if (Objects.equals(word2int_.getOrDefault(h, WORDID_DEFAULT), WORDID_DEFAULT)) {
@@ -151,14 +153,14 @@ public strictfp class Dictionary {
      * @return
      */
     public EntryType getType(int id) {
-        Utils.checkArgument(id >= 0);
-        Utils.checkArgument(id < size_);
+        Validate.isTrue(id >= 0);
+        Validate.isTrue(id < size_);
         return words_.get(id).type;
     }
 
     public String getWord(int id) {
-        Utils.checkArgument(id >= 0);
-        Utils.checkArgument(id < size_);
+        Validate.isTrue(id >= 0);
+        Validate.isTrue(id < size_);
         return words_.get(id).word;
     }
 
@@ -197,7 +199,7 @@ public strictfp class Dictionary {
         return h & 0xffff_ffffL;
     }
 
-    public long hash(String str) {
+    long hash(String str) {
         return hash(str, args.charset());
     }
 
@@ -214,7 +216,7 @@ public strictfp class Dictionary {
      *  }
      * }}</pre>
      */
-    public void initNgrams() {
+    private void initNgrams() {
         for (int i = 0; i < size_; i++) {
             String word = BOW + words_.get(i).word + EOW;
             Entry e = words_.get(i);
@@ -257,8 +259,8 @@ public strictfp class Dictionary {
      * <pre>{@code
      * void Dictionary::computeSubwords(const std::string& word, std::vector<int32_t>& ngrams, std::vector<std::string>& substrings) const {
      *  for (size_t i = 0; i < word.size(); i++) {
-     *  std::string ngram;
-     *  if ((word[i] & 0xC0) == 0x80) continue;
+     *      std::string ngram;
+     *      if ((word[i] & 0xC0) == 0x80) continue;
      *      for (size_t j = i, n = 1; j < word.size() && n <= args_->maxn; n++) {
      *          ngram.push_back(word[j++]);
      *          while (j < word.size() && (word[j] & 0xC0) == 0x80) {
@@ -361,11 +363,10 @@ public strictfp class Dictionary {
      *
      * @param reader
      * @param logs
-     * @return
      * @throws IOException
      * @throws IllegalStateException
      */
-    long readFromFile(FTReader reader, PrintLogs logs) throws IOException, IllegalStateException {
+    void readFromFile(FTReader reader, PrintLogs logs) throws IOException, IllegalStateException {
         long minThreshold = 1;
         String word;
         while ((word = readWord(reader)) != null) {
@@ -389,7 +390,6 @@ public strictfp class Dictionary {
         if (size_ == 0) {
             throw new IllegalStateException("Empty vocabulary. Try a smaller -minCount value.");
         }
-        return reader.size();
     }
 
     /**
@@ -605,9 +605,9 @@ public strictfp class Dictionary {
      * @param rand
      * @return
      */
-    public boolean discard(int id, float rand) {
-        Utils.checkArgument(id >= 0);
-        Utils.checkArgument(id < nwords_);
+    private boolean discard(int id, float rand) {
+        Validate.isTrue(id >= 0);
+        Validate.isTrue(id < nwords_);
         return args.model() != Args.ModelName.SUP && rand > pdiscard_.get(id);
     }
 
@@ -661,7 +661,7 @@ public strictfp class Dictionary {
      * @param token
      * @param wid
      */
-    public void addSubwords(List<Integer> line, String token, int wid) {
+    private void addSubwords(List<Integer> line, String token, int wid) {
         if (wid < 0) { // out of vocab
             computeSubwords(BOW + token + EOW, line);
         } else {
@@ -686,9 +686,9 @@ public strictfp class Dictionary {
      * @param i
      * @return
      */
-    public List<Integer> getSubwords(int i) {
-        Utils.checkArgument(i >= 0);
-        Utils.checkArgument(i < nwords_);
+    List<Integer> getSubwords(int i) {
+        Validate.isTrue(i >= 0);
+        Validate.isTrue(i < nwords_);
         return words_.get(i).subwords;
     }
 
@@ -707,7 +707,7 @@ public strictfp class Dictionary {
      * @param word
      * @return
      */
-    public List<Integer> getSubwords(String word) {
+    List<Integer> getSubwords(String word) {
         int i = getId(word);
         if (i >= 0) {
             return getSubwords(i);
@@ -729,21 +729,26 @@ public strictfp class Dictionary {
      *  }
      *  computeSubwords(BOW + word + EOW, ngrams, substrings);
      * }}</pre>
-     *
-     * @param word
-     * @param ngrams
-     * @param substrings
+     * @param word String
+     * @return {@link Multimap}
      */
-    void getSubwords(String word, List<Integer> ngrams, List<String> substrings) {
+    Multimap<String, Integer> getSubwordsMap(String word) {
+        List<Integer> ngrams = new ArrayList<>();
+        List<String> substrings = new ArrayList<>();
         int i = getId(word);
-        ngrams.clear();
-        ;
-        substrings.clear();
         if (i >= 0) {
             ngrams.add(i);
             substrings.add(words_.get(i).word);
         }
         computeSubwords(BOW + word + EOW, ngrams, substrings);
+        if (ngrams.size() != substrings.size()) {
+            throw new IllegalStateException("ngrams(" + ngrams.size() + ") != substrings(" + substrings.size() + ")");
+        }
+        Multimap<String, Integer> res = ArrayListMultimap.create(ngrams.size(), 1);
+        for (int j = 0; j < ngrams.size(); j++) {
+            res.put(substrings.get(j), ngrams.get(j));
+        }
+        return res;
     }
 
     /**
@@ -762,11 +767,8 @@ public strictfp class Dictionary {
         if (!in.end()) {
             return;
         }
-        debug_rewind_count.incrementAndGet();
         in.rewind();
     }
-
-    public AtomicLong debug_rewind_count = new AtomicLong();
 
     /**
      * <pre>{@code
@@ -957,7 +959,7 @@ public strictfp class Dictionary {
         out.writeLong(ntokens_);
         out.writeLong(pruneidx_size_);
         for (Entry e : words_) {
-            Utils.writeString(out, e.word);
+            FTOutputStream.writeString(out, e.word, args.charset());
             out.writeLong(e.count);
             out.writeByte(e.type.ordinal());
         }
@@ -1011,7 +1013,7 @@ public strictfp class Dictionary {
         word2int_ = new HashMap<>(size_);
         words_ = new ArrayList<>(size_);
         for (int i = 0; i < size_; i++) {
-            Entry e = new Entry(Utils.readString(in), in.readLong(), EntryType.fromValue(in.readByte()));
+            Entry e = new Entry(FTInputStream.readString(in, args.charset()), in.readLong(), EntryType.fromValue(in.readByte()));
             words_.add(e);
             word2int_.put(find(e.word), i);
         }
@@ -1038,12 +1040,6 @@ public strictfp class Dictionary {
         res.pruneidx_ = new HashMap<>(this.pruneidx_);
         res.pdiscard_ = new ArrayList<>(this.pdiscard_);
         return res;
-    }
-
-    @Override
-    public String toString() {
-        return String.format("Dictionary [words_=%s, pdiscard_=%s, word2int_=%s, size_=%d, nwords_=%d, nlabels_=%d, ntokens_=%d]",
-                words_, pdiscard_, word2int_, size_, nwords_, nlabels_, ntokens_);
     }
 
     public List<Entry> getWords() {

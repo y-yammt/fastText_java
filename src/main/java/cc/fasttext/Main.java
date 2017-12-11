@@ -4,27 +4,28 @@ import cc.fasttext.io.IOStreams;
 import cc.fasttext.io.PrintLogs;
 import cc.fasttext.io.impl.LocalIOStreams;
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.Validate;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.PrintStream;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 import java.util.function.IntConsumer;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Main class with static methods to run FastText as application from command line.
  * The output to std:out, the input from std:in or from command line.
  * This and only this class must work with standard i/o and perform exit (from main method only).
- *
+ * <p>
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/main.cc'>main.cc</a>
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/main.h'>main.h</a>
  */
 public class Main {
 
-    private static final PrintLogs STD_OUT = PrintLogs.STANDARD;
     private static FastText.Factory factory = new FastText.Factory(new LocalIOStreams(), PrintLogs.NULL);
 
     public static void setFileSystem(IOStreams fileSystem) {
@@ -76,7 +77,7 @@ public class Main {
         FastText fasttext = loadModel(input[1]);
         String infile = input[2];
         FastText.TestInfo res = "-".equals(infile) ? fasttext.test(System.in, k) : fasttext.test(infile, k);
-        STD_OUT.println(res.toString());
+        System.out.println(res.toString());
     }
 
     /**
@@ -120,18 +121,17 @@ public class Main {
         }
         boolean printProb = "predict-prob".equalsIgnoreCase(input[0]);
         FastText fasttext = loadModel(input[1]);
-        // todo: change - no logs should be passed, just print here
-        fasttext.setLogs(new PrintLogs.Stream(System.out));
-        String infile = input[2];
-        if ("-".equals(infile)) { // read from pipe:
-            fasttext.predict(System.in, k, printProb);
-            return;
-        }
-        if (!fasttext.getFileSystem().canRead(infile)) {
-            throw new IOException("Input file cannot be opened!");
-        }
-        try (InputStream in = fasttext.getFileSystem().openInput(infile)) {
-            fasttext.predict(in, k, printProb);
+        String file = input[2];
+        try (Stream<Map<String, Float>> res = "-".equals(file) ? fasttext.predict(System.in, k) : fasttext.predict(file, k)) {
+            res.map(map -> map.entrySet().stream()
+                    .map(e -> {
+                        String line = e.getKey();
+                        if (printProb) {
+                            line += " " + asString(e.getValue(), 6);
+                        }
+                        return line;
+                    }).collect(Collectors.joining(" ")))
+                    .forEach(System.out::println);
         }
     }
 
@@ -153,7 +153,7 @@ public class Main {
      * }}</pre>
      *
      * @param input input parameters, array of strings, not null
-     * @throws IOException if an I/O error occurs
+     * @throws IOException              if an I/O error occurs
      * @throws IllegalArgumentException if input is wrong
      */
     public static void printWordVectors(String[] input) throws IOException, IllegalArgumentException {
@@ -187,7 +187,7 @@ public class Main {
      * }}</pre>
      *
      * @param input input parameters, array of strings, not null
-     * @throws IOException if an I/O error occurs
+     * @throws IOException              if an I/O error occurs
      * @throws IllegalArgumentException if input is wrong
      */
     public static void printSentenceVectors(String[] input) throws IOException, IllegalArgumentException {
@@ -215,7 +215,7 @@ public class Main {
      * }}</pre>
      *
      * @param input input parameters, array of strings, not null
-     * @throws IOException if an I/O error occurs
+     * @throws IOException              if an I/O error occurs
      * @throws IllegalArgumentException if input is wrong
      */
     public static void printNgrams(String[] input) throws IOException, IllegalArgumentException {
@@ -223,7 +223,7 @@ public class Main {
             throw Usage.PRINT_NGRAMS.toException();
         }
         FastText fasttext = loadModel(input[1]);
-        fasttext.ngramVectors(System.out, input[2]);
+        fasttext.ngramVectors(input[2]).forEach((subword, vec) -> System.out.println(subword + " " + vec));
     }
 
     /**
@@ -244,7 +244,7 @@ public class Main {
      * }}</pre>
      *
      * @param input input parameters, array of strings, not null
-     * @throws IOException if an I/O error occurs
+     * @throws IOException              if an I/O error occurs
      * @throws IllegalArgumentException if input is wrong
      */
     public static void nn(String[] input) throws IOException, IllegalArgumentException {
@@ -267,7 +267,7 @@ public class Main {
                 // ctrl+d
                 return;
             }
-            fasttext.nn(k, line).forEach((f, s) -> out.println(s + " " + Utils.formatNumber(f)));
+            fasttext.nn(k, line).forEach((s, f) -> out.println(s + " " + asString(f)));
         }
     }
 
@@ -289,7 +289,7 @@ public class Main {
      * }}</pre>
      *
      * @param input input parameters, array of strings, not null
-     * @throws IOException if an I/O error occurs
+     * @throws IOException              if an I/O error occurs
      * @throws IllegalArgumentException if input is wrong
      */
     public static void analogies(String[] input) throws IOException, IllegalArgumentException {
@@ -316,7 +316,8 @@ public class Main {
                 }
                 words.add(word);
             }
-            fasttext.analogies(k, words.get(0), words.get(1), words.get(2)).forEach((f, s) -> out.println(s + " " + Utils.formatNumber(f)));
+            fasttext.analogies(k, words.get(0), words.get(1), words.get(2))
+                    .forEach((s, f) -> out.println(s + " " + asString(f)));
         }
     }
 
@@ -335,8 +336,8 @@ public class Main {
      * }}</pre>
      *
      * @param input input parameters, array of strings, not null
-     * @throws IOException if an I/O error occurs
-     * @throws ExecutionException if any error occurs while training in several threads.
+     * @throws IOException              if an I/O error occurs
+     * @throws ExecutionException       if any error occurs while training in several threads.
      * @throws IllegalArgumentException if input is wrong
      */
     public static void train(String[] input) throws IOException, ExecutionException, IllegalArgumentException {
@@ -375,7 +376,7 @@ public class Main {
         if (!StringUtils.isEmpty(vectors) && !fileSystem().canRead(vectors)) {
             throw Usage.TRAIN.toException("Wrong -pretrainedVectors: can't read " + vectors, Usage.ARGS);
         }
-        FastText fasttext = factory.setLogs(STD_OUT).train(parseArgs(type, args), data, vectors);
+        FastText fasttext = factory.setLogs(PrintLogs.STANDARD).train(parseArgs(type, args), data, vectors);
         fasttext.saveModel(bin);
         fasttext.saveVectors(vec);
         if (out == null) return;
@@ -400,8 +401,8 @@ public class Main {
      * }}</pre>
      *
      * @param input input parameters, array of strings, not null
-     * @throws IOException if an I/O error occurs during load or retraining.
-     * @throws ExecutionException if any error occurs while training in several threads.
+     * @throws IOException              if an I/O error occurs during load or retraining.
+     * @throws ExecutionException       if any error occurs while training in several threads.
      * @throws IllegalArgumentException if input is wrong
      */
     public static void quantize(String[] input) throws IOException, ExecutionException, IllegalArgumentException {
@@ -435,7 +436,7 @@ public class Main {
             throw Usage.QUANTIZE.toException("Option -saveOutput is not supported for quantized models", Usage.ARGS);
         }
         Args args = parseArgs(Args.ModelName.SUP, map);
-        FastText fasttext = factory.setLogs(STD_OUT).load(bin).quantize(args, data);
+        FastText fasttext = factory.setLogs(PrintLogs.STANDARD).load(bin).quantize(args, data);
         fasttext.saveModel(ftz);
         fasttext.saveVectors(vec);
     }
@@ -597,7 +598,7 @@ public class Main {
      * }}</pre>
      *
      * @param model {@link Args.ModelName}, not null
-     * @param args Map of input parameters, see {@link #toMap(String...)}
+     * @param args  Map of input parameters, see {@link #toMap(String...)}
      * @return {@link Args}
      * @throws IllegalArgumentException if input is wrong
      */
@@ -692,6 +693,26 @@ public class Main {
         if (!map.containsKey(key)) return;
         String value = Objects.requireNonNull(map.get(key), "Null value for " + key);
         setter.accept(Boolean.parseBoolean(value));
+    }
+
+    /**
+     * @param number float
+     * @return String
+     */
+    public static String asString(float number) {
+        return asString(number, 5);
+    }
+
+    /**
+     * Formats a float value in c++ linux style
+     *
+     * @param number    float
+     * @param precision int, positive
+     * @return String
+     */
+    public static String asString(float number, int precision) {
+        Validate.isTrue(precision > 0);
+        return String.format(Locale.US, "%." + precision + "g", number).replaceFirst("0+($|e)", "$1").replaceFirst("\\.$", "");
     }
 
     /**
@@ -795,7 +816,6 @@ public class Main {
         }
 
         static class WrongInputException extends IllegalArgumentException {
-
             WrongInputException(String s) {
                 super(s);
             }

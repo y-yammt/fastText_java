@@ -4,9 +4,7 @@ import cc.fasttext.Args.ModelName;
 import cc.fasttext.Dictionary.EntryType;
 import cc.fasttext.io.*;
 import cc.fasttext.io.impl.LocalIOStreams;
-import com.google.common.collect.ImmutableListMultimap;
-import com.google.common.collect.Multimap;
-import com.google.common.collect.TreeMultimap;
+import com.google.common.collect.*;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
 import org.apache.commons.math3.distribution.UniformIntegerDistribution;
@@ -24,13 +22,16 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * FastText class, can be used as a lib in other projects.
- * Assuming to be 'immutable' (if only methods of this class are called, modify model would cause change state of instance)
+ * It is assumed that all public methods of the instance do not change the state of the object, and therefore thread-safe.
  * <p>
  * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/fasttext.cc'>fasttext.cc</a> and
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/fasttext.h'>fasttext.h</a>
@@ -280,11 +281,13 @@ public strictfp class FastText {
      * }
      * }</pre>
      *
-     * @param wordVectors
-     * @param queryVec
-     * @param k
-     * @param banSet
-     * @return
+     * @param wordVectors {@link Matrix}
+     * @param queryVec    {@link java.util.Vector}
+     * @param k           int
+     * @param banSet      Set
+     * @return {@link Multimap}
+     * @see #nn(int, String)
+     * @see #analogies(int, String, String, String)
      */
     private Multimap<Float, String> findNN(Matrix wordVectors, Vector queryVec, int k, Set<String> banSet) {
         float queryNorm = queryVec.norm();
@@ -312,7 +315,6 @@ public strictfp class FastText {
     }
 
     /**
-     * TODO:
      * <pre>{@code void FastText::nn(int32_t k) {
      *  std::string queryWord;
      *  Vector queryVec(args_->dim);
@@ -329,16 +331,19 @@ public strictfp class FastText {
      *  }
      * }}</pre>
      *
-     * @param k
-     * @param queryWord
-     * @return
+     * @param k          int factor
+     * @param queryWord, String word to query
+     * @return {@link Multimap}
+     * @throws IllegalArgumentException if wrong input
      */
-    public Multimap<Float, String> nn(int k, String queryWord) {
+    public Multimap<String, Float> nn(int k, String queryWord) throws IllegalArgumentException {
+        Validate.notEmpty(queryWord, "Empty query word");
+        Validate.isTrue(k > 0, "Not positive factor");
         Matrix wordVectors = getPrecomputedWordVectors();
         Set<String> banSet = new HashSet<>();
         banSet.add(queryWord);
         Vector queryVec = getWordVector(queryWord);
-        return findNN(wordVectors, queryVec, k, banSet);
+        return Multimaps.invertFrom(findNN(wordVectors, queryVec, k, banSet), ArrayListMultimap.create());
     }
 
     /**
@@ -369,13 +374,17 @@ public strictfp class FastText {
      * }
      * }}</pre>
      *
-     * @param k
-     * @param a
-     * @param b
-     * @param c
-     * @return
+     * @param k  int factor, > 0
+     * @param a  String, first word, not null, not empty
+     * @param b  String, second word, not null, not empty
+     * @param c  String, third word, not null, not empty
+     * @return {@link Multimap}
      */
-    public Multimap<Float, String> analogies(int k, String a, String b, String c) {
+    public Multimap<String, Float> analogies(int k, String a, String b, String c) {
+        Validate.notEmpty(a, "Empty first query word");
+        Validate.notEmpty(b, "Empty second query word");
+        Validate.notEmpty(c, "Empty third query word");
+        Validate.isTrue(k > 0, "Not positive factor");
         Matrix wordVectors = getPrecomputedWordVectors();
         Set<String> banSet = new HashSet<>();
         banSet.add(a);
@@ -385,11 +394,10 @@ public strictfp class FastText {
         query.addVector(getWordVector(b), -1.0f);
         banSet.add(c);
         query.addVector(getWordVector(c), 1.0f);
-        return findNN(wordVectors, query, k, banSet);
+        return Multimaps.invertFrom(findNN(wordVectors, query, k, banSet), ArrayListMultimap.create());
     }
 
     /**
-     * TODO: must not accept PrintStream: it is work for {@link Main}
      * <pre>{@code void FastText::ngramVectors(std::string word) {
      *  std::vector<int32_t> ngrams;
      *  std::vector<std::string> substrings;
@@ -408,20 +416,18 @@ public strictfp class FastText {
      *  }
      * }}</pre>
      *
-     * @param out
-     * @param word
+     * @param word String to search ngrams
+     * @return {@link Multimap}, subwords (String) as keys, ngrams (int) as values
      */
-    void ngramVectors(PrintStream out, String word) {
-        List<Integer> ngrams = new ArrayList<>();
-        List<String> substrings = new ArrayList<>();
-        dict.getSubwords(word, ngrams, substrings);
-        for (int i = 0; i < ngrams.size(); i++) {
+    public Multimap<String, Vector> ngramVectors(String word) {
+        Validate.notEmpty(word, "Empty word");
+        return Multimaps.transformValues(dict.getSubwordsMap(word), ngram -> {
             Vector vec = new Vector(args.dim());
-            if (ngrams.get(i) >= 0) {
-                addInputVector(vec, ngrams.get(i));
+            if (ngram != null && ngram >= 0) {
+                addInputVector(vec, ngram);
             }
-            out.println(substrings.get(i) + " " + vec);
-        }
+            return vec;
+        });
     }
 
     /**
@@ -433,8 +439,8 @@ public strictfp class FastText {
      *  }
      * }}</pre>
      *
-     * @param vec
-     * @param ind
+     * @param vec {@link Vector}
+     * @param ind int
      */
     private void addInputVector(Vector vec, int ind) {
         if (model.isQuant()) {
@@ -467,7 +473,7 @@ public strictfp class FastText {
      * }</pre>
      *
      * @param file, String file uri path, not null
-     * @throws IOException if an I/O error occurs
+     * @throws IOException              if an I/O error occurs
      * @throws IllegalArgumentException if no possible to write file
      */
     public void saveVectors(String file) throws IOException, IllegalArgumentException {
@@ -501,9 +507,9 @@ public strictfp class FastText {
      * }</pre>
      *
      * @param file, String file uri path, not null
-     * @throws IOException if an I/O error occurs
+     * @throws IOException              if an I/O error occurs
      * @throws IllegalArgumentException if no possible to write file
-     * @throws IllegalStateException if model is quantized
+     * @throws IllegalStateException    if model is quantized
      */
     public void saveOutput(String file) throws IOException, IllegalArgumentException, IllegalStateException {
         if (getModel().isQuant()) {
@@ -528,7 +534,7 @@ public strictfp class FastText {
      * @param lines  int first line
      * @param word   function to get String word
      * @param vector function to get {@link Vector vector}
-     * @throws IOException in case of io error
+     * @throws IOException              in case of io error
      * @throws IllegalArgumentException if no possible to write file
      */
     private void writeVectors(String name, String file, int lines, IntFunction<String> word, IntFunction<Vector> vector) throws IOException, IllegalArgumentException {
@@ -550,24 +556,7 @@ public strictfp class FastText {
     }
 
     /**
-     * Writes versions to the model file bin.
-     * <pre>{@code
-     * void FastText::signModel(std::ostream& out) {
-     *  const int32_t magic = FASTTEXT_FILEFORMAT_MAGIC_INT32;
-     *  const int32_t version = FASTTEXT_VERSION;
-     *  out.write((char*)&(magic), sizeof(int32_t));
-     *  out.write((char*)&(version), sizeof(int32_t));
-     * }}</pre>
-     *
-     * @param out {@link FTOutputStream} binary just opened output stream
-     * @throws IOException if something is wrong
-     */
-    private static void signModel(FTOutputStream out) throws IOException {
-        out.writeInt(FASTTEXT_FILEFORMAT_MAGIC_INT32);
-        out.writeInt(FASTTEXT_VERSION);
-    }
-
-    /**
+     * Saves model to file.
      * <pre>{@code
      * void FastText::saveModel() {
      *  std::string fn(args_->output);
@@ -601,8 +590,8 @@ public strictfp class FastText {
      * }
      * }</pre>
      *
-     * @param file the full file path to save binary model (*.bin or .*ftz)
-     * @throws IOException in case of i/o error
+     * @param file the full file path-uri to save binary model (*.bin or .*ftz)
+     * @throws IOException              in case of i/o error
      * @throws IllegalArgumentException if no possible to write file
      */
     public void saveModel(String file) throws IOException, IllegalArgumentException {
@@ -633,8 +622,26 @@ public strictfp class FastText {
     }
 
     /**
-     * Performs testing.
+     * Writes versions to the model file bin.
+     * <pre>{@code
+     * void FastText::signModel(std::ostream& out) {
+     *  const int32_t magic = FASTTEXT_FILEFORMAT_MAGIC_INT32;
+     *  const int32_t version = FASTTEXT_VERSION;
+     *  out.write((char*)&(magic), sizeof(int32_t));
+     *  out.write((char*)&(version), sizeof(int32_t));
+     * }}</pre>
      *
+     * @param out {@link FTOutputStream} binary just opened output stream
+     * @throws IOException if something is wrong
+     */
+    private static void signModel(FTOutputStream out) throws IOException {
+        out.writeInt(FASTTEXT_FILEFORMAT_MAGIC_INT32);
+        out.writeInt(FASTTEXT_VERSION);
+    }
+
+    /**
+     * Performs testing.
+     * <p>
      * <pre>{@code void FastText::test(std::istream& in, int32_t k) {
      *  int32_t nexamples = 0, nlabels = 0;
      *  double precision = 0.0;
@@ -668,7 +675,7 @@ public strictfp class FastText {
      */
     public TestInfo test(InputStream in, int k) throws IOException {
         Objects.requireNonNull(in, "Null input");
-        Validate.isTrue(k > 0, "Negative factor");
+        Validate.isTrue(k > 0, "Not positive factor");
         int nexamples = 0, nlabels = 0;
         double precision = 0.0;
         List<Integer> line = new ArrayList<>();
@@ -689,10 +696,11 @@ public strictfp class FastText {
 
     /**
      * Tests a file
+     *
      * @param file file path uri, not null
-     * @param k  the number of result labels
+     * @param k    the number of result labels
      * @return {@link TestInfo} object.
-     * @throws IOException if something wrong while reading/writing
+     * @throws IOException              if something wrong while reading/writing
      * @throws IllegalArgumentException in case wrong file specified.
      */
     public TestInfo test(String file, int k) throws IOException {
@@ -737,29 +745,59 @@ public strictfp class FastText {
         Vector output = new Vector(dict.nlabels());
         TreeMultimap<Float, Integer> map = model.predict(words, k, hidden, output);
         @SuppressWarnings("ConstantConditions")
-        Multimap<String, Float> res = TreeMultimap.create(this::compareLabels, map.keySet().comparator());
+        Multimap<String, Float> res = TreeMultimap.create((left, right) -> compareLabels(args.label(), left, right), map.keySet().comparator());
         map.forEach((f, i) -> res.put(dict.getLabel(i), f));
         return res;
     }
 
     /**
-     * Compares labels for output.
+     * Compares labels for output, auxiliary method.
      *
+     * @param label String, label template, e.g.'__label__'
      * @param left  String, label
      * @param right String, label
      * @return int
      */
-    private int compareLabels(String left, String right) {
+    private static int compareLabels(String label, String left, String right) {
         String dig1, dig2;
-        if ((dig1 = left.replace(args.label(), "")).matches("\\d+") && (dig2 = right.replace(args.label(), "")).matches("\\d+")) {
+        if ((dig1 = left.replace(label, "")).matches("\\d+") && (dig2 = right.replace(label, "")).matches("\\d+")) {
             return Integer.compare(Integer.valueOf(dig1), Integer.valueOf(dig2));
         }
         return left.compareTo(right);
     }
 
     /**
-     * todo: must not accept PrintStream: all std-out tasks should be delegated to the {@link Main}
-     * Predicts most likely labels.
+     * Transforms {@link Multimap} -> {@link Map}, auxiliary method.
+     *
+     * @param map         Multimap
+     * @param valueMapper function to extract value from multimap
+     * @param <K>         key
+     * @param <V>         value
+     * @return {@link LinkedHashMap}
+     * @throws IllegalStateException in case duplicate labels found
+     */
+    private static <K, V> Map<K, V> toStandardMap(Multimap<K, V> map, Function<Map.Entry<K, V>, V> valueMapper) throws IllegalStateException {
+        return map.entries().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey,
+                        valueMapper,
+                        (f1, f2) -> {
+                            throw new IllegalStateException("Duplicate label");
+                        }, LinkedHashMap::new));
+    }
+
+    /**
+     * @param predictions {@link Multimap}, labels (String) as keys, probabilities (float) as values
+     * @return {@link Map}
+     * @throws IllegalStateException in case duplicate labels found
+     * @see #predict(FTReader, int)
+     */
+    private static Map<String, Float> toProbabilityMap(Multimap<String, Float> predictions) throws IllegalStateException {
+        return toStandardMap(predictions, p -> (float) FastMath.exp(p.getValue()));
+    }
+
+    /**
+     * Predicts most likely labels for input stream.
+     * The result is a functional stream to save memory
      * Original code:
      * <pre>{@code void FastText::predict(std::istream& in, int32_t k, bool print_prob) {
      *  std::vector<std::pair<real,std::string>> predictions;
@@ -783,59 +821,89 @@ public strictfp class FastText {
      *  }
      * }}</pre>
      *
-     * @param in        {@link InputStream} to read data
-     * @param out       {@link PrintStream} to write data
-     * @param k         the number of result labels
-     * @param printProb if true include also probabilities to output
-     * @throws IOException if something wrong.
+     * @param in {@link InputStream} to read data
+     * @param k  the number of result labels in the line
+     * @return {@link Stream} of {@link Map map}s with labels as keys and probabilities (float) as values with size equals {@code k}
+     * @see #predict(String, int)
      */
-    public void predict(InputStream in, PrintLogs out, int k, boolean printProb) throws IOException {
+    public Stream<Map<String, Float>> predict(InputStream in, int k) {
         Objects.requireNonNull(in, "Null input");
-        Objects.requireNonNull(out, "Null output");
-        Validate.isTrue(k > 0, "Negative factor");
-
+        Validate.isTrue(k > 0, "Not positive factor");
         FTReader reader = new FTReader(in, args.charset());
-        while (!reader.end()) {
-            Multimap<String, Float> predictions = predict(reader, k);
-            if (predictions.isEmpty()) continue;
-            String line = predictions.entries().stream().map(pair -> {
-                String res = pair.getKey();
-                if (printProb) {
-                    res += " " + Utils.formatNumber(Math.exp(pair.getValue()));
+        Spliterator<Map<String, Float>> res = Spliterators.spliteratorUnknownSize(new Iterator<Map<String, Float>>() {
+            @Override
+            public boolean hasNext() {
+                try {
+                    return !reader.end();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
                 }
-                return res;
-            }).collect(Collectors.joining(" "));
-            out.println(line);
-        }
+            }
+
+            @Override
+            public Map<String, Float> next() {
+                boolean hasNext;
+                try {
+                    hasNext = !reader.end();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                if (!hasNext) throw new NoSuchElementException();
+                try {
+                    return toProbabilityMap(predict(reader, k));
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+        }, 0);
+        return StreamSupport.stream(res, false).filter(m -> !m.isEmpty());
     }
 
     /**
-     * Predicts and prints to standard output.
+     * Predicts most likely labels for specified file.
+     * Returns a functional stream of lines, where each line is a map.
+     * Note: don't forget to call {@link Stream#close()} after terminate operation.
      *
-     * @param in        {@link InputStream} to read data
-     * @param k,        int the factor.
-     * @param printProb to print probs.
-     * @throws IOException if something is wrong.
+     * @param file the file uri-path to predict
+     * @param k    int, the factor (size of result map)
+     * @return Stream of map (lines), where label is a key and probability is a value, the size of map is {@code k}
+     * @throws IOException              if unable to open file
+     * @throws IllegalArgumentException if wrong input
+     * @see #predict(InputStream, int)
      */
-    public void predict(InputStream in, int k, boolean printProb) throws IOException {
-        predict(in, this.logs, k, printProb);
+    public Stream<Map<String, Float>> predict(String file, int k) throws IOException, IllegalArgumentException {
+        if (!fs.canRead(file)) {
+            throw new IllegalArgumentException("Can't read file " + file);
+        }
+        InputStream in = fs.openInput(file);
+        return predict(in, k).onClose(() -> {
+            try {
+                in.close();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
     }
 
     /**
      * Predicts the given line.
      *
-     * @param line, String data to analyze
-     * @param k,    int, the factor.
-     * @return {@link Multimap}, labels as keys, probability as values
-     * @throws IOException if something wrong.
+     * @param line String data to analyze
+     * @param k    int, the factor (size of result map)
+     * @return Map, labels as keys, probability as values
+     * @throws IOException              if something wrong with underling IO mechanisms (i.o. {@link FTReader})
+     * @throws IllegalStateException    if duplicate labels in the output
+     * @throws IllegalArgumentException if wrong input
      */
-    public Multimap<String, Float> predict(String line, int k) throws IOException {
-        InputStream in = new ByteArrayInputStream(line.getBytes(args.charset().name()));
-        FTReader r = new FTReader(in, args.charset());
-        return predict(r, k);
+    public Map<String, Float> predictLine(String line, int k) throws IOException, IllegalStateException, IllegalArgumentException {
+        Validate.notEmpty(line, "Null line specified.");
+        Validate.isTrue(k > 0, "Negative or zero factor");
+        FTReader r = new FTReader(new ByteArrayInputStream(line.getBytes(args.charset().name())), args.charset());
+        return toProbabilityMap(predict(r, k));
     }
 
     /**
+     * Auxiliary method, used while {@link #quantize(Args, String)}
      * <pre>{@code std::vector<int32_t> FastText::selectEmbeddings(int32_t cutoff) const {
      *  Vector norms(input_->m_);
      *  input_->l2NormRow(norms);
@@ -849,8 +917,8 @@ public strictfp class FastText {
      *  return idx;
      * }}</pre>
      *
-     * @param cutoff
-     * @return
+     * @param cutoff int, the size of result list
+     * @return List of ints
      */
     private List<Integer> selectEmbeddings(int cutoff) {
         Vector norms = model.input().l2NormRow();
@@ -904,14 +972,14 @@ public strictfp class FastText {
      * }}</pre>
      *
      * @param other
-     * @param dataFileURIToRetrain String, the file uri with data to perform retrain, nullable
+     * @param fileToRetrain String, the file uri with data to perform retrain, nullable
      * @return new {@link FastText fasttext model} instance.
      * @throws IOException              if an I/O error occurs while retraining.
      * @throws ExecutionException       if any error occurs while retraining
      * @throws IllegalStateException    in case model is already quantized.
      * @throws IllegalArgumentException if some args are wrong.
      */
-    public FastText quantize(Args other, String dataFileURIToRetrain) throws IOException, ExecutionException, IllegalStateException, IllegalArgumentException {
+    public FastText quantize(Args other, String fileToRetrain) throws IOException, ExecutionException, IllegalStateException, IllegalArgumentException {
         if (model.isQuant()) {
             throw new IllegalStateException("Already quantized.");
         }
@@ -936,7 +1004,7 @@ public strictfp class FastText {
                     input.put(i, j, model.input().at(idx.get(i), j));
                 }
             }
-            if (!StringUtils.isEmpty(dataFileURIToRetrain)) {
+            if (!StringUtils.isEmpty(fileToRetrain)) {
                 qargs = new Args.Builder()
                         .copy(qargs)
                         .setEpoch(other.epoch())
@@ -944,7 +1012,7 @@ public strictfp class FastText {
                         .setThread(other.thread())
                         .setVerbose(other.verbose())
                         .build();
-                Model model = new Factory(fs, logs).newTrainer(qargs, dataFileURIToRetrain, qdict, input, output).train();
+                Model model = new Factory(fs, logs).newTrainer(qargs, fileToRetrain, qdict, input, output).train();
                 input = model.input();
                 output = model.output();
             }

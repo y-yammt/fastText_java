@@ -470,8 +470,8 @@ public strictfp class Model {
      * @param lr
      */
     public void update(final List<Integer> input, int target, float lr) {
-        Utils.checkArgument(target >= 0);
-        Utils.checkArgument(target < osz_);
+        Validate.isTrue(target >= 0);
+        Validate.isTrue(target < osz_);
         if (input.size() == 0) {
             return;
         }
@@ -508,7 +508,7 @@ public strictfp class Model {
      * @param counts
      */
     public void setTargetCounts(final List<Long> counts) {
-        Utils.checkArgument(counts.size() == osz_);
+        Validate.isTrue(counts.size() == osz_);
         if (args_.loss() == Args.LossName.NS) {
             initTableNegatives(counts);
         }

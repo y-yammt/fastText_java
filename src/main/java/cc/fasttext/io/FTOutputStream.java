@@ -4,7 +4,9 @@ import com.google.common.io.LittleEndianDataOutputStream;
 
 import java.io.FilterOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.Charset;
 import java.util.Objects;
 
 
@@ -67,5 +69,19 @@ public class FTOutputStream extends FilterOutputStream {
     @Override
     public void close() throws IOException {
         out.close();
+    }
+
+    /**
+     * Writes string to the output stream as byte array in specified encoding with '0' as end indicator.
+     *
+     * @param out     {@link OutputStream} any output stream, not null
+     * @param str     String, not null
+     * @param charset {@link Charset}, not null
+     * @throws IOException if something goes wrong
+     * @see FTInputStream#readString(InputStream, Charset)
+     */
+    public static void writeString(OutputStream out, String str, Charset charset) throws IOException {
+        out.write(str.getBytes(charset));
+        out.write(0);
     }
 }

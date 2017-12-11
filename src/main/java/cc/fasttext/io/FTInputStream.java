@@ -2,9 +2,10 @@ package cc.fasttext.io;
 
 import com.google.common.io.LittleEndianDataInputStream;
 
-import java.io.FilterInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
+import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -79,4 +80,41 @@ public class FTInputStream extends FilterInputStream {
         return in().readDouble();
     }
 
+    /**
+     * Reads an array of bytes from input stream till specified end character
+     *
+     * @param in  {@link InputStream}
+     * @param end byte
+     * @return byte[]
+     * @throws IOException and I/O error
+     */
+    public static byte[] readUpToByte(InputStream in, byte end) throws IOException {
+        List<Integer> buff = new ArrayList<>(128);
+        while (true) {
+            int c = in.read();
+            if (c == end) {
+                break;
+            }
+            if (c == -1) throw new EOFException();
+            buff.add(c);
+        }
+        byte[] res = new byte[buff.size()];
+        for (int i = 0; i < buff.size(); i++) {
+            res[i] = buff.get(i).byteValue();
+        }
+        return res;
+    }
+
+    /**
+     * Reads string from output stream in specified encoding, byte '0' indicates the end of String
+     *
+     * @param in      {@link InputStream} any input stream, not null
+     * @param charset {@link Charset}, not null
+     * @return decoded String
+     * @throws IOException if something goes wrong
+     * @see FTOutputStream#writeString(OutputStream, String, Charset)
+     */
+    public static String readString(InputStream in, Charset charset) throws IOException {
+        return new String(readUpToByte(in, (byte) 0), charset);
+    }
 }

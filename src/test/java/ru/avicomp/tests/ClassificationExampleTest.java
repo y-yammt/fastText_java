@@ -2,7 +2,6 @@ package ru.avicomp.tests;
 
 import cc.fasttext.FastText;
 import cc.fasttext.Main;
-import cc.fasttext.io.PrintLogs;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.FixMethodOrder;
@@ -114,8 +113,8 @@ public class ClassificationExampleTest {
                 " -cutoff 100000", train, model));
         Assert.assertTrue("No .ftz found", Files.exists(ftz));
         Assert.assertTrue("No .vec found", Files.exists(vec));
-        // 0.5 kb allowed diff:
-        Assert.assertEquals("Incorrect size of dbpedia.ftz model", DBPEDIA_MODEL_FTZ_SIZE, Files.size(ftz), 500);
+        // 0.6 kb allowed diff:
+        Assert.assertEquals("Incorrect size of dbpedia.ftz model", DBPEDIA_MODEL_FTZ_SIZE, Files.size(ftz), 600);
     }
 
     private Path getModelBinPath() throws Exception {
@@ -177,16 +176,16 @@ public class ClassificationExampleTest {
 
     @Test
     public void test05PredictFileBin() throws Exception {
-        testPredictFile(getModelBinPath(), false, 0);
+        testPredictFile(getModelBinPath(), 0);
     }
 
     @Test
     public void test06PredictFileFtz() throws Exception {
         // precision issue: original (cpp+) fasttext also shows one difference when use ftz model:
-        testPredictFile(getModelFtzPath(), true, 1);
+        testPredictFile(getModelFtzPath(), 1);
     }
 
-    private void testPredictFile(Path model, boolean quant, int allowedDeviation) throws Exception {
+    private void testPredictFile(Path model, int allowedDeviation) throws Exception {
         Path result = Paths.get(ClassificationExampleTest.class.getResource("/dbpedia.cut.test.predict").toURI());
         Path test = Paths.get(ClassificationExampleTest.class.getResource("/dbpedia.cut.test").toURI());
         LOGGER.info("Test 'prediction'. Data={}, Model={}", test, model.toRealPath());
@@ -194,21 +193,17 @@ public class ClassificationExampleTest {
                 .map(String::trim)
                 .collect(Collectors.toList());
 
-        String bin = model.toString();
-        FastText fastText = FastText.load(bin);
-        Assert.assertEquals(quant, fastText.getModel().isQuant());
-
-        List<String> actual;
-        LOGGER.info("Cmd: 'predict {} {} 1'", bin, test);
-        try (ByteArrayOutputStream array = new ByteArrayOutputStream();
-             PrintStream out = new PrintStream(array);
-             InputStream in = Files.newInputStream(test)) {
-            fastText.setLogs(new PrintLogs.Stream(out));
-            fastText.predict(in, 1, false);
-            actual = Arrays.stream(array.toString(StandardCharsets.UTF_8.name()).split("\n"))
-                    .map(String::trim)
-                    .collect(Collectors.toList());
+        PrintStream stdOut = System.out;
+        ByteArrayOutputStream array = new ByteArrayOutputStream();
+        try (PrintStream out = new PrintStream(array)) {
+            System.setOut(out);
+            Main.predict(TestsBase.cmd("predict %s %s 1", model.toString(), test));
+        } finally {
+            System.setOut(stdOut);
         }
+        List<String> actual = Arrays.stream(array.toString(StandardCharsets.UTF_8.name()).split("\n"))
+                .map(String::trim)
+                .collect(Collectors.toList());
         Assert.assertEquals(expected.size(), actual.size());
         LOGGER.debug("E: {}", expected);
         LOGGER.debug("A: {}", actual);
@@ -251,27 +246,29 @@ public class ClassificationExampleTest {
     }
 
     private static List<Map<String, List<Float>>> predictProb(Path bin, List<String> testData, int k) throws Exception {
-        String input = testData.stream().collect(Collectors.joining("\n")) + "\n";
-        LOGGER.info("Input: {}", input);
+        String inputString = testData.stream().collect(Collectors.joining("\n")) + "\n";
+        LOGGER.info("Input: \"{}\"", inputString);
 
         ByteArrayOutputStream output = new ByteArrayOutputStream();
-        InputStream _in = System.in;
-        PrintStream _out = System.out;
-        try (PrintStream out = new PrintStream(output, true, StandardCharsets.UTF_8.name());
-             InputStream in = new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8.name()))) {
-            System.setIn(in);
+        ByteArrayInputStream input = new ByteArrayInputStream(inputString.getBytes(StandardCharsets.UTF_8.name()));
+
+        InputStream stdIn = System.in;
+        PrintStream stdOut = System.out;
+        try (PrintStream out = new PrintStream(output)) {
             System.setOut(out);
+            System.setIn(input);
             Main.run(TestsBase.cmd("predict-prob %s %s " + k, bin, "-"));
         } finally {
-            System.setIn(_in);
-            System.setOut(_out);
+            System.setIn(stdIn);
+            System.setOut(stdOut);
         }
-        String str = new String(output.toByteArray(), StandardCharsets.UTF_8);
-        LOGGER.info("Output: {}", str);
+        String outputString = new String(output.toByteArray(), StandardCharsets.UTF_8);
+        LOGGER.info("Output: \"{}\"", outputString);
+
+        String[] lines = outputString.split("\n");
+        Assert.assertEquals("Wrong lines", testData.size(), lines.length);
 
         List<Map<String, List<Float>>> res = new ArrayList<>();
-        String[] lines = str.split("\n");
-        Assert.assertEquals("Wrong lines", testData.size(), lines.length);
         for (int i = 0; i < lines.length; i++) {
             Map<String, List<Float>> map = parsePredictLine(lines[i]);
             LOGGER.debug("'{}'\t=>\t{}", testData.get(i), map);

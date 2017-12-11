@@ -235,14 +235,14 @@ public strictfp class Vector {
     }
 
     /**
-     * todo: fix.
-     * see {@link Utils#formatNumber(float)}
-     *
-     * @return
+     * Returns a string representation of the vector.
+     * Used while printing to console and save vectors to file.
+     * @return vector as String
+     * @see Main#asString(float)
      */
     @Override
     public String toString() {
-        return getData().stream().map(Utils::formatNumber).collect(Collectors.joining(" "));
+        return getData().stream().map(Main::asString).collect(Collectors.joining(" "));
     }
 
 }

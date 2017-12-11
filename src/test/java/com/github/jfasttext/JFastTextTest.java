@@ -2,8 +2,6 @@ package com.github.jfasttext;
 
 import cc.fasttext.Args;
 import cc.fasttext.FastText;
-import cc.fasttext.io.PrintLogs;
-import com.google.common.collect.Multimap;
 import com.google.common.primitives.Doubles;
 import org.junit.After;
 import org.junit.Assert;
@@ -14,8 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.avicomp.TestsBase;
 
-import java.io.*;
-import java.nio.charset.StandardCharsets;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -78,17 +75,12 @@ public class JFastTextTest {
     public void test04Predict() throws Exception {
         LOGGER.info("Test predict");
         FastText jft = FastText.load(TestsBase.DESTINATION_DIR.resolve("supervised.model.bin").toString());
-
         String text = "I like soccer";
-
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
-        try (InputStream in = new ByteArrayInputStream(text.getBytes(StandardCharsets.UTF_8.name()));
-             PrintStream out = new PrintStream(output, true, StandardCharsets.UTF_8.name())) {
-            jft.predict(in, new PrintLogs.Stream(out), 1, false);
-        }
-        String label = output.toString(StandardCharsets.UTF_8.name()).trim();
-        LOGGER.info("Text: '{}', label: '{}'", text, label);
-        Assert.assertEquals("Wrong label", Args.DEFAULT_LABEL + "soccer", label);
+        Map<String, Float> map = jft.predictLine(text, 1);
+        LOGGER.debug("Text: '{}', result: '{}'", text, map);
+        Assert.assertEquals("Wrong result", 1, map.size());
+        String expectedLabel = Args.DEFAULT_LABEL + "soccer";
+        Assert.assertTrue("Can't find label " + expectedLabel, map.containsKey(expectedLabel));
     }
 
     @Test
@@ -97,16 +89,12 @@ public class JFastTextTest {
         FastText jft = FastText.load(TestsBase.DESTINATION_DIR.resolve("supervised.model.bin").toString());
         String text = "What is the most popular sport in the US ?";
         // '{__label__football=[-0.6931472]}'
-        Multimap<String, Float> predictedProbLabel = jft.predict(text, 1);
-        LOGGER.debug("Text: '{}', result: '{}'", text, predictedProbLabel);
-        Assert.assertEquals("Wrong result", 1, predictedProbLabel.size());
-        String label = predictedProbLabel.entries().stream().map(Map.Entry::getKey).findFirst().orElse(null);
-        double probability = predictedProbLabel.entries().stream()
-                .mapToDouble(Map.Entry::getValue)
-                .map(Math::exp)
-                .findFirst().orElse(-1);
-        LOGGER.info("Text: '{}', label: '{}', result: {}", text, label, probability);
-        Assert.assertEquals("Wrong label", Args.DEFAULT_LABEL + "football", label);
+        Map<String, Float> map = jft.predictLine(text, 1);
+        LOGGER.debug("Text: '{}', result: '{}'", text, map);
+        Assert.assertEquals("Wrong result", 1, map.size());
+        String expectedLabel = Args.DEFAULT_LABEL + "football";
+        Assert.assertTrue("Can't find label " + expectedLabel, map.containsKey(expectedLabel));
+        double probability = map.get(expectedLabel);
         Assert.assertEquals("Wrong probability", 0.5, probability, 0.0001);
     }
 
@@ -116,18 +104,17 @@ public class JFastTextTest {
         FastText jft = FastText.load(TestsBase.DESTINATION_DIR.resolve("supervised.model.bin").toString());
 
         String text = "Do you like soccer ?";
-        Multimap<String, Float> predictedProbLabel = jft.predict(text, 2);
-        LOGGER.debug("Text: '{}', result: '{}'", text, predictedProbLabel);
-        Assert.assertEquals("Wrong result", 2, predictedProbLabel.size());
-        Map<String, Double> res = predictedProbLabel.entries().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> Math.exp(e.getValue())));
-        LOGGER.debug("Map result: '{}'", res);
+        Map<String, Float> res = jft.predictLine(text, 2);
+        LOGGER.debug("Text: '{}', result: '{}'", text, res);
+        Assert.assertEquals("Wrong result", 2, res.size());
         // __label__soccer 0.5 __label__football 0.498047
-        Map<String, Double> expected = new HashMap<>();
-        expected.put("soccer", 0.5);
-        expected.put("football", 0.498047);
+        Map<String, Float> expected = new HashMap<>();
+        expected.put("soccer", 0.5f);
+        expected.put("football", 0.498047f);
         expected.forEach((k, v) -> {
-            Assert.assertTrue("Can't find label '" + k + "'", res.containsKey(Args.DEFAULT_LABEL + k));
-            Assert.assertEquals("Wrong probability for label '" + k + "'", v, res.get(Args.DEFAULT_LABEL + k), 0.0001);
+            String lab = Args.DEFAULT_LABEL + k;
+            Assert.assertTrue("Can't find label '" + k + "'", res.containsKey(lab));
+            Assert.assertEquals("Wrong probability for label '" + k + "'", v, res.get(lab), 0.0001);
         });
     }
 
