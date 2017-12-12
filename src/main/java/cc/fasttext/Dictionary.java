@@ -746,8 +746,8 @@ public strictfp class Dictionary {
      *  return ngrams;
      * }}</pre>
      *
-     * @param word
-     * @return
+     * @param word String
+     * @return List of ints
      */
     List<Integer> getSubwords(String word) {
         int i = getId(word);

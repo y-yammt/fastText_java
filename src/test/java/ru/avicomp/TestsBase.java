@@ -42,9 +42,9 @@ public final class TestsBase {
     public static void compareVectors(List<Double> expected, List<Double> actual, double delta) {
         LOGGER.debug("Expected {}", expected);
         LOGGER.debug("Actual {}", actual);
-
         Assert.assertEquals("Wrong vectors size", expected.size(), actual.size());
         for (int i = 0; i < expected.size(); i++) {
+            double e = expected.get(i);
             Assert.assertEquals("#" + i, expected.get(i), actual.get(i), delta);
         }
     }

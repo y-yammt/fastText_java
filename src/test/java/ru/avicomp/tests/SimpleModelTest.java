@@ -113,7 +113,8 @@ public class SimpleModelTest {
                 .mapToDouble(Double::parseDouble)
                 .boxed()
                 .collect(Collectors.toList());
-        compareVectors(data.sentenceVectors(), res, 0.4);
+        Assert.assertEquals(data.vecDim(), res.size());
+        compareVectors(data.sentenceVectors(), res, data.vecDelta());
     }
 
     @Test
@@ -126,7 +127,8 @@ public class SimpleModelTest {
                 .mapToDouble(Double::parseDouble)
                 .boxed()
                 .collect(Collectors.toList());
-        compareVectors(data.wordVectors(), res, 0.4);
+        Assert.assertEquals(data.vecDim(), res.size());
+        compareVectors(data.wordVectors(), res, data.vecDelta());
     }
 
     private static String runPrintVectors(Path bin, String testData, boolean sentence) throws Exception {
@@ -134,7 +136,7 @@ public class SimpleModelTest {
         InputStream _in = System.in;
         PrintStream _out = System.out;
         String cmd = sentence ? "print-sentence-vectors" : "print-word-vectors";
-        LOGGER.debug("Run " + cmd + ". Data '" + testData + "'");
+        LOGGER.debug("Run {}. Data '{}', bin: <{}>", cmd, testData, bin);
         try (PrintStream out = new PrintStream(output, true, StandardCharsets.UTF_8.name());
              InputStream in = new ByteArrayInputStream(testData.getBytes(StandardCharsets.UTF_8.name()))) {
             System.setIn(in);
@@ -155,8 +157,12 @@ public class SimpleModelTest {
             }
 
             @Override
-            public String cmd() {
-                return "cbow -thread 4 -dim 128 -ws 5 -epoch 10 -minCount 5 -input %s -output %s";
+            public String args() {
+                return "cbow -thread 4 -dim 128 -ws 5 -epoch 10 -minCount 5";
+            }
+
+            public String model() {
+                return "junit.simple.cbox";
             }
 
             @Override
@@ -179,10 +185,6 @@ public class SimpleModelTest {
                 return 331;
             }
 
-            public String model() {
-                return "junit.cbox.t4.d128.w5.e10.m5";
-            }
-
             @Override
             public List<Double> sentenceVectors() { // test sentence 'Word test.' 128-dim vector:
                 return parse("0.11464 -0.21376 -0.095823 0.11768 0.0059741 -0.02797 -0.15613 0.02508 0.024723 -0.054983 " +
@@ -197,6 +199,11 @@ public class SimpleModelTest {
                         "-0.25472 0.011654 -0.053102 0.061545 -0.10233 -0.070139 -0.076014 0.0022712 -0.031105 0.052113 0.090173 " +
                         "0.017779 0.066226 -0.078243 0.10734 0.01713 0.0029703 -0.10035 0.060397 0.043528 0.1954 0.022015 " +
                         "-0.0042344 -0.11538 -0.1566 0.011816 -0.2264 -0.039578 0.17037 -0.17236");
+            }
+
+            @Override
+            public double vecDelta() {
+                return 0.4f;
             }
 
             @Override
@@ -223,8 +230,13 @@ public class SimpleModelTest {
             }
 
             @Override
-            public String cmd() {
-                return "supervised -dim 10 -lr 0.1 -wordNgrams 2 -minCount 1 -bucket 10000000 -epoch 5 -thread 4 -input %s -output %s";
+            public String args() {
+                return "supervised -dim 10 -lr 0.1 -wordNgrams 2 -minCount 1 -bucket 10000000 -epoch 5 -thread 4";
+            }
+
+            @Override
+            public String model() {
+                return "junit.simple.sup";
             }
 
             @Override
@@ -248,11 +260,6 @@ public class SimpleModelTest {
             }
 
             @Override
-            public String model() {
-                return "junit.sup.t4.d10.lr01.wn2.b1e7.e5.m1";
-            }
-
-            @Override
             public List<Double> wordVectors() { // dim: 10
                 return Arrays.asList(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
             }
@@ -263,11 +270,70 @@ public class SimpleModelTest {
                 //-0.0092685 0.054978 -0.024593 -0.059038 0.0087809 0.044432 -0.0082967 0.033355 -0.00029507 0.032974
                 return parse("-0.0092685 0.054978 -0.024593 -0.059038 0.0087809 0.044432 -0.0082967 0.033355 -0.00029507 0.032974");
             }
-        };
+
+            @Override
+            public double vecDelta() {
+                return 0.01;
+            }
+        },
+
+        SKIPGRAM_THREAD3_DIM12_LR02_NGRAMS3_BUCKET5E6_EPOCH10_WS6 {
+            @Override
+            public String input() {
+                return "/text-data.txt";
+            }
+
+            @Override
+            public String args() {
+                return "skipgram -thread 3 -dim 12 -lr 0.2 -wordNgrams 3 -bucket 5000000 -epoch 10 -ws 6";
+            }
+
+            @Override
+            public String model() {
+                return "junit.simple.sg";
+            }
+
+            @Override
+            public long binSize() {
+                return 240_037_088;
+            }
+
+            @Override
+            public long vecSize() {
+                return 35_577;
+            }
+
+            @Override
+            public int vecDim() {
+                return 12;
+            }
+
+            @Override
+            public int vecWords() {
+                return 331;
+            }
+
+            @Override
+            public List<Double> wordVectors() { // for 'Test'
+                return parse("0.024138 0.42543 -0.17895 0.1482 0.13226 0.048482 -0.22481 0.52733 0.052848 -0.0266 0.33456 0.06895");
+            }
+
+            @Override
+            public List<Double> sentenceVectors() { // for 'Word test.'
+                return parse("0.084481 0.5094 -0.1893 0.089596 0.2384 -0.086421 -0.1156 0.096683 0.29788 0.11489 0.096332 0.16538");
+            }
+
+            @Override
+            public double vecDelta() {
+                return 1;
+            }
+        },;
 
         public abstract String input();
 
-        public abstract String cmd();
+        public abstract String args();
+
+        public abstract String model();
 
         public abstract long binSize();
 
@@ -276,8 +342,6 @@ public class SimpleModelTest {
         public abstract int vecDim();
 
         public abstract int vecWords();
-
-        public abstract String model();
 
         public String getSentenceVectorsTestData() {
             return "Word test.";
@@ -290,6 +354,8 @@ public class SimpleModelTest {
         }
 
         public abstract List<Double> sentenceVectors();
+
+        public abstract double vecDelta();
 
         public Path getInput() throws URISyntaxException, IOException {
             return Paths.get(Data.class.getResource(input()).toURI()).toRealPath();
@@ -312,7 +378,7 @@ public class SimpleModelTest {
         }
 
         public String[] command() throws Exception {
-            return TestsBase.cmd(cmd(), getInput(), getOutput());
+            return TestsBase.cmd(args() + " -input %s -output %s", getInput(), getOutput());
         }
     }
 

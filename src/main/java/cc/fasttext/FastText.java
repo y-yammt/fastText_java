@@ -374,10 +374,10 @@ public strictfp class FastText {
      * }
      * }}</pre>
      *
-     * @param k  int factor, > 0
-     * @param a  String, first word, not null, not empty
-     * @param b  String, second word, not null, not empty
-     * @param c  String, third word, not null, not empty
+     * @param k int factor, > 0
+     * @param a String, first word, not null, not empty
+     * @param b String, second word, not null, not empty
+     * @param c String, third word, not null, not empty
      * @return {@link Multimap}
      */
     public Multimap<String, Float> analogies(int k, String a, String b, String c) {
@@ -1248,13 +1248,7 @@ public strictfp class FastText {
             } else {
                 output.load(inputStream);
             }
-
-            Model model = new Model(input, output, args, 0).setQuantizePointer(qinput, qoutput);
-            if (ModelName.SUP.equals(args.model())) {
-                model.setTargetCounts(dict.getCounts(EntryType.LABEL));
-            } else {
-                model.setTargetCounts(dict.getCounts(EntryType.WORD));
-            }
+            Model model = createModel(dict, input, output, args, 0).setQuantizePointer(qinput, qoutput);
             return new FastText(args, dict, model, version);
         }
 
@@ -1429,6 +1423,26 @@ public strictfp class FastText {
         }
 
         /**
+         * Creates model
+         *
+         * @param dict   {@link Dictionary}
+         * @param input  {@link Matrix}
+         * @param output {@link Matrix}
+         * @param args   {@link Args}
+         * @param id     seed
+         * @return {@link Model}
+         */
+        private static Model createModel(Dictionary dict, Matrix input, Matrix output, Args args, int id) {
+            Model res = new Model(input, output, args, id);
+            if (ModelName.SUP.equals(args.model())) {
+                res.setTargetCounts(dict.getCounts(EntryType.LABEL));
+            } else {
+                res.setTargetCounts(dict.getCounts(EntryType.WORD));
+            }
+            return res;
+        }
+
+        /**
          * Auxiliary class to perform model training.
          */
         private class Trainer {
@@ -1500,7 +1514,7 @@ public strictfp class FastText {
              */
             public Model train() throws IOException, ExecutionException, IllegalArgumentException {
                 startThreads();
-                return new Model(input, output, args, 0);
+                return createModel(dictionary, input, output, args, 0);
             }
 
             /**
@@ -1606,15 +1620,11 @@ public strictfp class FastText {
              * @throws IOException if an I/O error occurs
              */
             private void trainThread(int threadId, BiConsumer<Float, Float> printer) throws IOException {
-                Model model = new Model(input, output, args, threadId);
+                Model model;
                 try (FTReader reader = createReader()) {
                     long skip = threadId * size / args.thread();
                     reader.skipBytes(skip);
-                    if (ModelName.SUP.equals(args.model())) {
-                        model.setTargetCounts(dictionary.getCounts(EntryType.LABEL));
-                    } else {
-                        model.setTargetCounts(dictionary.getCounts(EntryType.WORD));
-                    }
+                    model = createModel(dictionary, input, output, args, threadId);
                     long ntokens = dictionary.ntokens();
                     long localTokenCount = 0;
                     List<Integer> line = new ArrayList<>();
