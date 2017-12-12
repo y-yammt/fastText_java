@@ -1,7 +1,9 @@
-package ru.avicomp.tests;
+package cc.fasttext.tests;
 
 import cc.fasttext.FastText;
 import cc.fasttext.Main;
+import cc.fasttext.base.ShellUtils;
+import cc.fasttext.base.Tests;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.FixMethodOrder;
@@ -9,8 +11,6 @@ import org.junit.Test;
 import org.junit.runners.MethodSorters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import ru.avicomp.ShellUtils;
-import ru.avicomp.TestsBase;
 
 import java.io.*;
 import java.net.URL;
@@ -54,10 +54,10 @@ public class ClassificationExampleTest {
     @BeforeClass
     public static void before() throws IOException {
         LOGGER.info("Preparation");
-        Path dir = TestsBase.DESTINATION_DIR.resolve(DBPEDIA_DIR);
-        train = TestsBase.DESTINATION_DIR.resolve(DBPEDIA_TRAN);
-        test = TestsBase.DESTINATION_DIR.resolve(DBPEDIA_TEST);
-        model = TestsBase.DESTINATION_DIR.resolve(DBPEDIA_MODEL);
+        Path dir = Tests.DESTINATION_DIR.resolve(DBPEDIA_DIR);
+        train = Tests.DESTINATION_DIR.resolve(DBPEDIA_TRAN);
+        test = Tests.DESTINATION_DIR.resolve(DBPEDIA_TEST);
+        model = Tests.DESTINATION_DIR.resolve(DBPEDIA_MODEL);
 
         if (Files.exists(train) && Files.exists(test)) {
             return;
@@ -66,11 +66,11 @@ public class ClassificationExampleTest {
         Path trainCSV = dir.resolve(DBPEDIA_TRAN_CSV);
         Path testCSV = dir.resolve(DBPEDIA_TEST_CSV);
         if (!Files.exists(testCSV) || !Files.exists(trainCSV)) {
-            Path archive = TestsBase.DESTINATION_DIR.resolve(DBPEDIA_TAR_GZ_FILE);
+            Path archive = Tests.DESTINATION_DIR.resolve(DBPEDIA_TAR_GZ_FILE);
             if (!Files.exists(archive)) {
                 ShellUtils.download(new URL(DBPEDIA_TAR_GZ_URL), archive);
             }
-            ShellUtils.unpackTarGZ(archive, TestsBase.DESTINATION_DIR);
+            ShellUtils.unpackTarGZ(archive, Tests.DESTINATION_DIR);
         }
         ShellUtils.normalizeAndShuffle(trainCSV, train);
         ShellUtils.normalizeAndShuffle(testCSV, test);
@@ -78,10 +78,10 @@ public class ClassificationExampleTest {
 
     @Test
     public void test01TrainModel() throws Exception {
-        Path bin = TestsBase.DESTINATION_DIR.resolve(DBPEDIA_MODEL + ".bin");
-        Path vec = TestsBase.DESTINATION_DIR.resolve(DBPEDIA_MODEL + ".vec");
-        Path out = TestsBase.DESTINATION_DIR.resolve(DBPEDIA_MODEL + ".output");
-        Main.train(TestsBase.cmd("supervised" +
+        Path bin = Tests.DESTINATION_DIR.resolve(DBPEDIA_MODEL + ".bin");
+        Path vec = Tests.DESTINATION_DIR.resolve(DBPEDIA_MODEL + ".vec");
+        Path out = Tests.DESTINATION_DIR.resolve(DBPEDIA_MODEL + ".output");
+        Main.train(Tests.cmd("supervised" +
                 " -input %s" +
                 " -output %s" +
                 " -dim 10" +
@@ -101,10 +101,10 @@ public class ClassificationExampleTest {
 
     @Test
     public void test02QuantizeModel() throws Exception {
-        Path model = TestsBase.DESTINATION_DIR.resolve(DBPEDIA_MODEL);
-        Path ftz = TestsBase.DESTINATION_DIR.resolve(DBPEDIA_MODEL + ".ftz");
-        Path vec = TestsBase.DESTINATION_DIR.resolve(DBPEDIA_MODEL + ".vec");
-        Main.quantize(TestsBase.cmd("quantize" +
+        Path model = Tests.DESTINATION_DIR.resolve(DBPEDIA_MODEL);
+        Path ftz = Tests.DESTINATION_DIR.resolve(DBPEDIA_MODEL + ".ftz");
+        Path vec = Tests.DESTINATION_DIR.resolve(DBPEDIA_MODEL + ".vec");
+        Main.quantize(Tests.cmd("quantize" +
                 " -input %s" +
                 " -output %s" +
                 " -qnorm" +
@@ -118,7 +118,7 @@ public class ClassificationExampleTest {
     }
 
     private Path getModelBinPath() throws Exception {
-        Path res = TestsBase.DESTINATION_DIR.resolve(DBPEDIA_MODEL + ".bin");
+        Path res = Tests.DESTINATION_DIR.resolve(DBPEDIA_MODEL + ".bin");
         if (!Files.exists(res)) {
             test01TrainModel();
         }
@@ -126,7 +126,7 @@ public class ClassificationExampleTest {
     }
 
     private Path getModelFtzPath() throws Exception {
-        Path res = TestsBase.DESTINATION_DIR.resolve(DBPEDIA_MODEL + ".ftz");
+        Path res = Tests.DESTINATION_DIR.resolve(DBPEDIA_MODEL + ".ftz");
         if (!Files.exists(res)) {
             test02QuantizeModel();
         }
@@ -197,14 +197,14 @@ public class ClassificationExampleTest {
         ByteArrayOutputStream array = new ByteArrayOutputStream();
         try (PrintStream out = new PrintStream(array)) {
             System.setOut(out);
-            Main.predict(TestsBase.cmd("predict %s %s 1", model.toString(), test));
+            Main.predict(Tests.cmd("predict %s %s 1", model.toString(), test));
         } finally {
             System.setOut(stdOut);
         }
         List<String> actual = Arrays.stream(array.toString(StandardCharsets.UTF_8.name()).split("\n"))
                 .map(String::trim)
                 .collect(Collectors.toList());
-        TestsBase.compareLists(expected, actual, allowedDeviation);
+        Tests.compareLists(expected, actual, allowedDeviation);
     }
 
     @Test
@@ -248,7 +248,7 @@ public class ClassificationExampleTest {
         try (PrintStream out = new PrintStream(output)) {
             System.setOut(out);
             System.setIn(input);
-            Main.run(TestsBase.cmd("predict-prob %s %s " + k, bin, "-"));
+            Main.run(Tests.cmd("predict-prob %s %s " + k, bin, "-"));
         } finally {
             System.setIn(stdIn);
             System.setOut(stdOut);

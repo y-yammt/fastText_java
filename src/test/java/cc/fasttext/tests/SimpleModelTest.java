@@ -1,6 +1,7 @@
-package ru.avicomp.tests;
+package cc.fasttext.tests;
 
 import cc.fasttext.Main;
+import cc.fasttext.base.Tests;
 import org.junit.Assert;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
@@ -9,7 +10,6 @@ import org.junit.runners.MethodSorters;
 import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import ru.avicomp.TestsBase;
 
 import java.io.*;
 import java.net.URISyntaxException;
@@ -23,8 +23,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static ru.avicomp.TestsBase.DESTINATION_DIR;
-import static ru.avicomp.TestsBase.compareVectors;
+import static cc.fasttext.base.Tests.DESTINATION_DIR;
+import static cc.fasttext.base.Tests.compareVectors;
 
 /**
  * Created by @szuev on 20.10.2017.
@@ -85,7 +85,7 @@ public class SimpleModelTest {
         PrintStream out = System.out;
         try {
             System.setOut(newOut);
-            Main.predict(TestsBase.cmd(cmd, data.getModelBin(), in));
+            Main.predict(Tests.cmd(cmd, data.getModelBin(), in));
         } catch (IllegalArgumentException e) {
             if (!Data.SUPERVISED_THREAD4_DIM10_LR01_NGRAMS2_BUCKET1E7_EPOCH5.equals(data)) {
                 LOGGER.debug("Expected exception: '{}'", e.getMessage());
@@ -102,7 +102,7 @@ public class SimpleModelTest {
         LOGGER.info("Size: {}", actual.size());
         Assert.assertEquals("Wrong count of lines in out", 161, actual.size());
         // the test set is small, the result depending on current model:
-        TestsBase.compareLists(expected, actual, 50);
+        Tests.compareLists(expected, actual, 50);
     }
 
     @Test
@@ -378,7 +378,7 @@ public class SimpleModelTest {
         }
 
         public String[] command() throws Exception {
-            return TestsBase.cmd(args() + " -input %s -output %s", getInput(), getOutput());
+            return Tests.cmd(args() + " -input %s -output %s", getInput(), getOutput());
         }
     }
 

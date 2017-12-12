@@ -1,6 +1,7 @@
-package ru.avicomp.tests;
+package cc.fasttext.tests;
 
 import cc.fasttext.Main;
+import cc.fasttext.base.Tests;
 import cc.fasttext.extra.ExtraMain;
 import cc.fasttext.io.IOStreams;
 import org.junit.Assert;
@@ -8,7 +9,6 @@ import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import ru.avicomp.TestsBase;
 
 /**
  * For manual running only
@@ -36,7 +36,7 @@ public class ExtraFSExampleTest {
         long dataSize = fs.size(input);
         LOGGER.info("Size of data(input) file: {}b", dataSize);
         Assert.assertEquals(2272754, dataSize);
-        String[] cmd = TestsBase.cmd("cbow -thread 4 -dim 128 -ws 5 -epoch 10 -minCount 5 -verbose 2 -input %s -output %s", input, output);
+        String[] cmd = Tests.cmd("cbow -thread 4 -dim 128 -ws 5 -epoch 10 -minCount 5 -verbose 2 -input %s -output %s", input, output);
         LOGGER.info("Run");
         Main.setFileSystem(fs);
         Main.run(cmd);

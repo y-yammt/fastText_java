@@ -2,6 +2,7 @@ package com.github.jfasttext;
 
 import cc.fasttext.Args;
 import cc.fasttext.FastText;
+import cc.fasttext.base.Tests;
 import com.google.common.primitives.Doubles;
 import org.junit.After;
 import org.junit.Assert;
@@ -10,7 +11,6 @@ import org.junit.Test;
 import org.junit.runners.MethodSorters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import ru.avicomp.TestsBase;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -40,7 +40,7 @@ public class JFastTextTest {
     public void test01TrainSupervisedCmd() throws Exception {
         LOGGER.info("Training supervised model ...");
         Path input = Paths.get(JFastTextTest.class.getResource("/labeled_data.txt").toURI()).toRealPath();
-        Path out = TestsBase.DESTINATION_DIR.resolve("supervised.model.bin");
+        Path out = Tests.DESTINATION_DIR.resolve("supervised.model.bin");
         Args args = new Args.Builder().setModel(Args.ModelName.SUP).build();
         testTrain(args, input, out);
     }
@@ -49,7 +49,7 @@ public class JFastTextTest {
     public void test02TrainSkipgramCmd() throws Exception {
         LOGGER.info("Training skipgram word-embedding ...");
         Path input = Paths.get(JFastTextTest.class.getResource("/unlabeled_data.txt").toURI());
-        Path out = TestsBase.DESTINATION_DIR.resolve("skipgram.model.bin");
+        Path out = Tests.DESTINATION_DIR.resolve("skipgram.model.bin");
         Args args = new Args.Builder().setModel(Args.ModelName.SG).setBucket(100).setMinCount(1).build();
         testTrain(args, input, out);
     }
@@ -58,7 +58,7 @@ public class JFastTextTest {
     public void test03TrainCbowCmd() throws Exception {
         LOGGER.info("Training cbow word-embedding ...");
         Path input = Paths.get(JFastTextTest.class.getResource("/unlabeled_data.txt").toURI());
-        Path out = TestsBase.DESTINATION_DIR.resolve("cbow.model");
+        Path out = Tests.DESTINATION_DIR.resolve("cbow.model");
         Args args = new Args.Builder().setModel(Args.ModelName.CBOW).setBucket(100).setMinCount(1).build();
         testTrain(args, input, out);
     }
@@ -74,7 +74,7 @@ public class JFastTextTest {
     @Test
     public void test04Predict() throws Exception {
         LOGGER.info("Test predict");
-        FastText jft = FastText.load(TestsBase.DESTINATION_DIR.resolve("supervised.model.bin").toString());
+        FastText jft = FastText.load(Tests.DESTINATION_DIR.resolve("supervised.model.bin").toString());
         String text = "I like soccer";
         Map<String, Float> map = jft.predictLine(text, 1);
         LOGGER.debug("Text: '{}', result: '{}'", text, map);
@@ -86,7 +86,7 @@ public class JFastTextTest {
     @Test
     public void test05PredictProba() throws Exception {
         LOGGER.info("Test predict-proba");
-        FastText jft = FastText.load(TestsBase.DESTINATION_DIR.resolve("supervised.model.bin").toString());
+        FastText jft = FastText.load(Tests.DESTINATION_DIR.resolve("supervised.model.bin").toString());
         String text = "What is the most popular sport in the US ?";
         // '{__label__football=[-0.6931472]}'
         Map<String, Float> map = jft.predictLine(text, 1);
@@ -101,7 +101,7 @@ public class JFastTextTest {
     @Test
     public void test06MultiPredictProba() throws Exception {
         LOGGER.info("Test multi-predict-proba");
-        FastText jft = FastText.load(TestsBase.DESTINATION_DIR.resolve("supervised.model.bin").toString());
+        FastText jft = FastText.load(Tests.DESTINATION_DIR.resolve("supervised.model.bin").toString());
 
         String text = "Do you like soccer ?";
         Map<String, Float> res = jft.predictLine(text, 2);
@@ -133,12 +133,12 @@ public class JFastTextTest {
                 0.0049015884, 0.009060863);
 
         LOGGER.info("Test get vector");
-        FastText jft = FastText.load(TestsBase.DESTINATION_DIR.resolve("supervised.model.bin").toString());
+        FastText jft = FastText.load(Tests.DESTINATION_DIR.resolve("supervised.model.bin").toString());
         String word = "soccer";
         List<Double> vec = jft.getWordVector(word).getData()
                 .stream().mapToDouble(d -> d).boxed().collect(Collectors.toList());
         LOGGER.debug("Word embedding vector of '{}': {}", word, vec);
-        TestsBase.compareVectors(expected, vec, 0.1);
+        Tests.compareVectors(expected, vec, 0.1);
     }
 
     /*

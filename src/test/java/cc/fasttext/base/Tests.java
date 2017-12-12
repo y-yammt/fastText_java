@@ -1,4 +1,4 @@
-package ru.avicomp;
+package cc.fasttext.base;
 
 import org.junit.Assert;
 import org.slf4j.Logger;
@@ -12,12 +12,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Tests helper (data and result dir).
+ * Tests helper
  *
  * Created by @szuev on 24.10.2017.
  */
-public final class TestsBase {
-    public static final Logger LOGGER = LoggerFactory.getLogger(TestsBase.class);
+public final class Tests {
+    public static final Logger LOGGER = LoggerFactory.getLogger(Tests.class);
 
     public static final Path DESTINATION_DIR = Paths.get("out");
 
@@ -44,7 +44,6 @@ public final class TestsBase {
         LOGGER.debug("Actual {}", actual);
         Assert.assertEquals("Wrong vectors size", expected.size(), actual.size());
         for (int i = 0; i < expected.size(); i++) {
-            double e = expected.get(i);
             Assert.assertEquals("#" + i, expected.get(i), actual.get(i), delta);
         }
     }
