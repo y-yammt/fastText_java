@@ -67,11 +67,11 @@ public strictfp class Dictionary {
      *  return id;
      * }}</pre>
      *
-     * @param w
-     * @param h
-     * @return
+     * @param w String
+     * @param h long (uint32_t)
+     * @return int (int32_t)
      */
-    long find(String w, long h) {
+    private long find(String w, long h) {
         long id = h % MAX_VOCAB_SIZE;
         while (!Objects.equals(word2int_.getOrDefault(id, WORDID_DEFAULT), WORDID_DEFAULT) &&
                 !Objects.equals(words_.get(word2int_.get(id)).word, w)) {
@@ -96,7 +96,7 @@ public strictfp class Dictionary {
      *  }
      * }}</pre>
      *
-     * @param w
+     * @param w String
      */
     void add(String w) {
         long h = find(w);
@@ -108,18 +108,6 @@ public strictfp class Dictionary {
         } else {
             words_.get(word2int_.get(h)).count++;
         }
-    }
-
-    /**
-     * <pre>{@code entry_type Dictionary::getType(const std::string& w) const {
-     *  return (w.find(args_->label) == 0) ? entry_type::label : entry_type::word;
-     * }}</pre>
-     *
-     * @param w
-     * @return
-     */
-    public EntryType getType(String w) {
-        return w.startsWith(args.label()) ? EntryType.LABEL : EntryType.WORD;
     }
 
     public int nwords() {
@@ -134,12 +122,59 @@ public strictfp class Dictionary {
         return ntokens_;
     }
 
-    public int getId(final String w) {
+    public List<Entry> getWords() {
+        return words_;
+    }
+
+    public List<Float> getPdiscard() {
+        return pdiscard_;
+    }
+
+    Map<Long, Integer> getWord2int() {
+        return word2int_;
+    }
+
+    public int getSize() {
+        return size_;
+    }
+
+    /**
+     * <pre>{@code int32_t Dictionary::getId(const std::string& w) const {
+     *  int32_t h = find(w);
+     *  return word2int_[h];
+     * }}</pre>
+     *
+     * @param w String
+     * @return int32_t
+     */
+    public int getId(String w) {
         return word2int_.getOrDefault(find(w), WORDID_DEFAULT);
     }
 
-    public int getId(String w, long h) {
+    /**
+     * <pre>{@code int32_t Dictionary::getId(const std::string& w, uint32_t h) const {
+     *  int32_t id = find(w, h);
+     *  return word2int_[id];
+     * }}</pre>
+     *
+     * @param w String
+     * @param h long (uint32_t)
+     * @return int (default: -1)
+     */
+    private int getId(String w, long h) {
         return word2int_.getOrDefault(find(w, h), WORDID_DEFAULT);
+    }
+
+    /**
+     * <pre>{@code entry_type Dictionary::getType(const std::string& w) const {
+     *  return (w.find(args_->label) == 0) ? entry_type::label : entry_type::word;
+     * }}</pre>
+     *
+     * @param w String
+     * @return {@link EntryType}
+     */
+    private EntryType getType(String w) {
+        return w.startsWith(args.label()) ? EntryType.LABEL : EntryType.WORD;
     }
 
     /**
@@ -149,10 +184,10 @@ public strictfp class Dictionary {
      *  return words_[id].type;
      * }}</pre>
      *
-     * @param id
-     * @return
+     * @param id int32_r
+     * @return {@link EntryType}
      */
-    public EntryType getType(int id) {
+    private EntryType getType(int id) {
         Validate.isTrue(id >= 0);
         Validate.isTrue(id < size_);
         return words_.get(id).type;
@@ -188,8 +223,9 @@ public strictfp class Dictionary {
      *  }
      * }</pre>
      *
-     * @param str Sting
-     * @return hash as long
+     * @param str String
+     * @param charset {@link Charset}, not null
+     * @return hash as long (uint32_t)
      */
     public static long hash(String str, Charset charset) {
         long h = 2_166_136_261L;// 0xffffffc5;
@@ -199,6 +235,11 @@ public strictfp class Dictionary {
         return h & 0xffff_ffffL;
     }
 
+    /**
+     * @param str String
+     * @return hash as long (uint32_t)
+     * @see #hash(String, Charset)
+     */
     long hash(String str) {
         return hash(str, args.charset());
     }
@@ -515,11 +556,11 @@ public strictfp class Dictionary {
      * }
      * }</pre>
      *
-     * @param in
-     * @param words
-     * @param labels
-     * @return
-     * @throws IOException
+     * @param in {@link FTReader}
+     * @param words List of words
+     * @param labels List of labels
+     * @return int32_t
+     * @throws IOException if an I/O error occurs
      */
     public int getLine(FTReader in, List<Integer> words, List<Integer> labels) throws IOException {
         List<Integer> word_hashes = new ArrayList<>();
@@ -567,10 +608,11 @@ public strictfp class Dictionary {
      * }
      * }</pre>
      *
-     * @param in
-     * @param words
-     * @param rng
-     * @return int
+     * @param in {@link FTReader}
+     * @param words List of words
+     * @param rng {@link RandomGenerator}
+     * @return int32_t
+     * @throws IOException if an I/O error occurs
      */
     public int getLine(FTReader in, List<Integer> words, RandomGenerator rng) throws IOException {
         UniformRealDistribution uniform = new UniformRealDistribution(rng, 0, 1);
@@ -726,9 +768,13 @@ public strictfp class Dictionary {
      *  if (i >= 0) {
      *      ngrams.push_back(i);
      *      substrings.push_back(words_[i].word);
+     *  } else {
+     *      ngrams.push_back(-1);
+     *      substrings.push_back(word);
      *  }
      *  computeSubwords(BOW + word + EOW, ngrams, substrings);
      * }}</pre>
+     *
      * @param word String
      * @return {@link Multimap}
      */
@@ -739,6 +785,9 @@ public strictfp class Dictionary {
         if (i >= 0) {
             ngrams.add(i);
             substrings.add(words_.get(i).word);
+        } else {
+            ngrams.add(-1);
+            substrings.add(word);
         }
         computeSubwords(BOW + word + EOW, ngrams, substrings);
         if (ngrams.size() != substrings.size()) {
@@ -763,7 +812,7 @@ public strictfp class Dictionary {
      *
      * @param in
      */
-    public void reset(FTReader in) throws IOException {
+    public static void reset(FTReader in) throws IOException {
         if (!in.end()) {
             return;
         }
@@ -1040,22 +1089,6 @@ public strictfp class Dictionary {
         res.pruneidx_ = new HashMap<>(this.pruneidx_);
         res.pdiscard_ = new ArrayList<>(this.pdiscard_);
         return res;
-    }
-
-    public List<Entry> getWords() {
-        return words_;
-    }
-
-    public List<Float> getPdiscard() {
-        return pdiscard_;
-    }
-
-    Map<Long, Integer> getWord2int() {
-        return word2int_;
-    }
-
-    public int getSize() {
-        return size_;
     }
 
     public enum EntryType {

@@ -3,6 +3,7 @@ package cc.fasttext;
 import cc.fasttext.Args.LossName;
 import cc.fasttext.Args.ModelName;
 import com.google.common.collect.TreeMultimap;
+import com.google.common.primitives.Ints;
 import org.apache.commons.lang.Validate;
 import org.apache.commons.math3.random.RandomAdaptor;
 import org.apache.commons.math3.random.RandomGenerator;
@@ -40,8 +41,8 @@ public strictfp class Model {
     private int osz_; // output vocabSize
     private float loss_;
     private long nexamples_;
-    private float[] t_sigmoid;
-    private float[] t_log;
+    private float[] t_sigmoid; // orig: std::vector<real> t_sigmoid_;
+    private float[] t_log; // orig: std::vector<real> t_log_;
     // used for negative sampling:
     private List<Integer> negatives;
     private int negpos;
@@ -110,7 +111,25 @@ public strictfp class Model {
         return qwi_ != null && !qwi_.isEmpty();
     }
 
-    public float binaryLogistic(int target, boolean label, float lr) {
+    /**
+     * <pre>{@code real Model::binaryLogistic(int32_t target, bool label, real lr) {
+     *  real score = sigmoid(wo_->dotRow(hidden_, target));
+     *  real alpha = lr * (real(label) - score);
+     *  grad_.addRow(*wo_, target, alpha);
+     *  wo_->addRow(hidden_, target, alpha);
+     *  if (label) {
+     *      return -log(score);
+     *  } else {
+     *      return -log(1.0 - score);
+     *  }
+     * }}</pre>
+     *
+     * @param target int32_t
+     * @param label  bool
+     * @param lr     float
+     * @return float
+     */
+    private float binaryLogistic(int target, boolean label, float lr) {
         float score = sigmoid(wo_.dotRow(hidden_, target));
         float alpha = lr * ((label ? 1.0f : 0.0f) - score);
         grad_.addRow(wo_, target, alpha);
@@ -136,11 +155,11 @@ public strictfp class Model {
      *  return loss;
      * }}</pre>
      *
-     * @param target
-     * @param lr
-     * @return
+     * @param target int32_t
+     * @param lr     float
+     * @return float
      */
-    public float negativeSampling(int target, float lr) {
+    private float negativeSampling(int target, float lr) {
         float loss = 0.0f;
         grad_.zero();
         for (int n = 0; n <= args_.neg(); n++) {
@@ -165,11 +184,11 @@ public strictfp class Model {
      *  return loss;
      * }}</pre>
      *
-     * @param target
-     * @param lr
-     * @return
+     * @param target int32_t
+     * @param lr     float
+     * @return float
      */
-    public float hierarchicalSoftmax(int target, float lr) {
+    private float hierarchicalSoftmax(int target, float lr) {
         float loss = 0.0f;
         grad_.zero();
         List<Boolean> binaryCode = codes.get(target);
@@ -200,10 +219,10 @@ public strictfp class Model {
      *  }
      * }}</pre>
      *
-     * @param hidden
-     * @param output
+     * @param hidden {@link Vector}
+     * @param output {@link Vector}
      */
-    public void computeOutputSoftmax(Vector hidden, Vector output) {
+    private void computeOutputSoftmax(Vector hidden, Vector output) {
         if (isQuant() && args_.qout()) {
             output.mul(qwo_, hidden);
         } else {
@@ -222,7 +241,7 @@ public strictfp class Model {
         }
     }
 
-    public void computeOutputSoftmax() {
+    private void computeOutputSoftmax() {
         computeOutputSoftmax(hidden_, output_);
     }
 
@@ -239,9 +258,9 @@ public strictfp class Model {
      *  return -log(output_[target]);
      * }}</pre>
      *
-     * @param target
-     * @param lr
-     * @return
+     * @param target int32_t
+     * @param lr     float
+     * @return float
      */
     public float softmax(int target, float lr) {
         grad_.zero();
@@ -269,10 +288,10 @@ public strictfp class Model {
      *  hidden.mul(1.0 / input.size());
      * }}</pre>
      *
-     * @param input
-     * @param hidden
+     * @param input  List of ints (int32_t)
+     * @param hidden {@link Vector}
      */
-    public void computeHidden(List<Integer> input, Vector hidden) {
+    private void computeHidden(List<Integer> input, Vector hidden) {
         Validate.isTrue(hidden.size() == hsz_, "Wrong size of hidden vector: " + hidden.size() + "!=" + hsz_);
         hidden.zero();
         for (Integer it : input) {
@@ -304,11 +323,11 @@ public strictfp class Model {
      *  std::sort_heap(heap.begin(), heap.end(), comparePairs);
      * }}</pre>
      *
-     * @param input
-     * @param k
-     * @param hidden
-     * @param output
-     * @return
+     * @param input  List of ints
+     * @param k      int
+     * @param hidden {@link Vector}
+     * @param output {@link Vector}
+     * @return {@link TreeMultimap}
      */
     public TreeMultimap<Float, Integer> predict(List<Integer> input, int k, Vector hidden, Vector output) {
         if (k <= 0) {
@@ -318,7 +337,6 @@ public strictfp class Model {
             throw new IllegalArgumentException("Model needs to be supervised for prediction!");
         }
         TreeMultimap<Float, Integer> heap = TreeMultimap.create(HEAP_PROBABILITY_COMPARATOR, HEAP_LABEL_COMPARATOR);
-
         computeHidden(input, hidden);
         if (LossName.HS == args_.loss()) {
             dfs(k, 2 * osz_ - 2, 0.0f, heap, hidden);
@@ -334,9 +352,9 @@ public strictfp class Model {
      *  predict(input, k, heap, hidden_, output_);
      * }}</pre>
      *
-     * @param input
-     * @param k
-     * @return
+     * @param input List of ints
+     * @param k     int
+     * @return {@link TreeMultimap}
      */
     public TreeMultimap<Float, Integer> predict(List<Integer> input, int k) {
         return predict(input, k, hidden_, output_);
@@ -347,27 +365,28 @@ public strictfp class Model {
      * void Model::findKBest(int32_t k, std::vector<std::pair<real, int32_t>>& heap, Vector& hidden, Vector& output) const {
      *  computeOutputSoftmax(hidden, output);
      *  for (int32_t i = 0; i < osz_; i++) {
-     *  if (heap.size() == k && log(output[i]) < heap.front().first) {
-     *      continue;
-     *  }
-     *  heap.push_back(std::make_pair(log(output[i]), i));
-     *  std::push_heap(heap.begin(), heap.end(), comparePairs);
-     *  if (heap.size() > k) {
-     *      std::pop_heap(heap.begin(), heap.end(), comparePairs);
-     *      heap.pop_back();
+     *      if (heap.size() == k && std_log(output[i]) < heap.front().first) {
+     *          continue;
+     *      }
+     *      heap.push_back(std::make_pair(std_log(output[i]), i));
+     *      std::push_heap(heap.begin(), heap.end(), comparePairs);
+     *      if (heap.size() > k) {
+     *          std::pop_heap(heap.begin(), heap.end(), comparePairs);
+     *          heap.pop_back();
+     *      }
      *  }
      * }
      * }}</pre>
      *
-     * @param k
-     * @param heap
-     * @param hidden
-     * @param output
+     * @param k      int
+     * @param heap   {@link TreeMultimap}
+     * @param hidden {@link Vector}
+     * @param output {@link Vector}
      */
     private void findKBest(int k, TreeMultimap<Float, Integer> heap, Vector hidden, Vector output) {
         computeOutputSoftmax(hidden, output);
         for (int i = 0; i < osz_; i++) {
-            float key = log(output.get(i));
+            float key = stdLog(output.get(i));
             if (heap.size() == k && key < heap.asMap().firstKey()) {
                 continue;
             }
@@ -411,19 +430,20 @@ public strictfp class Model {
      *  }
      *  real f;
      *  if (quant_ && args_->qout) {
-     *      f = sigmoid(qwo_->dotRow(hidden, node - osz_));
+     *      f= qwo_->dotRow(hidden, node - osz_);
      *  } else {
-     *      f = sigmoid(wo_->dotRow(hidden, node - osz_));
+     *      f= wo_->dotRow(hidden, node - osz_);
      *  }
-     *  dfs(k, tree[node].left, score + log(1.0 - f), heap, hidden);
-     *  dfs(k, tree[node].right, score + log(f), heap, hidden);
+     *  f = 1. / (1 + std::exp(-f));
+     *  dfs(k, tree[node].left, score + std_log(1.0 - f), heap, hidden);
+     *  dfs(k, tree[node].right, score + std_log(f), heap, hidden);
      * }}</pre>
      *
-     * @param k
-     * @param node
-     * @param score
-     * @param heap
-     * @param hidden
+     * @param k      int32_t
+     * @param node   float
+     * @param score  float
+     * @param heap   {@link TreeMultimap}
+     * @param hidden {@link Vector}
      */
     private void dfs(int k, int node, float score, TreeMultimap<Float, Integer> heap, Vector hidden) {
         if (heap.size() == k && score < heap.asMap().firstKey()) {
@@ -435,12 +455,13 @@ public strictfp class Model {
         }
         float f;
         if (isQuant() && args_.qout()) {
-            f = sigmoid(qwo_.dotRow(hidden, node - osz_));
+            f = qwo_.dotRow(hidden, node - osz_);
         } else {
-            f = sigmoid(wo_.dotRow(hidden, node - osz_));
+            f = wo_.dotRow(hidden, node - osz_);
         }
-        dfs(k, tree.get(node).left, score + log(1.0f - f), heap, hidden);
-        dfs(k, tree.get(node).right, score + log(f), heap, hidden);
+        f = (float) (1 / (1 + FastMath.exp(-f)));
+        dfs(k, tree.get(node).left, score + stdLog(1.0f - f), heap, hidden);
+        dfs(k, tree.get(node).right, score + stdLog(f), heap, hidden);
     }
 
     /**
@@ -465,11 +486,11 @@ public strictfp class Model {
      *  }
      * }}</pre>
      *
-     * @param input
-     * @param target
-     * @param lr
+     * @param input  List of ints
+     * @param target int
+     * @param lr     float
      */
-    public void update(final List<Integer> input, int target, float lr) {
+    public void update(List<Integer> input, int target, float lr) {
         Validate.isTrue(target >= 0);
         Validate.isTrue(target < osz_);
         if (input.size() == 0) {
@@ -505,14 +526,14 @@ public strictfp class Model {
      * }
      * }</pre>
      *
-     * @param counts
+     * @param counts List of longs (int64_t)
      */
     public void setTargetCounts(final List<Long> counts) {
         Validate.isTrue(counts.size() == osz_);
-        if (args_.loss() == Args.LossName.NS) {
+        if (LossName.NS == args_.loss()) {
             initTableNegatives(counts);
         }
-        if (args_.loss() == Args.LossName.HS) {
+        if (LossName.HS == args_.loss()) {
             buildTree(counts);
         }
     }
@@ -534,16 +555,16 @@ public strictfp class Model {
      * }
      * }</pre>
      *
-     * @param counts
+     * @param counts List of longs (int64_t)
      */
-    public void initTableNegatives(List<Long> counts) {
+    private void initTableNegatives(List<Long> counts) {
         negatives = new ArrayList<>(counts.size());
         double z = 0.0;
-        for (Long count : counts) {
-            z += FastMath.sqrt(count);
+        for (long count : counts) {
+            z += FastMath.pow(count, 0.5);
         }
         for (int i = 0; i < counts.size(); i++) {
-            double c = FastMath.sqrt(counts.get(i));
+            double c = FastMath.pow(counts.get(i), 0.5);
             for (int j = 0; j < c * NEGATIVE_TABLE_SIZE / z; j++) {
                 negatives.add(i);
             }
@@ -551,7 +572,20 @@ public strictfp class Model {
         Collections.shuffle(negatives, new RandomAdaptor(rng));
     }
 
-    public int getNegative(int target) {
+    /**
+     * <pre>{@code int32_t Model::getNegative(int32_t target) {
+     *  int32_t negative;
+     *  do {
+     *      negative = negatives_[negpos];
+     *      negpos = (negpos + 1) % negatives_.size();
+     *  } while (target == negative);
+     *  return negative;
+     * }</pre>
+     *
+     * @param target
+     * @return
+     */
+    private int getNegative(int target) {
         int negative;
         do {
             negative = negatives.get(negpos);
@@ -560,17 +594,63 @@ public strictfp class Model {
         return negative;
     }
 
-    public void buildTree(final List<Long> counts) {
+    /**
+     * <pre>{@code void Model::buildTree(const std::vector<int64_t>& counts) {
+     *  tree.resize(2 * osz_ - 1);
+     *  for (int32_t i = 0; i < 2 * osz_ - 1; i++) {
+     *      tree[i].parent = -1;
+     *      tree[i].left = -1;
+     *      tree[i].right = -1;
+     *      tree[i].count = 1e15;
+     *      tree[i].binary = false;
+     *  }
+     *  for (int32_t i = 0; i < osz_; i++) {
+     *      tree[i].count = counts[i];
+     *  }
+     *  int32_t leaf = osz_ - 1;
+     *  int32_t node = osz_;
+     *  for (int32_t i = osz_; i < 2 * osz_ - 1; i++) {
+     *      int32_t mini[2];
+     *      for (int32_t j = 0; j < 2; j++) {
+     *          if (leaf >= 0 && tree[leaf].count < tree[node].count) {
+     *              mini[j] = leaf--;
+     *          } else {
+     *              mini[j] = node++;
+     *          }
+     *      }
+     *      tree[i].left = mini[0];
+     *      tree[i].right = mini[1];
+     *      tree[i].count = tree[mini[0]].count + tree[mini[1]].count;
+     *      tree[mini[0]].parent = i;
+     *      tree[mini[1]].parent = i;
+     *      tree[mini[1]].binary = true;
+     *  }
+     *  for (int32_t i = 0; i < osz_; i++) {
+     *      std::vector<int32_t> path;
+     *      std::vector<bool> code;
+     *      int32_t j = i;
+     *      while (tree[j].parent != -1) {
+     *          path.push_back(tree[j].parent - osz_);
+     *          code.push_back(tree[j].binary);
+     *          j = tree[j].parent;
+     *      }
+     *      paths.push_back(path);
+     *      codes.push_back(code);
+     *  }
+     * }}</pre>
+     *
+     * @param counts List of longs (int64_t)
+     */
+    private void buildTree(List<Long> counts) {
         paths = new ArrayList<>(osz_);
         codes = new ArrayList<>(osz_);
         tree = new ArrayList<>(2 * osz_ - 1);
-
         for (int i = 0; i < 2 * osz_ - 1; i++) {
             Node node = new Node();
             node.parent = -1;
             node.left = -1;
             node.right = -1;
-            node.count = 1000000000000000L;// 1e15f;
+            node.count = 1000_000_000_000_000L;// 1e15;
             node.binary = false;
             tree.add(i, node);
         }
@@ -609,16 +689,22 @@ public strictfp class Model {
         }
     }
 
+    /**
+     * <pre>{@code real Model::getLoss() const {
+     *  return loss_ / nexamples_;
+     * }</pre>
+     *
+     * @return float
+     */
     public float getLoss() {
         return loss_ / nexamples_;
     }
 
     /**
      * <pre>{@code void Model::initSigmoid() {
-     *  t_sigmoid = new real[SIGMOID_TABLE_SIZE + 1];
      *  for (int i = 0; i < SIGMOID_TABLE_SIZE + 1; i++) {
      *      real x = real(i * 2 * MAX_SIGMOID) / SIGMOID_TABLE_SIZE - MAX_SIGMOID;
-     *      t_sigmoid[i] = 1.0 / (1.0 + std::exp(-x));
+     *      t_sigmoid_.push_back(1.0 / (1.0 + std::exp(-x)));
      *  }
      * }}</pre>
      */
@@ -631,12 +717,10 @@ public strictfp class Model {
     }
 
     /**
-     * <pre>{@code
-     * void Model::initLog() {
-     *  t_log = new real[LOG_TABLE_SIZE + 1];
+     * <pre>{@code void Model::initLog() {
      *  for (int i = 0; i < LOG_TABLE_SIZE + 1; i++) {
      *      real x = (real(i) + 1e-5) / LOG_TABLE_SIZE;
-     *      t_log[i] = std::log(x);
+     *      t_log_.push_back(std::log(x));
      *  }
      * }}</pre>
      */
@@ -644,7 +728,7 @@ public strictfp class Model {
         t_log = new float[LOG_TABLE_SIZE + 1];
         for (int i = 0; i < LOG_TABLE_SIZE + 1; i++) {
             float x = (i + 1e-5f) / LOG_TABLE_SIZE;
-            t_log[i] = (float) FastMath.log(x); //(float) Math.log(x);
+            t_log[i] = (float) FastMath.log(x);
         }
     }
 
@@ -653,19 +737,32 @@ public strictfp class Model {
      *  if (x > 1.0) {
      *      return 0.0;
      *  }
-     *  int i = int(x * LOG_TABLE_SIZE);
-     *  return t_log[i];
+     *  int64_t i = int64_t(x * LOG_TABLE_SIZE);
+     *  return t_log_[i];
+     * }
      * }}</pre>
      *
-     * @param x
-     * @return
+     * @param x float
+     * @return float
      */
-    public float log(float x) {
+    private float log(float x) {
         if (x > 1.0) {
             return 0.0f;
         }
-        int i = (int) (x * LOG_TABLE_SIZE);
-        return t_log[i];
+        long i = (long) (x * LOG_TABLE_SIZE);
+        return t_log[Ints.checkedCast(i)];
+    }
+
+    /**
+     * <pre>{@code real Model::std_log(real x) const {
+     * return std::log(x+1e-5);
+     * }}</pre>
+     *
+     * @param x float
+     * @return float
+     */
+    private float stdLog(float x) {
+        return (float) FastMath.log(x + 1e-5);
     }
 
     /**
@@ -675,26 +772,37 @@ public strictfp class Model {
      *  } else if (x > MAX_SIGMOID) {
      *      return 1.0;
      *  } else {
-     *      int i = int((x + MAX_SIGMOID) * SIGMOID_TABLE_SIZE / MAX_SIGMOID / 2);
-     *      return t_sigmoid[i];
+     *      int64_t i = int64_t((x + MAX_SIGMOID) * SIGMOID_TABLE_SIZE / MAX_SIGMOID / 2);
+     *      return t_sigmoid_[i];
      *  }
-     * }}</pre>
+     * }
+     * }</pre>
      *
-     * @param x
-     * @return
+     * @param x float
+     * @return float
      */
-    public float sigmoid(float x) {
+    private float sigmoid(float x) {
         if (x < -MAX_SIGMOID) {
             return 0.0f;
         } else if (x > MAX_SIGMOID) {
             return 1.0f;
         } else {
-            int i = (int) ((x + MAX_SIGMOID) * SIGMOID_TABLE_SIZE / MAX_SIGMOID / 2);
-            return t_sigmoid[i];
+            long i = (long) ((x + MAX_SIGMOID) * SIGMOID_TABLE_SIZE / MAX_SIGMOID / 2);
+            return t_sigmoid[Ints.checkedCast(i)];
         }
     }
 
-    public class Node {
+    /**
+     * model.h:
+     * struct Node {
+     * int32_t parent;
+     * int32_t left;
+     * int32_t right;
+     * int64_t count;
+     * bool binary;
+     * };
+     */
+    private class Node {
         int parent;
         int left;
         int right;

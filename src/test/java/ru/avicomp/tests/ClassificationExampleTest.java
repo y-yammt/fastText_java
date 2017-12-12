@@ -186,7 +186,7 @@ public class ClassificationExampleTest {
     }
 
     private void testPredictFile(Path model, int allowedDeviation) throws Exception {
-        Path result = Paths.get(ClassificationExampleTest.class.getResource("/dbpedia.cut.test.predict").toURI());
+        Path result = Paths.get(ClassificationExampleTest.class.getResource("/classification.predict.result").toURI());
         Path test = Paths.get(ClassificationExampleTest.class.getResource("/dbpedia.cut.test").toURI());
         LOGGER.info("Test 'prediction'. Data={}, Model={}", test, model.toRealPath());
         List<String> expected = Files.lines(result)
@@ -204,16 +204,7 @@ public class ClassificationExampleTest {
         List<String> actual = Arrays.stream(array.toString(StandardCharsets.UTF_8.name()).split("\n"))
                 .map(String::trim)
                 .collect(Collectors.toList());
-        Assert.assertEquals(expected.size(), actual.size());
-        LOGGER.debug("E: {}", expected);
-        LOGGER.debug("A: {}", actual);
-        List<String> errors = new ArrayList<>();
-        for (int i = 0; i < actual.size(); i++) {
-            if (expected.get(i).equals(actual.get(i))) continue;
-            errors.add(String.format("Wrong label #%d: expected('%s')!=actual('%s')", i, expected.get(i), actual.get(i)));
-        }
-        errors.forEach(LOGGER::error);
-        Assert.assertTrue("Errors: " + errors.size(), errors.size() <= allowedDeviation);
+        TestsBase.compareLists(expected, actual, allowedDeviation);
     }
 
     @Test

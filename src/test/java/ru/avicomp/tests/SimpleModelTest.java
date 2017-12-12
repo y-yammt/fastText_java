@@ -1,14 +1,6 @@
 package ru.avicomp.tests;
 
-import java.io.*;
-import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.*;
-import java.util.stream.Collectors;
-
+import cc.fasttext.Main;
 import org.junit.Assert;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
@@ -17,12 +9,22 @@ import org.junit.runners.MethodSorters;
 import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import cc.fasttext.Args;
-import cc.fasttext.Main;
 import ru.avicomp.TestsBase;
 
-import static ru.avicomp.TestsBase.*;
+import java.io.*;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import static ru.avicomp.TestsBase.DESTINATION_DIR;
+import static ru.avicomp.TestsBase.compareVectors;
 
 /**
  * Created by @szuev on 20.10.2017.
@@ -43,9 +45,10 @@ public class SimpleModelTest {
         return Arrays.asList(Data.values());
     }
 
+
     @Test
     public void test01Train() throws Exception {
-        Main.train(cmd(data));
+        Main.train(data.command());
 
         Path bin = data.getModelBin();
         Path vec = data.getModelVec();
@@ -74,6 +77,7 @@ public class SimpleModelTest {
     @Test
     public void test02Predict() throws Exception {
         String cmd = "predict %s %s";
+
         Path in = Paths.get(SimpleModelTest.class.getResource("/dbpedia.cut.test").toURI());
 
         ByteArrayOutputStream array = new ByteArrayOutputStream();
@@ -90,14 +94,15 @@ public class SimpleModelTest {
         } finally {
             System.setOut(out);
         }
-        List<String> res = Arrays.stream(array.toString(StandardCharsets.UTF_8.name()).split("\r*\n")).collect(Collectors.toList());
-        res.stream()
+        List<String> actual = Arrays.stream(array.toString(StandardCharsets.UTF_8.name()).split("\r*\n")).collect(Collectors.toList());
+        List<String> expected = Files.lines(Paths.get(SimpleModelTest.class.getResource("/simple.predict.result").toURI())).collect(Collectors.toList());
+        actual.stream()
                 .limit(10)
                 .forEach(s -> LOGGER.debug("{}", s));
-        LOGGER.info("Size: {}", res.size());
-        Assert.assertEquals("Wrong count of lines in out", 161, res.size());
-        Assert.assertEquals("Wrong first label", Args.DEFAULT_LABEL + 12, res.get(0));
-        Assert.assertEquals("Should be one unique label", 1, new HashSet<>(res).size());
+        LOGGER.info("Size: {}", actual.size());
+        Assert.assertEquals("Wrong count of lines in out", 161, actual.size());
+        // the test set is small, the result depending on current model:
+        TestsBase.compareLists(expected, actual, 50);
     }
 
     @Test
@@ -108,7 +113,7 @@ public class SimpleModelTest {
                 .mapToDouble(Double::parseDouble)
                 .boxed()
                 .collect(Collectors.toList());
-        compareVectors(data.wordVectors(), res, 0.4);
+        compareVectors(data.sentenceVectors(), res, 0.4);
     }
 
     @Test
@@ -121,7 +126,7 @@ public class SimpleModelTest {
                 .mapToDouble(Double::parseDouble)
                 .boxed()
                 .collect(Collectors.toList());
-        compareVectors(data.sentenceVectors(), res, 0.4);
+        compareVectors(data.wordVectors(), res, 0.4);
     }
 
     private static String runPrintVectors(Path bin, String testData, boolean sentence) throws Exception {
@@ -179,41 +184,37 @@ public class SimpleModelTest {
             }
 
             @Override
-            public List<Double> wordVectors() { // 128 vectors:
-                return Arrays.asList(-0.01188, 0.0044223, -0.066131, -0.020825, -0.14696, -0.099169, 0.11134, -0.11649,
-                        -0.045337, 0.063723, -0.029514, -0.090043, -0.092293, 0.02329, -0.042874, 0.17592, -0.10492,
-                        -0.14772, 0.023096, 0.04982, 0.10333, -0.019804, -0.18756, 0.15125, -0.10442, -0.077873,
-                        0.034354, 0.093182, 0.16364, 0.014039, -0.055895, -0.060817, -0.016289, -0.023442, 0.1632,
-                        -0.1463, 0.14701, 0.017004, 0.038988, 0.018109, -0.12639, -0.0090438, 0.10515, -0.1256, 0.060793,
-                        -0.030233, 0.026761, 0.123, 0.043514, 0.0076771, -0.046018, 0.0014352, 0.002032, -0.18788,
-                        -0.15562, -0.084914, 0.057617, 0.040016, 0.11375, 0.1164, 0.11189, 0.069087, 0.078974,
-                        -0.040239, 0.030464, 0.11324, -0.032604, 0.14373, 0.039304, 0.06836, -0.045781, -0.095826,
-                        -0.081032, 0.12145, 0.069719, 0.11913, 0.0089484, -0.066021, -0.13351, 0.14071, -0.18872, 0.01186,
-                        -0.12922, 0.097781, -0.087912, -0.003281, -0.059217, 0.075035, -0.18873, -0.047837, 0.026048,
-                        -0.039929, 0.014265, -0.052473, -0.026612, 0.09175, 0.078742, -0.040234, -0.023985, 0.097959,
-                        0.080668, 0.11665, 0.043819, 0.021178, 0.070436, -0.017433, 0.0033352, 0.015667, -0.10719,
-                        -0.052713, 0.084073, -0.15568, -0.043047, -0.044119, -0.035038, 0.0064535, -0.035223, 0.22574,
-                        -0.056209, 0.12817, -0.016375, 0.041407, -0.027459, -0.019981, -0.035947, -0.058359, 0.060406, -0.072145);
+            public List<Double> sentenceVectors() { // test sentence 'Word test.' 128-dim vector:
+                return parse("0.11464 -0.21376 -0.095823 0.11768 0.0059741 -0.02797 -0.15613 0.02508 0.024723 -0.054983 " +
+                        "-0.072046 0.11354 0.090018 -0.046901 0.097746 0.10175 -0.14776 0.04172 0.072863 0.017975 0.049459 " +
+                        "-0.033836 -0.01571 -0.071825 0.021552 0.06303 0.020223 -0.021413 0.021902 -0.054924 0.12968 -0.097007 " +
+                        "0.089375 -0.038077 0.053527 -0.068644 0.012673 -0.10477 -0.054977 -0.050762 -0.036415 -0.064909 -0.020371 " +
+                        "0.14904 -0.086513 -0.067715 -0.011795 0.035342 0.10954 -0.064196 0.075644 0.044865 -0.047702 -0.094464 " +
+                        "0.019276 -0.14534 -0.049696 0.0070982 0.070843 -0.014879 -0.039844 -0.14978 -0.020158 -0.17714 0.11351 " +
+                        "-0.051109 -0.072486 -0.016916 -0.02824 -0.091959 0.12401 0.063377 0.038206 0.075664 -0.12715 0.0024533 " +
+                        "-0.027761 -0.069692 0.060826 -0.083483 -0.020611 -0.17958 -0.015234 -0.067824 -0.050395 -0.017342 0.071854 " +
+                        "0.055995 -0.14331 -0.14954 -0.019791 -0.0063819 0.15996 -0.062437 -0.078744 0.11477 0.097265 -0.029124 " +
+                        "-0.25472 0.011654 -0.053102 0.061545 -0.10233 -0.070139 -0.076014 0.0022712 -0.031105 0.052113 0.090173 " +
+                        "0.017779 0.066226 -0.078243 0.10734 0.01713 0.0029703 -0.10035 0.060397 0.043528 0.1954 0.022015 " +
+                        "-0.0042344 -0.11538 -0.1566 0.011816 -0.2264 -0.039578 0.17037 -0.17236");
             }
 
             @Override
-            public List<Double> sentenceVectors() {
-                return Arrays.asList(-0.0089522, 0.0039847, -0.046722, -0.01396, -0.10603, -0.072662, 0.081412, -0.085983,
-                        -0.032709, 0.045654, -0.021025, -0.066668, -0.065771, 0.018684, -0.032078, 0.13132, -0.076479,
-                        -0.10762, 0.015852, 0.035983, 0.075114, -0.014991, -0.13578, 0.11287, -0.076567, -0.057383,
-                        0.025914, 0.067416, 0.11948, 0.010497, -0.043517, -0.044062, -0.012366, -0.016839, 0.11769,
-                        -0.10937, 0.10655, 0.0094078, 0.028129, 0.012603, -0.093993, -0.0047002, 0.076851, -0.089753,
-                        0.041172, -0.02051, 0.017041, 0.09011, 0.032132, 0.0062371, -0.033948, 0.0015065, 0.0010718,
-                        -0.1363, -0.11411, -0.065492, 0.040423, 0.03084, 0.08206, 0.083906, 0.082571, 0.051587, 0.05973,
-                        -0.029015, 0.023743, 0.084154, -0.021363, 0.10646, 0.030054, 0.049582, -0.034118, -0.068586,
-                        -0.058226, 0.089597, 0.051972, 0.087976, 0.0043332, -0.047903, -0.0974, 0.10439, -0.13827,
-                        0.0089531, -0.094378, 0.071923, -0.066227, -5.6161E-4, -0.046614, 0.051582, -0.14075, -0.034901,
-                        0.017811, -0.028764, 0.0094627, -0.039578, -0.020295, 0.067079, 0.05873, -0.02924, -0.019213,
-                        0.072415, 0.05911, 0.085429, 0.033362, 0.014874, 0.050846, -0.013746, 0.0032173, 0.0086438,
-                        -0.076945, -0.038504, 0.063941, -0.11354, -0.033476, -0.035254, -0.0267, 0.0054636, -0.026594,
-                        0.16536, -0.042795, 0.094596, -0.011233, 0.031857, -0.017835, -0.014792, -0.025392, -0.042061,
-                        0.045974, -0.054442);
+            public List<Double> wordVectors() { // test word 'Test'. 128-dim vector
+                return parse("0.097585 -0.18108 -0.080698 0.10163 0.0055023 -0.024496 -0.13176 0.021189 0.020398 -0.050393 " +
+                        "-0.060052 0.097613 0.077462 -0.040475 0.082243 0.08714 -0.12589 0.036291 0.061316 0.016788 0.040848 " +
+                        "-0.026961 -0.01321 -0.060993 0.021236 0.056679 0.016582 -0.018349 0.019643 -0.046242 0.11014 -0.080717 " +
+                        "0.074057 -0.031001 0.04629 -0.059101 0.0093017 -0.087812 -0.043051 -0.041892 -0.029324 -0.053696 " +
+                        "-0.017312 0.12333 -0.069488 -0.060358 -0.01046 0.032383 0.089749 -0.057152 0.06475 0.039078 -0.041297 " +
+                        "-0.080081 0.017931 -0.12257 -0.042619 0.0050177 0.061478 -0.012966 -0.033888 -0.12834 -0.015476 " +
+                        "-0.15241 0.0953 -0.043704 -0.061819 -0.017165 -0.025126 -0.076223 0.10406 0.053756 0.032499 0.066904 " +
+                        "-0.11043 0.00096502 -0.024105 -0.059445 0.051547 -0.071245 -0.017089 -0.15259 -0.012409 -0.057644 " +
+                        "-0.044881 -0.013445 0.059415 0.044902 -0.11984 -0.12521 -0.018003 -0.004171 0.13584 -0.050801 -0.068329 " +
+                        "0.096692 0.082484 -0.023193 -0.21677 0.010841 -0.045177 0.054996 -0.084878 -0.059781 -0.063631 0.0018137 " +
+                        "-0.028321 0.041779 0.074388 0.016212 0.056248 -0.066612 0.09219 0.013714 0.0015402 -0.083682 0.04995 " +
+                        "0.036039 0.16349 0.017082 -0.0020392 -0.096557 -0.1337 0.011869 -0.19198 -0.035029 0.14346 -0.14679");
             }
+
         },
         SUPERVISED_THREAD4_DIM10_LR01_NGRAMS2_BUCKET1E7_EPOCH5 {
             @Override
@@ -252,13 +253,15 @@ public class SimpleModelTest {
             }
 
             @Override
-            public List<Double> sentenceVectors() { // 10
+            public List<Double> wordVectors() { // dim: 10
                 return Arrays.asList(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
             }
 
             @Override
-            public List<Double> wordVectors() {
-                return Arrays.asList(0.0079745, -0.014468, -0.071323, 0.054646, 0.037028, 0.070605, -0.010022, 0.082145, 0.018551, -0.002894);
+            public List<Double> sentenceVectors() {
+                //-0.0092556 0.054957 -0.024542 -0.059048 0.0087722 0.04442 -0.0083089 0.033333 -0.0003131 0.032968
+                //-0.0092685 0.054978 -0.024593 -0.059038 0.0087809 0.044432 -0.0082967 0.033355 -0.00029507 0.032974
+                return parse("-0.0092685 0.054978 -0.024593 -0.059038 0.0087809 0.044432 -0.0082967 0.033355 -0.00029507 0.032974");
             }
         };
 
@@ -280,13 +283,13 @@ public class SimpleModelTest {
             return "Word test.";
         }
 
-        public abstract List<Double> sentenceVectors();
+        public abstract List<Double> wordVectors();
 
         public String getWordVectorsTestData() {
             return "Test";
         }
 
-        public abstract List<Double> wordVectors();
+        public abstract List<Double> sentenceVectors();
 
         public Path getInput() throws URISyntaxException, IOException {
             return Paths.get(Data.class.getResource(input()).toURI()).toRealPath();
@@ -302,6 +305,14 @@ public class SimpleModelTest {
 
         public Path getModelVec() {
             return Paths.get(getOutput().toString() + ".vec");
+        }
+
+        protected static List<Double> parse(String data) {
+            return Arrays.stream(data.split("\\s+")).map(Double::parseDouble).collect(Collectors.toList());
+        }
+
+        public String[] command() throws Exception {
+            return TestsBase.cmd(cmd(), getInput(), getOutput());
         }
     }
 

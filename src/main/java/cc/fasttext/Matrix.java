@@ -147,12 +147,15 @@ public strictfp class Matrix {
      *  for (int64_t j = 0; j < n_; j++) {
      *      d += at(i, j) * vec.data_[j];
      *  }
+     *  if (std::isnan(d)) {
+     *      throw std::runtime_error("Encountered NaN.");
+     *  }
      *  return d;
      * }}</pre>
      *
-     * @param vector
-     * @param i
-     * @return
+     * @param vector {@link Vector}
+     * @param i      m-dimensional index
+     * @return float
      */
     public float dotRow(Vector vector, int i) {
         validateMIndex(i);
@@ -160,6 +163,9 @@ public strictfp class Matrix {
         float d = 0f;
         for (int j = 0; j < getN(); j++) {
             d += data_[i][j] * vector.get(j);
+        }
+        if (Float.isNaN(d)) {
+            throw new IllegalStateException("Encountered NaN.");
         }
         return d;
     }
@@ -174,9 +180,9 @@ public strictfp class Matrix {
      *  }
      * }}</pre>
      *
-     * @param vector
-     * @param i
-     * @param a
+     * @param vector {@link Vector}
+     * @param i      m-dimensional index
+     * @param a      float multiplier
      */
     public void addRow(Vector vector, int i, float a) {
         validateMIndex(i);
@@ -202,9 +208,9 @@ public strictfp class Matrix {
      *  }
      * }}</pre>
      *
-     * @param denoms
-     * @param ib
-     * @param ie
+     * @param denoms {@link Vector}
+     * @param ib     int (orig: int64_t)
+     * @param ie     int (orig: int64_t)
      */
     protected void multiplyRow(Vector denoms, int ib, int ie) {
         if (ie == -1) {
@@ -275,17 +281,23 @@ public strictfp class Matrix {
      *      const real v = at(i,j);
      *      norm += v * v;
      *  }
+     *  if (std::isnan(norm)) {
+     *      throw std::runtime_error("Encountered NaN.");
+     *  }
      *  return std::sqrt(norm);
      * }}</pre>
      *
-     * @param i
-     * @return
+     * @param i m-dimensional index
+     * @return float
      */
     private float l2NormRow(int i) {
-        double norm = 0.0;
+        float norm = 0.0f;
         for (int j = 0; j < n_; j++) {
             float v = at(i, j);
             norm += v * v;
+        }
+        if (Float.isNaN(norm)) {
+            throw new IllegalStateException("Encountered NaN.");
         }
         return (float) FastMath.sqrt(norm);
     }
@@ -298,7 +310,7 @@ public strictfp class Matrix {
      *  }
      * }}</pre>
      *
-     * @return
+     * @return new {@link Vector}
      */
     public Vector l2NormRow() {
         Vector res = new Vector(m_);
@@ -316,7 +328,7 @@ public strictfp class Matrix {
      *  }
      * }}</pre>
      *
-     * @param norms
+     * @param norms {@link Vector}
      */
     protected void l2NormRow(Vector norms) {
         validateMVector(norms);

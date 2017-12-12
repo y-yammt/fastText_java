@@ -17,9 +17,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Main class with static methods to run FastText as application from command line.
- * The output to std:out, the input from std:in or from command line.
- * This and only this class must work with standard i/o and perform exit (from main method only).
+ * The main class to run FastText as application from command line.
+ * All public methods: the output to std:out, the input from std:in or from command line (through file-references maybe).
+ * This and only this class is allowed to work directly with standard i/o and perform exit (from main method only of course).
+ * Parsing args has been moved here from {@link Args args.cc, args.h}
  * <p>
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/main.cc'>main.cc</a>
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/main.h'>main.h</a>

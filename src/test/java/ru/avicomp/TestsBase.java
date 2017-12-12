@@ -1,20 +1,18 @@
 package ru.avicomp;
 
-import java.io.IOException;
-import java.net.URISyntaxException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.List;
-
 import org.junit.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ru.avicomp.tests.SimpleModelTest;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * Tests data and result dir.
+ * Tests helper (data and result dir).
  *
  * Created by @szuev on 24.10.2017.
  */
@@ -41,10 +39,6 @@ public final class TestsBase {
         return res.split("\\s");
     }
 
-    public static String[] cmd(SimpleModelTest.Data data) throws IOException, URISyntaxException {
-        return cmd(data.cmd(), data.getInput(), data.getOutput());
-    }
-
     public static void compareVectors(List<Double> expected, List<Double> actual, double delta) {
         LOGGER.debug("Expected {}", expected);
         LOGGER.debug("Actual {}", actual);
@@ -53,5 +47,18 @@ public final class TestsBase {
         for (int i = 0; i < expected.size(); i++) {
             Assert.assertEquals("#" + i, expected.get(i), actual.get(i), delta);
         }
+    }
+
+    public static <T> void compareLists(List<T> expected, List<T> actual, int allowedDeviation) {
+        Assert.assertEquals(expected.size(), actual.size());
+        LOGGER.debug("E: {}", expected);
+        LOGGER.debug("A: {}", actual);
+        List<String> errors = new ArrayList<>();
+        for (int i = 0; i < actual.size(); i++) {
+            if (expected.get(i).equals(actual.get(i))) continue;
+            errors.add(String.format("Wrong label #%d: expected('%s')!=actual('%s')", i, expected.get(i), actual.get(i)));
+        }
+        errors.forEach(LOGGER::warn);
+        Assert.assertTrue("Errors: " + errors.size(), errors.size() <= allowedDeviation);
     }
 }

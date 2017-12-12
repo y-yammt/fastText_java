@@ -31,7 +31,7 @@ import java.util.stream.StreamSupport;
 
 /**
  * FastText class, can be used as a lib in other projects.
- * It is assumed that all public methods of the instance do not change the state of the object, and therefore thread-safe.
+ * It is assumed that all public methods of the instance do not change the state of the object and therefore thread-safe.
  * <p>
  * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/fasttext.cc'>fasttext.cc</a> and
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/fasttext.h'>fasttext.h</a>
@@ -232,7 +232,7 @@ public strictfp class FastText {
      * @return {@link Matrix}
      */
     private Matrix computeWordVectors() {
-        logs.print("Pre-computing word vectors...");
+        logs.print("Pre-computing word vectors... ");
         Matrix res = new Matrix(dict.nwords(), args.dim());
         for (int i = 0; i < dict.nwords(); i++) {
             String word = dict.getWord(i);
@@ -242,7 +242,7 @@ public strictfp class FastText {
                 res.addRow(vec, i, 1.0f / norm);
             }
         }
-        logs.println(" done.");
+        logs.println("done.");
         return res;
     }
 
@@ -1133,12 +1133,12 @@ public strictfp class FastText {
                 throw new IOException("Model file cannot be opened for loading: <" + uri + ">");
             }
             try (InputStream in = fs.openInput(uri)) {
-                logs.print("Load model " + uri + " ...");
+                logs.print("Load model " + uri + " ... ");
                 FastText res = load(in).setFileSystem(fs).setLogs(logs);
-                logs.println(" done.");
+                logs.println("done.");
                 return res;
             } catch (Exception e) {
-                logs.println(" error.");
+                logs.println("error: " + e);
                 throw e;
             }
         }

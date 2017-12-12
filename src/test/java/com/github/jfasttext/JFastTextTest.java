@@ -107,10 +107,10 @@ public class JFastTextTest {
         Map<String, Float> res = jft.predictLine(text, 2);
         LOGGER.debug("Text: '{}', result: '{}'", text, res);
         Assert.assertEquals("Wrong result", 2, res.size());
-        // __label__soccer 0.5 __label__football 0.498047
+        //__label__soccer 0.500046 __label__football 0.499974
         Map<String, Float> expected = new HashMap<>();
-        expected.put("soccer", 0.5f);
-        expected.put("football", 0.498047f);
+        expected.put("soccer", 0.500046f);
+        expected.put("football", 0.499974f);
         expected.forEach((k, v) -> {
             String lab = Args.DEFAULT_LABEL + k;
             Assert.assertTrue("Can't find label '" + k + "'", res.containsKey(lab));

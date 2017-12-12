@@ -171,9 +171,9 @@ public strictfp class QMatrix extends Matrix {
      *  return pq_->mulcode(vec, codes_, i, norm);
      * }}</pre>
      *
-     * @param vector
-     * @param i
-     * @return
+     * @param vector {@link Vector}
+     * @param i m-dimensional index
+     * @return float
      */
     @Override
     public float dotRow(Vector vector, int i) {

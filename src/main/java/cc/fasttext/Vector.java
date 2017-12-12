@@ -46,11 +46,19 @@ public strictfp class Vector {
         return data_;
     }
 
+    /**
+     * Returns a fixed-size list backed by the vectors data.
+     *
+     * @return List of floats
+     */
     public List<Float> getData() {
         return Floats.asList(data_);
     }
 
-    @Deprecated // ?
+    /**
+     * not java-style method, going to remove
+     */
+    @Deprecated
     public void zero() {
         data_ = new float[data_.length];
     }
@@ -90,6 +98,7 @@ public strictfp class Vector {
     }
 
     /**
+     * Sums up the vector with another one and some multiplier.
      * <pre>{@code void Vector::addVector(const Vector& source, real s) {
      *  assert(m_ == source.m_);
      *  for (int64_t i = 0; i < m_; i++) {
@@ -97,8 +106,8 @@ public strictfp class Vector {
      *  }
      * }}</pre>
      *
-     * @param source
-     * @param s
+     * @param source {@link Vector}
+     * @param s      float (see real.h)
      */
     public void addVector(Vector source, float s) {
         Validate.isTrue(size() == Objects.requireNonNull(source, "Null source vector").size(), "Wrong size of vector: " + size() + "!=" + source.size());
@@ -115,7 +124,7 @@ public strictfp class Vector {
      *  }
      * }}</pre>
      *
-     * @param a
+     * @param a float
      */
     public void mul(float a) {
         DoubleUnaryOperator op = v -> v * a;
@@ -135,8 +144,8 @@ public strictfp class Vector {
      *  }
      * }}</pre>
      *
-     * @param matrix
-     * @param i
+     * @param matrix {@link Matrix}
+     * @param i      (int64_t originally) matrix row num (m-dimension)
      */
     public void addRow(Matrix matrix, int i) {
         if (matrix instanceof QMatrix) {
@@ -154,7 +163,7 @@ public strictfp class Vector {
      * }}</pre>
      *
      * @param matrix {@link QMatrix}
-     * @param i
+     * @param i      (int64_t originally) matrix row num (m-dimension)
      */
     private void addRow(QMatrix matrix, int i) {
         Validate.isTrue(i >= 0);
@@ -174,8 +183,8 @@ public strictfp class Vector {
      * }</pre>
      *
      * @param matrix {@link Matrix}
-     * @param i
-     * @param a
+     * @param i      m-dimension matrix coordinate
+     * @param a      float, multiplier
      */
     public void addRow(Matrix matrix, int i, float a) {
         Validate.isTrue(i >= 0 && i < matrix.getM(), "Incompatible index (" + i + ") and matrix m-size (" + matrix.getM() + ")");
@@ -195,8 +204,8 @@ public strictfp class Vector {
      *  }
      * }}</pre>
      *
-     * @param matrix
-     * @param vector
+     * @param matrix {@link Matrix}
+     * @param vector {@link Vector}
      */
     public void mul(Matrix matrix, Vector vector) {
         Validate.isTrue(matrix.getM() == size(), "Wrong matrix m-size: " + size() + " != " + matrix.getM());
@@ -219,7 +228,7 @@ public strictfp class Vector {
      * return argmax;
      * }}</pre>
      *
-     * @return
+     * @return int (original : int64_t)
      */
     public int argmax() {
         float max = get(0);
@@ -237,6 +246,7 @@ public strictfp class Vector {
     /**
      * Returns a string representation of the vector.
      * Used while printing to console and save vectors to file.
+     *
      * @return vector as String
      * @see Main#asString(float)
      */
