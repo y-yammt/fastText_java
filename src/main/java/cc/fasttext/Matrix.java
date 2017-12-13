@@ -1,12 +1,5 @@
 package cc.fasttext;
 
-import cc.fasttext.io.FTInputStream;
-import cc.fasttext.io.FTOutputStream;
-import org.apache.commons.lang.Validate;
-import org.apache.commons.math3.distribution.UniformRealDistribution;
-import org.apache.commons.math3.random.RandomGenerator;
-import org.apache.commons.math3.util.FastMath;
-
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -15,6 +8,14 @@ import java.util.Objects;
 import java.util.function.DoubleUnaryOperator;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang.Validate;
+import org.apache.commons.math3.distribution.UniformRealDistribution;
+import org.apache.commons.math3.random.RandomGenerator;
+import org.apache.commons.math3.util.FastMath;
+
+import cc.fasttext.io.FTInputStream;
+import cc.fasttext.io.FTOutputStream;
+
 /**
  * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.cc'>matrix.cc</a> and
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.h'>matrix.h</a>
@@ -22,12 +23,11 @@ import java.util.stream.Collectors;
 public strictfp class Matrix {
 
     private float[][] data_;
-    // todo: make final ?
+
     protected int m_; // vocabSize
     protected int n_; // layer1Size
 
-    Matrix() {
-        // empty
+    protected Matrix() {
     }
 
     public Matrix(int m, int n) {
@@ -126,8 +126,8 @@ public strictfp class Matrix {
      * }
      * }</pre>
      *
-     * @param rnd
-     * @param a
+     * @param rnd {@link RandomGenerator}
+     * @param a float, distribution bound
      */
     public void uniform(RandomGenerator rnd, float a) {
         UniformRealDistribution uniform = new UniformRealDistribution(rnd, -a, a);
@@ -369,17 +369,21 @@ public strictfp class Matrix {
      * }}</pre>
      *
      * @param in {@link FTInputStream}
+     * @return {@link Matrix} new instance
      * @throws IOException if an I/O error occurs
      */
-    void load(FTInputStream in) throws IOException {
-        m_ = (int) in.readLong();
-        n_ = (int) in.readLong();
-        data_ = new float[m_][n_];
-        for (int i = 0; i < m_; i++) {
-            for (int j = 0; j < n_; j++) {
-                data_[i][j] = in.readFloat();
+    static Matrix load(FTInputStream in) throws IOException {
+        Matrix res = new Matrix((int) in.readLong(), (int) in.readLong());
+        for (int i = 0; i < res.m_; i++) {
+            for (int j = 0; j < res.n_; j++) {
+                res.data_[i][j] = in.readFloat();
             }
         }
+        return res;
+    }
+
+    static Matrix empty() {
+        return new Matrix();
     }
 
     @Override

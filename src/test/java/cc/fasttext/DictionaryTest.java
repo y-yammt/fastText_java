@@ -1,14 +1,15 @@
 package cc.fasttext;
 
-import org.junit.Test;
-
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
+
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
 public class DictionaryTest {
 
-    private Dictionary dictionary = new Dictionary(new Args.Builder().build());
+    private Dictionary dictionary = new Dictionary(new Args.Builder().build(), StandardCharsets.UTF_8);
 
 	@Test
 	public void testHash() {

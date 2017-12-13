@@ -1,17 +1,5 @@
 package cc.fasttext.tests;
 
-import cc.fasttext.FastText;
-import cc.fasttext.Main;
-import cc.fasttext.base.ShellUtils;
-import cc.fasttext.base.Tests;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.FixMethodOrder;
-import org.junit.Test;
-import org.junit.runners.MethodSorters;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.*;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -20,6 +8,19 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.FixMethodOrder;
+import org.junit.Test;
+import org.junit.runners.MethodSorters;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import cc.fasttext.FastText;
+import cc.fasttext.Main;
+import cc.fasttext.base.ShellUtils;
+import cc.fasttext.base.Tests;
 
 /**
  * Based on
@@ -113,8 +114,8 @@ public class ClassificationExampleTest {
                 " -cutoff 100000", train, model));
         Assert.assertTrue("No .ftz found", Files.exists(ftz));
         Assert.assertTrue("No .vec found", Files.exists(vec));
-        // 0.6 kb allowed diff:
-        Assert.assertEquals("Incorrect size of dbpedia.ftz model", DBPEDIA_MODEL_FTZ_SIZE, Files.size(ftz), 600);
+        // 0.8 kb allowed diff:
+        Assert.assertEquals("Incorrect size of dbpedia.ftz model", DBPEDIA_MODEL_FTZ_SIZE, Files.size(ftz), 800);
     }
 
     private Path getModelBinPath() throws Exception {

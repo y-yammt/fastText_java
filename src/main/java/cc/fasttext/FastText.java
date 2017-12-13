@@ -1,20 +1,10 @@
 package cc.fasttext;
 
-import cc.fasttext.Args.ModelName;
-import cc.fasttext.Dictionary.EntryType;
-import cc.fasttext.io.*;
-import cc.fasttext.io.impl.LocalIOStreams;
-import com.google.common.collect.*;
-import org.apache.commons.lang.StringUtils;
-import org.apache.commons.lang.Validate;
-import org.apache.commons.math3.distribution.UniformIntegerDistribution;
-import org.apache.commons.math3.util.FastMath;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.*;
 import java.lang.ref.Reference;
 import java.lang.ref.SoftReference;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -28,6 +18,21 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+
+import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.Validate;
+import org.apache.commons.math3.distribution.UniformIntegerDistribution;
+import org.apache.commons.math3.random.RandomGenerator;
+import org.apache.commons.math3.random.Well19937c;
+import org.apache.commons.math3.util.FastMath;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import cc.fasttext.Args.ModelName;
+import cc.fasttext.Dictionary.EntryType;
+import cc.fasttext.io.*;
+import cc.fasttext.io.impl.LocalIOStreams;
+import com.google.common.collect.*;
 
 /**
  * FastText class, can be used as a lib in other projects.
@@ -44,7 +49,7 @@ public strictfp class FastText {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(FastText.class);
 
-    public static final Factory DEFAULT_FACTORY = new Factory(new LocalIOStreams(), new PrintLogs.Flat(LOGGER::debug));
+    public static final Factory DEFAULT_FACTORY = new Factory(new LocalIOStreams(), Well19937c::new, new PrintLogs.Flat(LOGGER::debug), StandardCharsets.UTF_8);
 
     private static final double FIND_NN_THRESHOLD = 1e-8;
     private final Args args;
@@ -52,16 +57,21 @@ public strictfp class FastText {
     private final Model model;
     private final int version;
 
-    private IOStreams fs = DEFAULT_FACTORY.getFileSystem();
-    private PrintLogs logs = DEFAULT_FACTORY.getLogs();
+    private final IOStreams fs;
+    private final PrintLogs logs;
+    private final IntFunction<RandomGenerator> random;
 
     private Reference<Matrix> precomputedWordVectors;
 
-    private FastText(Args args, Dictionary dict, Model model, int version) {
+    private FastText(Args args, Dictionary dict, Model model, int version,
+                     IOStreams fs, PrintLogs logs, IntFunction<RandomGenerator> random) {
         this.args = args;
         this.dict = dict;
         this.model = model;
         this.version = version;
+        this.fs = fs;
+        this.logs = logs;
+        this.random = random;
     }
 
     public static FastText train(Args args, String file) throws IOException, ExecutionException {
@@ -90,32 +100,6 @@ public strictfp class FastText {
 
     public int getVersion() {
         return version;
-    }
-
-    public IOStreams getFileSystem() {
-        return fs;
-    }
-
-    /**
-     * Sets file-system.
-     *
-     * @param fs {@link IOStreams}
-     * @return this {@link FastText} object
-     */
-    public FastText setFileSystem(IOStreams fs) {
-        this.fs = Objects.requireNonNull(fs, "Null file system specified.");
-        return this;
-    }
-
-    /**
-     * Sets logs.
-     *
-     * @param out {@link PrintLogs} set output to log
-     * @return this {@link FastText} object
-     */
-    public FastText setLogs(PrintLogs out) {
-        this.logs = Objects.requireNonNull(out, "Null logs.");
-        return this;
     }
 
     /**
@@ -187,7 +171,7 @@ public strictfp class FastText {
         line += "\n";
         Vector res = new Vector(args.dim());
         if (ModelName.SUP.equals(args.model())) {
-            FTReader in = new FTReader(new ByteArrayInputStream(line.getBytes(args.charset())), args.charset());
+            FTReader in = new FTReader(new ByteArrayInputStream(line.getBytes(dict.charset())), dict.charset());
             List<Integer> words = new ArrayList<>();
             dict.getLine(in, words, new ArrayList<>());
             if (words.isEmpty()) return res;
@@ -538,13 +522,13 @@ public strictfp class FastText {
      * @throws IllegalArgumentException if no possible to write file
      */
     private void writeVectors(String name, String file, int lines, IntFunction<String> word, IntFunction<Vector> vector) throws IOException, IllegalArgumentException {
-        if (!getFileSystem().canWrite(file)) {
+        if (!fs.canWrite(file)) {
             throw new IllegalArgumentException("Can't write to " + file);
         }
         if (args.verbose() > 1) {
             logs.println("Saving " + name + " to " + file);
         }
-        try (Writer writer = new BufferedWriter(new OutputStreamWriter(getFileSystem().createOutput(file), args.charset()))) {
+        try (Writer writer = new BufferedWriter(new OutputStreamWriter(fs.createOutput(file), dict.charset()))) {
             writer.write(lines + " " + args.dim() + "\n");
             for (int i = 0; i < lines; i++) {
                 writer.write(word.apply(i));
@@ -595,13 +579,13 @@ public strictfp class FastText {
      * @throws IllegalArgumentException if no possible to write file
      */
     public void saveModel(String file) throws IOException, IllegalArgumentException {
-        if (!getFileSystem().canWrite(file)) {
+        if (!fs.canWrite(file)) {
             throw new IllegalArgumentException("Can't write to " + file);
         }
         if (args.verbose() > 1) {
             logs.println("Saving model to " + file);
         }
-        try (FTOutputStream out = new FTOutputStream(new BufferedOutputStream(getFileSystem().createOutput(file)))) {
+        try (FTOutputStream out = new FTOutputStream(new BufferedOutputStream(fs.createOutput(file)))) {
             signModel(out);
             args.save(out);
             dict.save(out);
@@ -680,7 +664,7 @@ public strictfp class FastText {
         double precision = 0.0;
         List<Integer> line = new ArrayList<>();
         List<Integer> labels = new ArrayList<>();
-        FTReader reader = new FTReader(in, args.charset());
+        FTReader reader = new FTReader(in, dict.charset());
         while (!reader.end()) {
             dict.getLine(reader, line, labels);
             if (labels.isEmpty() || line.isEmpty()) {
@@ -829,7 +813,7 @@ public strictfp class FastText {
     public Stream<Map<String, Float>> predict(InputStream in, int k) {
         Objects.requireNonNull(in, "Null input");
         Validate.isTrue(k > 0, "Not positive factor");
-        FTReader reader = new FTReader(in, args.charset());
+        FTReader reader = new FTReader(in, dict.charset());
         Spliterator<Map<String, Float>> res = Spliterators.spliteratorUnknownSize(new Iterator<Map<String, Float>>() {
             @Override
             public boolean hasNext() {
@@ -898,7 +882,7 @@ public strictfp class FastText {
     public Map<String, Float> predictLine(String line, int k) throws IOException, IllegalStateException, IllegalArgumentException {
         Validate.notEmpty(line, "Null line specified.");
         Validate.isTrue(k > 0, "Negative or zero factor");
-        FTReader r = new FTReader(new ByteArrayInputStream(line.getBytes(args.charset().name())), args.charset());
+        FTReader r = new FTReader(new ByteArrayInputStream(line.getBytes(dict.charset().name())), dict.charset());
         return toProbabilityMap(predict(r, k));
     }
 
@@ -986,6 +970,7 @@ public strictfp class FastText {
         if (!ModelName.SUP.equals(args.model())) {
             throw new IllegalArgumentException("For now we only support quantization of supervised models");
         }
+        Factory factory = new Factory(fs, random, logs, dict.charset());
         Args qargs = new Args.Builder()
                 .copy(this.args)
                 .setQOut(other.qout())
@@ -1012,7 +997,7 @@ public strictfp class FastText {
                         .setThread(other.thread())
                         .setVerbose(other.verbose())
                         .build();
-                Model model = new Factory(fs, logs).newTrainer(qargs, fileToRetrain, qdict, input, output).train();
+                Model model = factory.newTrainer(qargs, fileToRetrain, qdict, input, output).train();
                 input = model.input();
                 output = model.output();
             }
@@ -1020,19 +1005,19 @@ public strictfp class FastText {
             input = model.input().copy();
         }
 
-        QMatrix qinput = new QMatrix(input, args.randomFactory(), qargs.dsub(), qargs.qnorm());
+        QMatrix qinput = new QMatrix(input, random, qargs.dsub(), qargs.qnorm());
         QMatrix qoutput;
         if (qargs.qout()) {
-            qoutput = new QMatrix(output, args.randomFactory(), 2, qargs.qnorm());
+            qoutput = new QMatrix(output, random, 2, qargs.qnorm());
         } else {
-            qoutput = new QMatrix();
+            qoutput = QMatrix.empty();
         }
-        Model model = new Model(input, output, qargs, 0).setQuantizePointer(qinput, qoutput);
-        return new FastText(qargs, qdict, model, FASTTEXT_VERSION);
+        Model model = factory.createModel(qargs, qdict, input, output, 0).setQuantizePointer(qinput, qoutput);
+        return factory.createFastText(qargs, qdict, model, FASTTEXT_VERSION);
     }
 
     /**
-     * File statistics produced by {@link #test(InputStream, int)},
+     * File statistics produced by {@link #test(InputStream, int)}
      * Immutable inner object.
      */
     public class TestInfo {
@@ -1073,10 +1058,11 @@ public strictfp class FastText {
 
 
     /**
-     * A factory to produce new {@link FastText} interface.
+     * A factory to produce new {@link FastText} api-interface.
      *
      * @see IOStreams
      * @see PrintLogs
+     * @see RandomGenerator
      * <p>
      * Created by @szuev on 07.12.2017.
      */
@@ -1086,18 +1072,26 @@ public strictfp class FastText {
 
         private final IOStreams fs;
         private final PrintLogs logs;
+        private final IntFunction<RandomGenerator> random;
+        private final Charset charset;
 
-        public Factory(IOStreams factory, PrintLogs logs) {
+        public Factory(IOStreams factory, IntFunction<RandomGenerator> random, PrintLogs logs, Charset charset) {
             this.fs = Objects.requireNonNull(factory, "Null io-factory.");
-            this.logs = Objects.requireNonNull(logs, "Null logs");
+            this.random = Objects.requireNonNull(random, "Null random-factory.");
+            this.logs = Objects.requireNonNull(logs, "Null logs.");
+            this.charset = Objects.requireNonNull(charset, "Null charset.");
         }
 
         public Factory setFileSystem(IOStreams fs) {
-            return new Factory(fs, this.logs);
+            return new Factory(fs, this.random, this.logs, this.charset);
         }
 
         public Factory setLogs(PrintLogs logs) {
-            return new Factory(this.fs, logs);
+            return new Factory(this.fs, this.random, logs, this.charset);
+        }
+
+        public Factory setRandom(IntFunction<RandomGenerator> random) {
+            return new Factory(this.fs, random, this.logs, this.charset);
         }
 
         public IOStreams getFileSystem() {
@@ -1106,6 +1100,14 @@ public strictfp class FastText {
 
         public PrintLogs getLogs() {
             return logs;
+        }
+
+        public IntFunction<RandomGenerator> getRandom() {
+            return random;
+        }
+
+        public Charset getCharset() {
+            return charset;
         }
 
         /**
@@ -1126,15 +1128,15 @@ public strictfp class FastText {
          * @param uri String, path to file, not null
          * @return new {@link FastText model} instance
          * @throws IOException              if something is wrong while read file
-         * @throws IllegalArgumentException if file is wrong
+         * @throws IllegalArgumentException if file is wrong or can not be read
          */
         public FastText load(String uri) throws IOException, IllegalArgumentException {
             if (!fs.canRead(Objects.requireNonNull(uri, "Null file ref specified."))) {
-                throw new IOException("Model file cannot be opened for loading: <" + uri + ">");
+                throw new IllegalArgumentException("Model file cannot be opened for loading: <" + uri + ">");
             }
             try (InputStream in = fs.openInput(uri)) {
                 logs.print("Load model " + uri + " ... ");
-                FastText res = load(in).setFileSystem(fs).setLogs(logs);
+                FastText res = load(in);
                 logs.println("done.");
                 return res;
             } catch (Exception e) {
@@ -1221,35 +1223,34 @@ public strictfp class FastText {
                 // backward compatibility: old supervised models do not use char ngrams.
                 args = new Args.Builder().copy(args).setMaxN(0).build();
             }
-            Dictionary dict = new Dictionary(args);
-            dict.load(inputStream);
-            boolean quantInput = inputStream.readBoolean();
-            Matrix input = new Matrix();
-            QMatrix qinput = new QMatrix();
-            boolean quant;
-            if (quantInput) {
-                qinput.load(inputStream);
-                quant = true;
+            Dictionary dict = Dictionary.load(args, charset, inputStream);
+            boolean quant = inputStream.readBoolean();
+            Matrix input;
+            QMatrix qinput;
+            if (quant) {
+                qinput = QMatrix.load(random, inputStream);
+                input = Matrix.empty();
             } else {
-                input.load(inputStream);
-                quant = false;
+                qinput = QMatrix.empty();
+                input = Matrix.load(inputStream);
             }
-
-            if (!quantInput && dict.isPruned()) {
+            if (!quant && dict.isPruned()) {
                 throw new IllegalArgumentException("Invalid model file.\nPlease download the updated model from " +
                         "www.fasttext.cc.\nSee issue #332 on Github for more information.\n");
             }
             // todo warn: after following line different args in the dictionary and this object:
             args = new Args.Builder().copy(args).setQOut(inputStream.readBoolean()).build();
-            Matrix output = new Matrix();
-            QMatrix qoutput = new QMatrix();
+            Matrix output;
+            QMatrix qoutput;
             if (quant && args.qout()) {
-                qoutput.load(inputStream);
+                qoutput = QMatrix.load(random, inputStream);
+                output = Matrix.empty();
             } else {
-                output.load(inputStream);
+                qoutput = QMatrix.empty();
+                output = Matrix.load(inputStream);
             }
-            Model model = createModel(dict, input, output, args, 0).setQuantizePointer(qinput, qoutput);
-            return new FastText(args, dict, model, version);
+            Model model = createModel(args, dict, input, output, 0).setQuantizePointer(qinput, qoutput);
+            return createFastText(args, dict, model, version);
         }
 
         /**
@@ -1307,7 +1308,7 @@ public strictfp class FastText {
             Matrix mat;
             List<String> words;
             int n, dim;
-            try (BufferedReader in = new BufferedReader(new InputStreamReader(fs.openInput(file), args.charset()))) {
+            try (BufferedReader in = new BufferedReader(new InputStreamReader(fs.openInput(file), charset))) {
                 String first = in.readLine();
                 if (!first.matches("\\d+\\s+\\d+")) {
                     throw new IllegalArgumentException("Wrong pre-trained vectors file: first line should contain 'n dim' pair");
@@ -1337,7 +1338,7 @@ public strictfp class FastText {
             }
             dictionary.threshold(1, 0);
             Matrix res = new Matrix(dictionary.nwords() + args.bucket(), args.dim());
-            res.uniform(args.randomFactory().apply(1), 1.0f / args.dim());
+            res.uniform(random.apply(1), 1.0f / args.dim());
             for (int i = 0; i < n; i++) {
                 int idx = dictionary.getId(words.get(i));
                 if (idx < 0 || idx >= dictionary.nwords())
@@ -1358,20 +1359,20 @@ public strictfp class FastText {
          * @throws IOException if an I/O error occurs
          */
         private Dictionary readDictionary(Args args, String file) throws IOException {
-            Dictionary res = new Dictionary(args);
-            try (FTReader reader = createReader(args, file)) {
+            Dictionary res = new Dictionary(args, charset);
+            try (FTReader reader = createReader(file)) {
                 res.readFromFile(reader, logs);
             }
             return res;
         }
 
-        private FTReader createReader(Args args, String fileName) throws IOException {
-            return new FTReader(fs.openScrollable(fileName), args.charset(), BUFF_SIZE);
+        private FTReader createReader(String fileName) throws IOException {
+            return new FTReader(fs.openScrollable(fileName), charset, BUFF_SIZE);
         }
 
         private Matrix createInput(Args args, Dictionary dictionary) {
             Matrix res = new Matrix(dictionary.nwords() + args.bucket(), args.dim());
-            res.uniform(args.randomFactory().apply(1), 1.0f / args.dim());
+            res.uniform(random.apply(1), 1.0f / args.dim());
             return res;
         }
 
@@ -1404,7 +1405,7 @@ public strictfp class FastText {
         public FastText train(Args args, String file, String vectors) throws IOException, ExecutionException {
             Trainer trainer = newTrainer(args, file, vectors);
             Model model = trainer.train();
-            return new FastText(args, trainer.dictionary, model, FASTTEXT_VERSION).setFileSystem(fs).setLogs(logs);
+            return createFastText(args, trainer.dictionary, model, FASTTEXT_VERSION);
         }
 
         private void printInfo(Args args, Instant start, Instant end, long tokenCount_, float progress, float loss) {
@@ -1423,23 +1424,46 @@ public strictfp class FastText {
         }
 
         /**
-         * Creates model
+         * Creates model.
          *
+         * @param args   {@link Args}
          * @param dict   {@link Dictionary}
          * @param input  {@link Matrix}
          * @param output {@link Matrix}
-         * @param args   {@link Args}
-         * @param id     seed
+         * @param seed   seed
          * @return {@link Model}
          */
-        private static Model createModel(Dictionary dict, Matrix input, Matrix output, Args args, int id) {
-            Model res = new Model(input, output, args, id);
+        private Model createModel(Args args, Dictionary dict, Matrix input, Matrix output, int seed) {
+            Model res = new Model(input, output, args, random.apply(seed));
             if (ModelName.SUP.equals(args.model())) {
                 res.setTargetCounts(dict.getCounts(EntryType.LABEL));
             } else {
                 res.setTargetCounts(dict.getCounts(EntryType.WORD));
             }
             return res;
+        }
+
+        /**
+         * Creates a new FastText
+         *
+         * @param args       {@link Args}
+         * @param dictionary {@link Dictionary}
+         * @param model      {@link Model}
+         * @param version    int version
+         * @return {@link FastText}
+         */
+        private FastText createFastText(Args args, Dictionary dictionary, Model model, int version) {
+            return new FastText(args, dictionary, model, version, this.fs, this.logs, this.random);
+        }
+
+        /**
+         * Copies FastText with new transient settings (fs,logs,random) provided by this factory.
+         *
+         * @param other {@link FastText}
+         * @return copy of specified fasttext.
+         */
+        public FastText createFastText(FastText other) {
+            return createFastText(other.args, other.dict, other.model, other.version);
         }
 
         /**
@@ -1468,7 +1492,7 @@ public strictfp class FastText {
             }
 
             private FTReader createReader() throws IOException {
-                return Factory.this.createReader(args, file);
+                return Factory.this.createReader(file);
             }
 
             /**
@@ -1514,7 +1538,7 @@ public strictfp class FastText {
              */
             public Model train() throws IOException, ExecutionException, IllegalArgumentException {
                 startThreads();
-                return createModel(dictionary, input, output, args, 0);
+                return Factory.this.createModel(args, dictionary, input, output, 0);
             }
 
             /**
@@ -1624,7 +1648,7 @@ public strictfp class FastText {
                 try (FTReader reader = createReader()) {
                     long skip = threadId * size / args.thread();
                     reader.skipBytes(skip);
-                    model = createModel(dictionary, input, output, args, threadId);
+                    model = Factory.this.createModel(args, dictionary, input, output, threadId);
                     long ntokens = dictionary.ntokens();
                     long localTokenCount = 0;
                     List<Integer> line = new ArrayList<>();
@@ -1636,10 +1660,10 @@ public strictfp class FastText {
                             localTokenCount += dictionary.getLine(reader, line, labels);
                             supervised(model, lr, line, labels);
                         } else if (ModelName.CBOW.equals(args.model())) {
-                            localTokenCount += dictionary.getLine(reader, line, model.rng);
+                            localTokenCount += dictionary.getLine(reader, line, model.random());
                             cbow(model, lr, line);
                         } else if (ModelName.SG.equals(args.model())) {
-                            localTokenCount += dictionary.getLine(reader, line, model.rng);
+                            localTokenCount += dictionary.getLine(reader, line, model.random());
                             skipgram(model, lr, line);
                         }
                         if (localTokenCount > args.lrUpdateRate()) {
@@ -1669,7 +1693,7 @@ public strictfp class FastText {
             private void supervised(Model model, float lr, List<Integer> line, List<Integer> labels) {
                 if (labels.size() == 0 || line.size() == 0)
                     return;
-                UniformIntegerDistribution uniform = new UniformIntegerDistribution(model.rng, 0, labels.size() - 1);
+                UniformIntegerDistribution uniform = new UniformIntegerDistribution(model.random(), 0, labels.size() - 1);
                 int i = uniform.sample();
                 model.update(line, labels.get(i), lr);
             }
@@ -1697,7 +1721,7 @@ public strictfp class FastText {
              * @param line  List of ints
              */
             private void cbow(Model model, float lr, List<Integer> line) {
-                UniformIntegerDistribution uniform = new UniformIntegerDistribution(model.rng, 1, args.ws());
+                UniformIntegerDistribution uniform = new UniformIntegerDistribution(model.random(), 1, args.ws());
                 for (int w = 0; w < line.size(); w++) {
                     List<Integer> bow = new ArrayList<>();
                     int boundary = uniform.sample();
@@ -1731,7 +1755,7 @@ public strictfp class FastText {
              * @param line  List of ints
              */
             private void skipgram(Model model, float lr, List<Integer> line) {
-                UniformIntegerDistribution uniform = new UniformIntegerDistribution(model.rng, 1, args.ws());
+                UniformIntegerDistribution uniform = new UniformIntegerDistribution(model.random(), 1, args.ws());
                 for (int w = 0; w < line.size(); w++) {
                     int boundary = uniform.sample();
                     List<Integer> ngrams = dictionary.getSubwords(line.get(w));

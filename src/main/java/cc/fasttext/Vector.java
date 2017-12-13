@@ -1,13 +1,14 @@
 package cc.fasttext;
 
-import com.google.common.primitives.Floats;
-import org.apache.commons.lang.Validate;
-import org.apache.commons.math3.util.FastMath;
-
 import java.util.List;
 import java.util.Objects;
 import java.util.function.DoubleUnaryOperator;
 import java.util.stream.Collectors;
+
+import org.apache.commons.lang.Validate;
+import org.apache.commons.math3.util.FastMath;
+
+import com.google.common.primitives.Floats;
 
 /**
  * See <a href='https://github.com/facebookresearch/fastText/blob/master/src/vector.cc'>vector.cc</a> &
@@ -55,11 +56,7 @@ public strictfp class Vector {
         return Floats.asList(data_);
     }
 
-    /**
-     * not java-style method, going to remove
-     */
-    @Deprecated
-    public void zero() {
+    public void clear() {
         data_ = new float[data_.length];
     }
 

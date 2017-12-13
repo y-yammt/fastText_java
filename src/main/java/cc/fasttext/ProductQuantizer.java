@@ -1,15 +1,5 @@
 package cc.fasttext;
 
-import cc.fasttext.io.FTInputStream;
-import cc.fasttext.io.FTOutputStream;
-import com.google.common.primitives.Bytes;
-import com.google.common.primitives.Floats;
-import com.google.common.primitives.Ints;
-import org.apache.commons.math3.distribution.UniformRealDistribution;
-import org.apache.commons.math3.random.RandomAdaptor;
-import org.apache.commons.math3.random.RandomGenerator;
-import org.apache.commons.math3.util.FastMath;
-
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -17,6 +7,17 @@ import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
+
+import org.apache.commons.math3.distribution.UniformRealDistribution;
+import org.apache.commons.math3.random.RandomAdaptor;
+import org.apache.commons.math3.random.RandomGenerator;
+import org.apache.commons.math3.util.FastMath;
+
+import cc.fasttext.io.FTInputStream;
+import cc.fasttext.io.FTOutputStream;
+import com.google.common.primitives.Bytes;
+import com.google.common.primitives.Floats;
+import com.google.common.primitives.Ints;
 
 /**
  * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/productquantizer.cc'>productquantizer.cc</a> and
@@ -43,7 +44,7 @@ public strictfp class ProductQuantizer {
 
     private RandomGenerator rng;
 
-    ProductQuantizer(IntFunction<RandomGenerator> randomProvider) {
+    private ProductQuantizer(IntFunction<RandomGenerator> randomProvider) {
         this.rng = randomProvider.apply(SEED);
     }
 
@@ -86,7 +87,7 @@ public strictfp class ProductQuantizer {
      * @param b
      * @return
      */
-    public List<Float> getCentroids(int m, byte b) {
+    List<Float> getCentroids(int m, byte b) {
         int i = Byte.toUnsignedInt(b);
         int index = m == nsubq_ - 1 ? m * KSUB * dsub_ + i * lastdsub_ : (m * KSUB + i) * dsub_;
         return shiftFloats(centroids_, index);
@@ -411,7 +412,7 @@ public strictfp class ProductQuantizer {
      * @param codes
      * @param n
      */
-    public void computeCodes(float[] data, byte[] codes, int n) {
+    void computeCodes(float[] data, byte[] codes, int n) {
         List<Float> _x = asFloatList(data);
         List<Byte> _c = asByteList(codes);
         for (int i = 0; i < n; i++) {
@@ -443,7 +444,7 @@ public strictfp class ProductQuantizer {
      * @param alpha
      * @return
      */
-    public float mulCode(Vector vector, byte[] codes, int t, float alpha) {
+    float mulCode(Vector vector, byte[] codes, int t, float alpha) {
         return mulCode(vector.data(), codes, t) * alpha;
     }
 
@@ -484,7 +485,7 @@ public strictfp class ProductQuantizer {
      * @param t
      * @param alpha
      */
-    public void addCode(Vector vector, byte[] codes, int t, float alpha) {
+    void addCode(Vector vector, byte[] codes, int t, float alpha) {
         addCode(vector.data(), codes, t, alpha);
     }
 
@@ -537,18 +538,22 @@ public strictfp class ProductQuantizer {
      *  }
      * }}</pre>
      *
-     * @param in
-     * @throws IOException
+     * @param factory {@link RandomGenerator} provider
+     * @param in {@link FTInputStream}
+     * @return {@link ProductQuantizer} new instance
+     * @throws IOException if an I/O error occurs
      */
-    void load(FTInputStream in) throws IOException {
-        dim_ = in.readInt();
-        nsubq_ = in.readInt();
-        dsub_ = in.readInt();
-        lastdsub_ = in.readInt();
-        centroids_ = asFloatList(new float[dim_ * KSUB]);
-        for (int i = 0; i < centroids_.size(); i++) {
-            centroids_.set(i, in.readFloat());
+    static ProductQuantizer load(IntFunction<RandomGenerator> factory, FTInputStream in) throws IOException {
+        ProductQuantizer res = new ProductQuantizer(factory);
+        res.dim_ = in.readInt();
+        res.nsubq_ = in.readInt();
+        res.dsub_ = in.readInt();
+        res.lastdsub_ = in.readInt();
+        res.centroids_ = asFloatList(new float[res.dim_ * KSUB]);
+        for (int i = 0; i < res.centroids_.size(); i++) {
+            res.centroids_.set(i, in.readFloat());
         }
+        return res;
     }
 
     public static List<Byte> asByteList(byte... unsignedByteInts) { // uint8_t

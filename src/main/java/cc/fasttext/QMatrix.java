@@ -1,12 +1,13 @@
 package cc.fasttext;
 
-import cc.fasttext.io.FTInputStream;
-import cc.fasttext.io.FTOutputStream;
-import org.apache.commons.math3.random.RandomGenerator;
-
 import java.io.IOException;
 import java.util.List;
 import java.util.function.IntFunction;
+
+import org.apache.commons.math3.random.RandomGenerator;
+
+import cc.fasttext.io.FTInputStream;
+import cc.fasttext.io.FTOutputStream;
 
 /**
  * See <a href='https://github.com/facebookresearch/fastText/blob/master/src/qmatrix.cc'>qmatrix.cc</a> &
@@ -25,7 +26,7 @@ public strictfp class QMatrix extends Matrix {
     private ProductQuantizer pq_;
     private ProductQuantizer npq_;
 
-    QMatrix() {
+    private QMatrix() {
     }
 
     /**
@@ -265,29 +266,33 @@ public strictfp class QMatrix extends Matrix {
      * }
      * }</pre>
      *
+     * @param factory {@link RandomGenerator} provider
      * @param in {@link FTInputStream}
+     * @return {@link QMatrix} new instance
      * @throws IOException if an I/O error occurs
      */
-    @Override
-    void load(FTInputStream in) throws IOException {
-        qnorm_ = in.readBoolean();
-        m_ = (int) in.readLong();
-        n_ = (int) in.readLong();
-        codesize_ = in.readInt();
-        codes_ = new byte[codesize_];
-        for (int i = 0; i < codesize_; i++) {
-            codes_[i] = in.readByte();
+    static QMatrix load(IntFunction<RandomGenerator> factory, FTInputStream in) throws IOException {
+        QMatrix res = new QMatrix();
+        res.qnorm_ = in.readBoolean();
+        res.m_ = (int) in.readLong();
+        res.n_ = (int) in.readLong();
+        res.codesize_ = in.readInt();
+        res.codes_ = new byte[res.codesize_];
+        for (int i = 0; i < res.codesize_; i++) {
+            res.codes_[i] = in.readByte();
         }
-        // todo: need pass rnd-factory somewhere from outside
-        pq_ = new ProductQuantizer(Args.DEFAULT_RANDOM_GENERATOR_FACTORY);
-        pq_.load(in);
-        if (!qnorm_) return;
-        npq_ = new ProductQuantizer(Args.DEFAULT_RANDOM_GENERATOR_FACTORY);
-        normCodes = new byte[this.m_];
-        for (int i = 0; i < m_; i++) {
-            normCodes[i] = in.readByte();
+        res.pq_ = ProductQuantizer.load(factory, in);
+        if (res.qnorm_) {
+            res.normCodes = new byte[res.m_];
+            for (int i = 0; i < res.m_; i++) {
+                res.normCodes[i] = in.readByte();
+            }
+            res.npq_ = ProductQuantizer.load(factory, in);
         }
-        npq_.load(in);
+        return res;
     }
 
+    static QMatrix empty() {
+        return new QMatrix();
+    }
 }

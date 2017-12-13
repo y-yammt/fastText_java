@@ -1,16 +1,5 @@
 package cc.fasttext;
 
-import cc.fasttext.io.FTInputStream;
-import cc.fasttext.io.FTOutputStream;
-import cc.fasttext.io.FTReader;
-import cc.fasttext.io.PrintLogs;
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Multimap;
-import com.google.common.primitives.UnsignedLong;
-import org.apache.commons.lang.Validate;
-import org.apache.commons.math3.distribution.UniformRealDistribution;
-import org.apache.commons.math3.random.RandomGenerator;
-
 import java.io.IOException;
 import java.io.Reader;
 import java.nio.charset.Charset;
@@ -19,6 +8,18 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
+
+import org.apache.commons.lang.Validate;
+import org.apache.commons.math3.distribution.UniformRealDistribution;
+import org.apache.commons.math3.random.RandomGenerator;
+
+import cc.fasttext.io.FTInputStream;
+import cc.fasttext.io.FTOutputStream;
+import cc.fasttext.io.FTReader;
+import cc.fasttext.io.PrintLogs;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
+import com.google.common.primitives.UnsignedLong;
 
 /**
  * See <a href='https://github.com/facebookresearch/fastText/blob/master/src/dictionary.cc'>dictionary.cc</a> &
@@ -47,11 +48,17 @@ public strictfp class Dictionary {
     private long pruneidx_size_ = PRUNE_IDX_SIZE_DEFAULT;
     private Map<Integer, Integer> pruneidx_ = new HashMap<>();
     private final Args args;
+    private final Charset charset;
 
-    Dictionary(Args args) {
+    Dictionary(Args args, Charset charset) {
         this.args = args;
+        this.charset = charset;
         word2int_ = new HashMap<>(MAX_VOCAB_SIZE);
         words_ = new ArrayList<>(MAX_VOCAB_SIZE);
+    }
+
+    public Charset charset() {
+        return charset;
     }
 
     long find(String w) {
@@ -241,7 +248,7 @@ public strictfp class Dictionary {
      * @see #hash(String, Charset)
      */
     long hash(String str) {
-        return hash(str, args.charset());
+        return hash(str, charset);
     }
 
     /**
@@ -1008,7 +1015,7 @@ public strictfp class Dictionary {
         out.writeLong(ntokens_);
         out.writeLong(pruneidx_size_);
         for (Entry e : words_) {
-            FTOutputStream.writeString(out, e.word, args.charset());
+            FTOutputStream.writeString(out, e.word, charset);
             out.writeLong(e.count);
             out.writeByte(e.type.ordinal());
         }
@@ -1050,32 +1057,37 @@ public strictfp class Dictionary {
      *  initNgrams();
      * }}</pre>
      *
+     * @param args
+     * @param charset
      * @param in {@link FTInputStream}
+     * @return {@link Dictionary} new instance
      * @throws IOException if an I/O error occurs
      */
-    void load(FTInputStream in) throws IOException {
-        size_ = in.readInt();
-        nwords_ = in.readInt();
-        nlabels_ = in.readInt();
-        ntokens_ = in.readLong();
-        pruneidx_size_ = in.readLong();
-        word2int_ = new HashMap<>(size_);
-        words_ = new ArrayList<>(size_);
-        for (int i = 0; i < size_; i++) {
-            Entry e = new Entry(FTInputStream.readString(in, args.charset()), in.readLong(), EntryType.fromValue(in.readByte()));
-            words_.add(e);
-            word2int_.put(find(e.word), i);
+    static Dictionary load(Args args, Charset charset, FTInputStream in) throws IOException {
+        Dictionary res = new Dictionary(args, charset);
+        res.size_ = in.readInt();
+        res.nwords_ = in.readInt();
+        res.nlabels_ = in.readInt();
+        res.ntokens_ = in.readLong();
+        res.pruneidx_size_ = in.readLong();
+        res.word2int_ = new HashMap<>(res.size_);
+        res.words_ = new ArrayList<>(res.size_);
+        for (int i = 0; i < res.size_; i++) {
+            Entry e = new Entry(FTInputStream.readString(in, res.charset), in.readLong(), EntryType.fromValue(in.readByte()));
+            res.words_.add(e);
+            res.word2int_.put(res.find(e.word), i);
         }
-        pruneidx_.clear();
-        for (int i = 0; i < pruneidx_size_; i++) {
-            pruneidx_.put(in.readInt(), in.readInt());
+        res.pruneidx_.clear();
+        for (int i = 0; i < res.pruneidx_size_; i++) {
+            res.pruneidx_.put(in.readInt(), in.readInt());
         }
-        initTableDiscard();
-        initNgrams();
+        res.initTableDiscard();
+        res.initNgrams();
+        return res;
     }
 
-    Dictionary copy() { // ??
-        Dictionary res = new Dictionary(args);
+    Dictionary copy() {
+        Dictionary res = new Dictionary(args, charset);
         res.size_ = this.size_;
         res.nwords_ = this.nwords_;
         res.nlabels_ = this.nlabels_;
@@ -1102,13 +1114,13 @@ public strictfp class Dictionary {
         }
     }
 
-    public class Entry {
+    public static class Entry {
         final String word;
         final EntryType type;
         final List<Integer> subwords = new ArrayList<>();
         long count;
 
-        Entry(String word, long count, EntryType type) {
+        private Entry(String word, long count, EntryType type) {
             this.word = word;
             this.count = count;
             this.type = type;

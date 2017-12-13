@@ -1,16 +1,11 @@
 package cc.fasttext;
 
-import cc.fasttext.io.FTInputStream;
-import cc.fasttext.io.FTOutputStream;
-import org.apache.commons.math3.random.RandomGenerator;
-import org.apache.commons.math3.random.Well19937c;
-
 import java.io.IOException;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Objects;
-import java.util.function.IntFunction;
+
+import cc.fasttext.io.FTInputStream;
+import cc.fasttext.io.FTOutputStream;
 
 /**
  * Immutable Args object.
@@ -21,8 +16,6 @@ import java.util.function.IntFunction;
  */
 public final strictfp class Args {
     public static final String DEFAULT_LABEL = "__label__";
-    // close to std::minstd_rand
-    public static final IntFunction<RandomGenerator> DEFAULT_RANDOM_GENERATOR_FACTORY = Well19937c::new;
     // basic:
     private ModelName model = ModelName.SG;
 
@@ -53,18 +46,6 @@ public final strictfp class Args {
     private boolean qnorm;
     private int dsub = 2;
     private int cutoff;
-    // additional:
-    private Charset charset = StandardCharsets.UTF_8;
-    // todo: will be moved to FastText.java
-    private IntFunction<RandomGenerator> randomFactory = DEFAULT_RANDOM_GENERATOR_FACTORY;
-
-    public IntFunction<RandomGenerator> randomFactory() {
-        return randomFactory;
-    }
-
-    public Charset charset() {
-        return charset;
-    }
 
     public ModelName model() {
         return model;
@@ -166,7 +147,6 @@ public final strictfp class Args {
         return saveOutput;
     }
 
-
     /**
      * <pre>{@code
      * void Args::save(std::ostream& out) {
@@ -251,8 +231,7 @@ public final strictfp class Args {
         private Args _args = new Args();
 
         public Builder copy(Args other) {
-            return setCharset(other.charset()).setRandomFactory(other.randomFactory())
-                    .setModel(other.model()).setLossName(other.loss())
+            return setModel(other.model()).setLossName(other.loss())
                     .setDim(other.dim()).setWS(other.ws()).setLR(other.lr()).setLRUpdateRate(other.lrUpdateRate()).setWordNgrams(other.wordNgrams())
                     .setMinCount(other.minCount()).setMinCountLabel(other.minCountLabel())
                     .setNeg(other.neg()).setBucket(other.bucket()).setMinN(other.minn()).setMaxN(other.maxn())
@@ -260,16 +239,6 @@ public final strictfp class Args {
                     .setLabel(other.label()).setVerbose(other.verbose()).setPreparedVectors(other.pretrainedVectors())
                     .setSaveOutput(other.saveOutput())
                     .setQNorm(other.qnorm()).setRetrain(other.retrain()).setQOut(other.qout()).setCutOff(other.cutoff()).setDSub(other.dsub());
-        }
-
-        public Builder setCharset(Charset charset) {
-            _args.charset = Objects.requireNonNull(charset, "Null charset");
-            return this;
-        }
-
-        public Builder setRandomFactory(IntFunction<RandomGenerator> f) {
-            _args.randomFactory = Objects.requireNonNull(f, "Null random factory");
-            return this;
         }
 
         public Builder setModel(ModelName name) {

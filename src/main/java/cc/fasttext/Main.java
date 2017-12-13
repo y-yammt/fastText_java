@@ -1,11 +1,5 @@
 package cc.fasttext;
 
-import cc.fasttext.io.IOStreams;
-import cc.fasttext.io.PrintLogs;
-import cc.fasttext.io.impl.LocalIOStreams;
-import org.apache.commons.lang.StringUtils;
-import org.apache.commons.lang.Validate;
-
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.*;
@@ -15,6 +9,12 @@ import java.util.function.DoubleConsumer;
 import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.Validate;
+
+import cc.fasttext.io.IOStreams;
+import cc.fasttext.io.PrintLogs;
 
 /**
  * The main class to run FastText as application from command line.
@@ -27,7 +27,7 @@ import java.util.stream.Stream;
  */
 public class Main {
 
-    private static FastText.Factory factory = new FastText.Factory(new LocalIOStreams(), PrintLogs.NULL);
+    private static FastText.Factory factory = FastText.DEFAULT_FACTORY.setLogs(PrintLogs.NULL);
 
     public static void setFileSystem(IOStreams fileSystem) {
         factory = factory.setFileSystem(fileSystem);

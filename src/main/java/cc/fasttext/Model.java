@@ -1,18 +1,19 @@
 package cc.fasttext;
 
-import cc.fasttext.Args.LossName;
-import cc.fasttext.Args.ModelName;
-import com.google.common.collect.TreeMultimap;
-import com.google.common.primitives.Ints;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+
 import org.apache.commons.lang.Validate;
 import org.apache.commons.math3.random.RandomAdaptor;
 import org.apache.commons.math3.random.RandomGenerator;
 import org.apache.commons.math3.util.FastMath;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
+import cc.fasttext.Args.LossName;
+import cc.fasttext.Args.ModelName;
+import com.google.common.collect.TreeMultimap;
+import com.google.common.primitives.Ints;
 
 /**
  * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.cc'>model.cc</a> and
@@ -28,9 +29,10 @@ public strictfp class Model {
     private static final Comparator<Float> HEAP_PROBABILITY_COMPARATOR = Comparator.reverseOrder();
     // the following order does not important, it is just to match c++ and java versions:
     private static final Comparator<Integer> HEAP_LABEL_COMPARATOR = Comparator.reverseOrder();//Integer::compareTo;
+
     private QMatrix qwi_;
     private QMatrix qwo_;
-    public RandomGenerator rng;
+    private RandomGenerator rng;
     private Matrix wi_; // input
     private Matrix wo_; // output
     private Args args_;
@@ -51,11 +53,11 @@ public strictfp class Model {
     private List<List<Boolean>> codes;
     private List<Node> tree;
 
-    public Model(Matrix wi, Matrix wo, Args args, int seed) {
+    public Model(Matrix wi, Matrix wo, Args args, RandomGenerator random) {
         hidden_ = new Vector(args.dim());
         output_ = new Vector(wo.getM());
         grad_ = new Vector(args.dim());
-        rng = args.randomFactory().apply(seed);
+        rng = random;
         wi_ = wi;
         wo_ = wo;
         args_ = args;
@@ -89,6 +91,10 @@ public strictfp class Model {
             this.osz_ = this.qwo_.getM();
         }
         return this;
+    }
+
+    RandomGenerator random() {
+        return rng;
     }
 
     public Matrix input() {
@@ -161,7 +167,7 @@ public strictfp class Model {
      */
     private float negativeSampling(int target, float lr) {
         float loss = 0.0f;
-        grad_.zero();
+        grad_.clear();
         for (int n = 0; n <= args_.neg(); n++) {
             if (n == 0) {
                 loss += binaryLogistic(target, true, lr);
@@ -190,7 +196,7 @@ public strictfp class Model {
      */
     private float hierarchicalSoftmax(int target, float lr) {
         float loss = 0.0f;
-        grad_.zero();
+        grad_.clear();
         List<Boolean> binaryCode = codes.get(target);
         List<Integer> pathToRoot = paths.get(target);
         for (int i = 0; i < pathToRoot.size(); i++) {
@@ -263,7 +269,7 @@ public strictfp class Model {
      * @return float
      */
     public float softmax(int target, float lr) {
-        grad_.zero();
+        grad_.clear();
         computeOutputSoftmax();
         for (int i = 0; i < osz_; i++) {
             float label = (i == target) ? 1.0f : 0.0f;
@@ -293,7 +299,7 @@ public strictfp class Model {
      */
     private void computeHidden(List<Integer> input, Vector hidden) {
         Validate.isTrue(hidden.size() == hsz_, "Wrong size of hidden vector: " + hidden.size() + "!=" + hsz_);
-        hidden.zero();
+        hidden.clear();
         for (Integer it : input) {
             if (isQuant()) {
                 hidden.addRow(qwi_, it);
