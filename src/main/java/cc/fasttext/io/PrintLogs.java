@@ -1,12 +1,12 @@
 package cc.fasttext.io;
 
-import org.apache.commons.lang.StringUtils;
-
 import java.io.PrintStream;
 import java.util.Formatter;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Consumer;
+
+import org.apache.commons.lang.StringUtils;
 
 /**
  * Print logs while operations with {@link cc.fasttext.FastText FastText}.
@@ -16,7 +16,7 @@ import java.util.function.Consumer;
  */
 public interface PrintLogs {
     PrintLogs NULL = new Fake();
-    PrintLogs STANDARD = new Stream(System.out);
+    PrintLogs STANDARD = new Console(System.out);
 
     void print(String str);
 
@@ -54,11 +54,11 @@ public interface PrintLogs {
     /**
      * To print to console, adapter for {@link PrintStream}
      */
-    class Stream implements PrintLogs {
+    class Console implements PrintLogs {
 
         private final PrintStream out;
 
-        public Stream(PrintStream out) {
+        public Console(PrintStream out) {
             this.out = Objects.requireNonNull(out, "Null out");
         }
 

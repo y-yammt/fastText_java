@@ -11,8 +11,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.apache.commons.lang.StringUtils;
-import org.apache.commons.lang.Validate;
 
+import cc.fasttext.io.FormatUtils;
 import cc.fasttext.io.IOStreams;
 import cc.fasttext.io.PrintLogs;
 
@@ -128,7 +128,7 @@ public class Main {
                     .map(e -> {
                         String line = e.getKey();
                         if (printProb) {
-                            line += " " + asString(e.getValue(), 6);
+                            line += " " + FormatUtils.toString(e.getValue(), 6);
                         }
                         return line;
                     }).collect(Collectors.joining(" ")))
@@ -268,7 +268,7 @@ public class Main {
                 // ctrl+d
                 return;
             }
-            fasttext.nn(k, line).forEach((s, f) -> out.println(s + " " + asString(f)));
+            fasttext.nn(k, line).forEach((s, f) -> out.println(s + " " + FormatUtils.toString(f)));
         }
     }
 
@@ -318,7 +318,7 @@ public class Main {
                 words.add(word);
             }
             fasttext.analogies(k, words.get(0), words.get(1), words.get(2))
-                    .forEach((s, f) -> out.println(s + " " + asString(f)));
+                    .forEach((s, f) -> out.println(s + " " + FormatUtils.toString(f)));
         }
     }
 
@@ -685,26 +685,6 @@ public class Main {
         if (!map.containsKey(key)) return;
         String value = Objects.requireNonNull(map.get(key), "Null value for " + key);
         setter.accept(Boolean.parseBoolean(value));
-    }
-
-    /**
-     * @param number float
-     * @return String
-     */
-    public static String asString(float number) {
-        return asString(number, 5);
-    }
-
-    /**
-     * Formats a float value in c++ linux style
-     *
-     * @param number    float
-     * @param precision int, positive
-     * @return String
-     */
-    public static String asString(float number, int precision) {
-        Validate.isTrue(precision > 0);
-        return String.format(Locale.US, "%." + precision + "g", number).replaceFirst("0+($|e)", "$1").replaceFirst("\\.$", "");
     }
 
     /**

@@ -11,7 +11,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
@@ -1361,7 +1360,7 @@ public strictfp class FastText {
         private Dictionary readDictionary(Args args, String file) throws IOException {
             Dictionary res = new Dictionary(args, charset);
             try (FTReader reader = createReader(file)) {
-                res.readFromFile(reader, logs);
+                res.readFromFile(reader, logs, args.verbose());
             }
             return res;
         }
@@ -1566,11 +1565,8 @@ public strictfp class FastText {
             private void startThreads() throws ExecutionException, IOException {
                 this.start = Instant.now();
                 this.tokenCount = new AtomicLong(0);
-                BiConsumer<Float, Float> zeroPrinter = (progress, loss) -> {
-                };
-                BiConsumer<Float, Float> printer = args.verbose() > 1 ? this::printInfo : zeroPrinter;
                 if (args.thread() <= 1) {
-                    trainThread(0, printer);
+                    trainThread(0);
                     return;
                 }
                 ExecutorService service = Executors.newFixedThreadPool(args.thread(), r -> {
@@ -1582,7 +1578,7 @@ public strictfp class FastText {
                 IntStream.range(0, args.thread()).forEach(id ->
                         completionService.submit(() -> {
                             Thread.currentThread().setName("FT-TrainThread-" + id);
-                            trainThread(id, id == 0 ? printer : zeroPrinter);
+                            trainThread(id);
                             return null;
                         }));
                 service.shutdown();
@@ -1639,11 +1635,10 @@ public strictfp class FastText {
              *  ifs.close();
              * }}</pre>
              *
-             * @param threadId the id of thread, used as random seed
-             * @param printer  auxiliary object to print logs
+             * @param threadId the id of thread, used as random seed inside model
              * @throws IOException if an I/O error occurs
              */
-            private void trainThread(int threadId, BiConsumer<Float, Float> printer) throws IOException {
+            private void trainThread(int threadId) throws IOException {
                 Model model;
                 try (FTReader reader = createReader()) {
                     long skip = threadId * size / args.thread();
@@ -1669,11 +1664,15 @@ public strictfp class FastText {
                         if (localTokenCount > args.lrUpdateRate()) {
                             tokenCount.addAndGet(localTokenCount);
                             localTokenCount = 0;
-                            printer.accept(progress, model.getLoss());
+                            if (threadId == 0 && args.verbose() > 1) {
+                                printInfo(progress, model.getLoss());
+                            }
                         }
                     }
                 }
-                printer.accept(1f, model.getLoss());
+                if (threadId == 0 && args.verbose() > 0) {
+                    printInfo(1f, model.getLoss());
+                }
             }
 
             /**

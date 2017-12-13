@@ -12,6 +12,7 @@ import cc.fasttext.io.FTOutputStream;
  * See:
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/args.cc'>args.cc</a> and
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/args.h'>args.h</a>
+ * Help printing has been moved to {@link Main}
  */
 public final strictfp class Args {
     // basic:
@@ -45,32 +46,12 @@ public final strictfp class Args {
         return model;
     }
 
+    public int verbose() { // todo: wrong place for this setting: it does not reflect the state.
+        return verbose;
+    }
+
     public LossName loss() {
         return loss;
-    }
-
-    public double lr() {
-        return lr;
-    }
-
-    public int lrUpdateRate() {
-        return lrUpdateRate;
-    }
-
-    public int dim() {
-        return dim;
-    }
-
-    public int ws() {
-        return ws;
-    }
-
-    public int epoch() {
-        return epoch;
-    }
-
-    public int neg() {
-        return neg;
     }
 
     public int wordNgrams() {
@@ -97,10 +78,6 @@ public final strictfp class Args {
         return minCountLabel;
     }
 
-    public int thread() {
-        return thread;
-    }
-
     public double samplingThreshold() {
         return t;
     }
@@ -109,8 +86,32 @@ public final strictfp class Args {
         return label;
     }
 
-    public int verbose() {
-        return verbose;
+    public double lr() {
+        return lr;
+    }
+
+    public int lrUpdateRate() {
+        return lrUpdateRate;
+    }
+
+    public int dim() {
+        return dim;
+    }
+
+    public int ws() {
+        return ws;
+    }
+
+    public int epoch() {
+        return epoch;
+    }
+
+    public int neg() {
+        return neg;
+    }
+
+    public int thread() {
+        return thread;
     }
 
     public boolean qout() {
@@ -205,6 +206,18 @@ public final strictfp class Args {
                 .build();
     }
 
+    @Override
+    public String toString() {
+        return String.format("Args{model=%s" +
+                        ", minCount=%d, minCountLabel=%d, wordNgrams=%d, bucket=%d, minn=%d, maxn=%d, t=%s, label='%s'" +
+                        ", lr=%s, lrUpdateRate=%d, dim=%d, ws=%d, epoch=%d, neg=%d, loss=%s, thread=%d" +
+                        ", qout=%s, qnorm=%s, dsub=%d, cutoff=%d}",
+                model,
+                minCount, minCountLabel, wordNgrams, bucket, minn, maxn, t, label,
+                lr, lrUpdateRate, dim, ws, epoch, neg, loss, thread,
+                qout, qnorm, dsub, cutoff);
+    }
+
     /**
      * The Class-Builder to make new {@link Args args} object.
      * Must be the only way to achieve new instance of {@link Args args}.
@@ -213,13 +226,18 @@ public final strictfp class Args {
         private Args _args = new Args();
 
         public Builder copy(Args other) {
-            return setModel(other.model()).setLossName(other.loss())
-                    .setDim(other.dim()).setWS(other.ws()).setLR(other.lr()).setLRUpdateRate(other.lrUpdateRate()).setWordNgrams(other.wordNgrams())
-                    .setMinCount(other.minCount()).setMinCountLabel(other.minCountLabel())
-                    .setNeg(other.neg()).setBucket(other.bucket()).setMinN(other.minn()).setMaxN(other.maxn())
-                    .setEpoch(other.epoch()).setThread(other.thread()).setSamplingThreshold(other.samplingThreshold())
-                    .setLabel(other.label()).setVerbose(other.verbose())
-                    .setQNorm(other.qnorm()).setQOut(other.qout()).setCutOff(other.cutoff()).setDSub(other.dsub());
+            return setModel(other.model).setVerbose(other.verbose)
+                    // dictionary:
+                    .setLabel(other.label).setWordNgrams(other.wordNgrams)
+                    .setMinCount(other.minCount).setMinCountLabel(other.minCountLabel)
+                    .setBucket(other.bucket).setSamplingThreshold(other.t)
+                    .setMinN(other.minn).setMaxN(other.maxn)
+                    // train:
+                    .setLossName(other.loss).setDim(other.dim).setWS(other.ws)
+                    .setLR(other.lr).setLRUpdateRate(other.lrUpdateRate).setNeg(other.neg)
+                    .setEpoch(other.epoch).setThread(other.thread)
+                    // quantization:
+                    .setQNorm(other.qnorm).setQOut(other.qout).setCutOff(other.cutoff).setDSub(other.dsub);
         }
 
         public Builder setModel(ModelName name) {

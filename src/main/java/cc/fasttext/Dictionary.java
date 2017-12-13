@@ -411,15 +411,16 @@ public strictfp class Dictionary {
      *
      * @param reader
      * @param logs
+     * @param logLevel
      * @throws IOException
      * @throws IllegalStateException
      */
-    void readFromFile(FTReader reader, PrintLogs logs) throws IOException, IllegalStateException {
+    void readFromFile(FTReader reader, PrintLogs logs, int logLevel) throws IOException, IllegalStateException {
         long minThreshold = 1;
         String word;
         while ((word = readWord(reader)) != null) {
             add(word);
-            if (ntokens_ % 1_000_000 == 0 && this.args.verbose() > 1) {
+            if (ntokens_ % 1_000_000 == 0 && logLevel > 1) {
                 logs.printf("\rRead %dM words", ntokens_ / 1_000_000);
             }
             if (size_ > 0.75 * MAX_VOCAB_SIZE) {
@@ -430,7 +431,7 @@ public strictfp class Dictionary {
         threshold(this.args.minCount(), this.args.minCountLabel());
         initTableDiscard();
         initNgrams();
-        if (this.args.verbose() > 0) {
+        if (logLevel > 0) {
             logs.printf("\rRead %dM words\n", ntokens_ / 1_000_000);
             logs.println("Number of words:  " + nwords_);
             logs.println("Number of labels: " + nlabels_);

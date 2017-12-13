@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang.Validate;
 import org.apache.commons.math3.util.FastMath;
 
+import cc.fasttext.io.FormatUtils;
 import com.google.common.primitives.Floats;
 
 /**
@@ -245,11 +246,11 @@ public strictfp class Vector {
      * Used while printing to console and save vectors to file.
      *
      * @return vector as String
-     * @see Main#asString(float)
+     * @see FormatUtils#toString(float)
      */
     @Override
     public String toString() {
-        return getData().stream().map(Main::asString).collect(Collectors.joining(" "));
+        return getData().stream().map(FormatUtils::toString).collect(Collectors.joining(" "));
     }
 
 }
