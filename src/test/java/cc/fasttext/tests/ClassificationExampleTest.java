@@ -114,8 +114,8 @@ public class ClassificationExampleTest {
                 " -cutoff 100000", train, model));
         Assert.assertTrue("No .ftz found", Files.exists(ftz));
         Assert.assertTrue("No .vec found", Files.exists(vec));
-        // 0.8 kb allowed diff:
-        Assert.assertEquals("Incorrect size of dbpedia.ftz model", DBPEDIA_MODEL_FTZ_SIZE, Files.size(ftz), 800);
+        // 1 mb allowed diff (random size of quantized model):
+        Assert.assertEquals("Incorrect size of dbpedia.ftz model", DBPEDIA_MODEL_FTZ_SIZE, Files.size(ftz), 1024);
     }
 
     private Path getModelBinPath() throws Exception {

@@ -1,17 +1,5 @@
 package com.github.jfasttext;
 
-import cc.fasttext.Args;
-import cc.fasttext.FastText;
-import cc.fasttext.base.Tests;
-import com.google.common.primitives.Doubles;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.FixMethodOrder;
-import org.junit.Test;
-import org.junit.runners.MethodSorters;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,6 +9,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
+
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.FixMethodOrder;
+import org.junit.Test;
+import org.junit.runners.MethodSorters;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import cc.fasttext.Args;
+import cc.fasttext.FastText;
+import cc.fasttext.base.Tests;
+import com.google.common.primitives.Doubles;
 
 /**
  * Modified <a href='https://github.com/vinhkhuc/JFastText/blob/master/src/test/java/com/github/jfasttext/JFastTextTest.java'>JFastTextTest</a>
@@ -79,7 +80,7 @@ public class JFastTextTest {
         Map<String, Float> map = jft.predictLine(text, 1);
         LOGGER.debug("Text: '{}', result: '{}'", text, map);
         Assert.assertEquals("Wrong result", 1, map.size());
-        String expectedLabel = Args.DEFAULT_LABEL + "soccer";
+        String expectedLabel = jft.getArgs().label() + "soccer";
         Assert.assertTrue("Can't find label " + expectedLabel, map.containsKey(expectedLabel));
     }
 
@@ -92,7 +93,7 @@ public class JFastTextTest {
         Map<String, Float> map = jft.predictLine(text, 1);
         LOGGER.debug("Text: '{}', result: '{}'", text, map);
         Assert.assertEquals("Wrong result", 1, map.size());
-        String expectedLabel = Args.DEFAULT_LABEL + "football";
+        String expectedLabel = jft.getArgs().label() + "football";
         Assert.assertTrue("Can't find label " + expectedLabel, map.containsKey(expectedLabel));
         double probability = map.get(expectedLabel);
         Assert.assertEquals("Wrong probability", 0.5, probability, 0.0001);
@@ -112,7 +113,7 @@ public class JFastTextTest {
         expected.put("soccer", 0.500046f);
         expected.put("football", 0.499974f);
         expected.forEach((k, v) -> {
-            String lab = Args.DEFAULT_LABEL + k;
+            String lab = jft.getArgs().label() + k;
             Assert.assertTrue("Can't find label '" + k + "'", res.containsKey(lab));
             Assert.assertEquals("Wrong probability for label '" + k + "'", v, res.get(lab), 0.0001);
         });

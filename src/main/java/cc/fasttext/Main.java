@@ -360,13 +360,7 @@ public class Main {
         }
         String out = null;
         if (args.containsKey("-saveOutput")) {
-            String saveOutput = args.get("-saveOutput");
-            if (!saveOutput.matches("\\d+")) {
-                throw Usage.TRAIN.toException("Wrong -saveOutput: " + saveOutput, Usage.ARGS);
-            }
-            if (Integer.parseInt(saveOutput) > 0) {
-                out = model + ".output";
-            }
+            out = model + ".output";
         }
         String bin = model + ".bin";
         String vec = model + ".vec";
@@ -618,7 +612,6 @@ public class Main {
         putIntegerArg(args, "-maxn", builder::setMaxN);
         putIntegerArg(args, "-thread", builder::setThread);
         putIntegerArg(args, "-verbose", builder::setVerbose);
-        putIntegerArg(args, "-saveOutput", builder::setSaveOutput);
         putIntegerArg(args, "-cutoff", builder::setCutOff);
         putIntegerArg(args, "-dsub", builder::setDSub);
 
@@ -626,10 +619,8 @@ public class Main {
         putDoubleArg(args, "-t", builder::setSamplingThreshold);
 
         putBooleanArg(args, "-qnorm", builder::setQNorm);
-        putBooleanArg(args, "-retrain", builder::setRetrain);
         putBooleanArg(args, "-qout", builder::setQOut);
 
-        putStringArg(args, "-pretrainedVectors", builder::setPreparedVectors);
         putStringArg(args, "-label", builder::setLabel);
 
         if (args.containsKey("-loss")) {
@@ -780,8 +771,8 @@ public class Main {
                 + "  -neg                number of negatives sampled [integer]\n"
                 + "  -loss               loss function {ns|hs|softmax} [string]\n"
                 + "  -thread             number of threads [integer]\n"
-                + "  -pretrainedVectors  pretrained word vectors for supervised learning [string]\n"
-                + "  -saveOutput         whether output params should be saved [integer]\n"),
+                + "  -pretrainedVectors  pretrained word vectors for supervised learning [file uri]\n"
+                + "  -saveOutput         whether output params should be saved [boolean]\n"),
         ARGS_QUANTIZATION_HELP("\nThe following arguments for quantization are optional:\n"
                 + "  -cutoff             number of words and ngrams to retain [integer]\n"
                 + "  -retrain            finetune embeddings if a cutoff is applied [boolean]\n"

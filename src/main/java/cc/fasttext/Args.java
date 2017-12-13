@@ -12,13 +12,10 @@ import cc.fasttext.io.FTOutputStream;
  * See:
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/args.cc'>args.cc</a> and
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/args.h'>args.h</a>
- * TODO: retrain, input, output - must be excluded, charset, random factory - should be moved somewhere (to {@link FastText})
  */
 public final strictfp class Args {
-    public static final String DEFAULT_LABEL = "__label__";
     // basic:
     private ModelName model = ModelName.SG;
-
     private int verbose = 2;
     // dictionary:
     private int minCount = 5;
@@ -28,7 +25,7 @@ public final strictfp class Args {
     private int minn = 3;
     private int maxn = 6;
     private double t = 1e-4;
-    private String label = DEFAULT_LABEL;
+    private String label = "__label__";
     // training:
     private double lr = 0.05;
     private int lrUpdateRate = 100;
@@ -38,11 +35,8 @@ public final strictfp class Args {
     private int neg = 5;
     private LossName loss = LossName.NS;
     private int thread = 1;
-    private String pretrainedVectors = "";
-    private int saveOutput;
     // quantization:
     private boolean qout;
-    private boolean retrain;
     private boolean qnorm;
     private int dsub = 2;
     private int cutoff;
@@ -115,20 +109,12 @@ public final strictfp class Args {
         return label;
     }
 
-    public String pretrainedVectors() {
-        return pretrainedVectors;
-    }
-
     public int verbose() {
         return verbose;
     }
 
     public boolean qout() {
         return qout;
-    }
-
-    public boolean retrain() {
-        return retrain;
     }
 
     public boolean qnorm() {
@@ -141,10 +127,6 @@ public final strictfp class Args {
 
     public int cutoff() {
         return cutoff;
-    }
-
-    public int saveOutput() {
-        return saveOutput;
     }
 
     /**
@@ -236,9 +218,8 @@ public final strictfp class Args {
                     .setMinCount(other.minCount()).setMinCountLabel(other.minCountLabel())
                     .setNeg(other.neg()).setBucket(other.bucket()).setMinN(other.minn()).setMaxN(other.maxn())
                     .setEpoch(other.epoch()).setThread(other.thread()).setSamplingThreshold(other.samplingThreshold())
-                    .setLabel(other.label()).setVerbose(other.verbose()).setPreparedVectors(other.pretrainedVectors())
-                    .setSaveOutput(other.saveOutput())
-                    .setQNorm(other.qnorm()).setRetrain(other.retrain()).setQOut(other.qout()).setCutOff(other.cutoff()).setDSub(other.dsub());
+                    .setLabel(other.label()).setVerbose(other.verbose())
+                    .setQNorm(other.qnorm()).setQOut(other.qout()).setCutOff(other.cutoff()).setDSub(other.dsub());
         }
 
         public Builder setModel(ModelName name) {
@@ -331,23 +312,8 @@ public final strictfp class Args {
             return this;
         }
 
-        public Builder setPreparedVectors(String preparedVectors) {
-            _args.pretrainedVectors = Objects.requireNonNull(preparedVectors, "Null pre-trained vectors");
-            return this;
-        }
-
-        public Builder setSaveOutput(int saveOutput) {
-            _args.saveOutput = saveOutput;
-            return this;
-        }
-
         public Builder setQNorm(boolean qnorm) {
             _args.qnorm = qnorm;
-            return this;
-        }
-
-        public Builder setRetrain(boolean retrain) {
-            _args.retrain = retrain;
             return this;
         }
 
