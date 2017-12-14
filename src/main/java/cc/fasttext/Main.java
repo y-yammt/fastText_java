@@ -1,5 +1,10 @@
 package cc.fasttext;
 
+import cc.fasttext.io.FormatUtils;
+import cc.fasttext.io.IOStreams;
+import cc.fasttext.io.PrintLogs;
+import org.apache.commons.lang.StringUtils;
+
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.*;
@@ -9,12 +14,6 @@ import java.util.function.DoubleConsumer;
 import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import org.apache.commons.lang.StringUtils;
-
-import cc.fasttext.io.FormatUtils;
-import cc.fasttext.io.IOStreams;
-import cc.fasttext.io.PrintLogs;
 
 /**
  * The main class to run FastText as application from command line.
@@ -27,7 +26,7 @@ import cc.fasttext.io.PrintLogs;
  */
 public class Main {
 
-    private static FastText.Factory factory = FastText.DEFAULT_FACTORY.setLogs(PrintLogs.NULL);
+    private static FastText.Factory factory = FastText.DEFAULT_FACTORY;
 
     public static void setFileSystem(IOStreams fileSystem) {
         factory = factory.setFileSystem(fileSystem);
@@ -371,7 +370,8 @@ public class Main {
         if (!StringUtils.isEmpty(vectors) && !fileSystem().canRead(vectors)) {
             throw Usage.TRAIN.toException("Wrong -pretrainedVectors: can't read " + vectors, Usage.ARGS);
         }
-        FastText fasttext = factory.setLogs(PrintLogs.STANDARD).train(parseArgs(type, args), data, vectors);
+        PrintLogs.Level verbose = parseVerbose(args, Usage.TRAIN);
+        FastText fasttext = factory.setLogs(createStdErrLogger(verbose)).train(parseArgs(type, args), data, vectors);
         fasttext.saveModel(bin);
         fasttext.saveVectors(vec);
         if (out == null) return;
@@ -404,8 +404,8 @@ public class Main {
         if (input.length == 0) {
             throw Usage.QUANTIZE.toException("Empty args specified.", Usage.ARGS);
         }
-        Map<String, String> map = toMap(input);
-        String model = map.get("-output");
+        Map<String, String> argsMap = toMap(input);
+        String model = argsMap.get("-output");
         if (StringUtils.isEmpty(model)) {
             throw Usage.QUANTIZE.toException("No model (-output)", Usage.ARGS);
         }
@@ -414,8 +414,8 @@ public class Main {
             throw Usage.QUANTIZE.toException("Wrong -output: can't read file " + bin, Usage.ARGS);
         }
         String data = null;
-        if (map.containsKey("-retrain")) {
-            data = map.get("-input");
+        if (argsMap.containsKey("-retrain")) {
+            data = argsMap.get("-input");
             if (StringUtils.isEmpty(data)) {
                 throw Usage.QUANTIZE.toException("Wrong args: -input is required if -retrain specified.", Usage.ARGS);
             } else if (!fileSystem().canRead(data)) {
@@ -427,11 +427,12 @@ public class Main {
         if (!fileSystem().canWrite(ftz) || !fileSystem().canWrite(vec)) {
             throw Usage.QUANTIZE.toException("Wrong -output: can't write model " + model, Usage.ARGS);
         }
-        if (map.containsKey("-saveOutput")) {
+        if (argsMap.containsKey("-saveOutput")) {
             throw Usage.QUANTIZE.toException("Option -saveOutput is not supported for quantized models", Usage.ARGS);
         }
-        Args args = parseArgs(Args.ModelName.SUP, map);
-        FastText fasttext = factory.setLogs(PrintLogs.STANDARD).load(bin).quantize(args, data);
+        PrintLogs.Level verbose = parseVerbose(argsMap, Usage.QUANTIZE);
+        Args args = parseArgs(Args.ModelName.SUP, argsMap);
+        FastText fasttext = factory.setLogs(createStdErrLogger(verbose)).load(bin).quantize(args, data);
         fasttext.saveModel(ftz);
         fasttext.saveVectors(vec);
     }
@@ -483,7 +484,26 @@ public class Main {
      * @throws IOException if something is wrong.
      */
     private static FastText loadModel(String file) throws IOException {
-        return factory.load(file);
+        return factory.setLogs(createStdErrLogger(PrintLogs.Level.INFO)).load(file);
+    }
+
+    /**
+     * Creates a ft-logger based on <code>System.err</code>
+     *
+     * @param level {@link cc.fasttext.io.PrintLogs.Level}
+     * @return {@link PrintLogs}
+     */
+    public static PrintLogs createStdErrLogger(PrintLogs.Level level) {
+        return level.createLogger(System.err);
+    }
+
+    private static PrintLogs.Level parseVerbose(Map<String, String> args, Usage usage) {
+        if (!args.containsKey("-verbose")) return PrintLogs.Level.ALL;
+        try {
+            return PrintLogs.Level.at(Integer.parseInt(args.get("-verbose")));
+        } catch (NumberFormatException e) {
+            throw usage.toException(e.getMessage());
+        }
     }
 
     /**
@@ -611,7 +631,6 @@ public class Main {
         putIntegerArg(args, "-minn", builder::setMinN);
         putIntegerArg(args, "-maxn", builder::setMaxN);
         putIntegerArg(args, "-thread", builder::setThread);
-        putIntegerArg(args, "-verbose", builder::setVerbose);
         putIntegerArg(args, "-cutoff", builder::setCutOff);
         putIntegerArg(args, "-dsub", builder::setDSub);
 
@@ -642,13 +661,12 @@ public class Main {
     public static Map<String, String> toMap(String... input) throws IllegalArgumentException {
         Map<String, String> res = new LinkedHashMap<>();
         for (int i = 0; i < input.length; i++) {
-            if (input[i].startsWith("-")) {
-                String key = input[i];
-                String val = i == input.length - 1 ? null : input[++i];
-                res.put(key, val == null || val.startsWith("-") ? Boolean.TRUE.toString() : val);
-            } else {
-                res.put(input[i], null);
+            String key = input[i];
+            String value = null;
+            if (key.startsWith("-")) {
+                value = i == input.length - 1 || input[i + 1].startsWith("-") ? Boolean.TRUE.toString() : input[++i];
             }
+            res.put(key, value);
         }
         if (res.containsKey("-h")) {
             throw Usage.ARGS.toException("Here is the help! Usage:");
@@ -755,9 +773,9 @@ public class Main {
                 + "  -saveOutput         whether output params should be saved [boolean]\n"),
         ARGS_QUANTIZATION_HELP("\nThe following arguments for quantization are optional:\n"
                 + "  -cutoff             number of words and ngrams to retain [integer]\n"
-                + "  -retrain            finetune embeddings if a cutoff is applied [boolean]\n"
-                + "  -qnorm              quantizing the norm separately [boolean]\n"
-                + "  -qout               quantizing the classifier [boolean\n"
+                + "  -retrain            whether embeddings are finetuned if a cutoff is applied [boolean]\n"
+                + "  -qnorm              whether the norm is quantized separately [boolean]\n"
+                + "  -qout               whether the classifier is quantized [boolean\n"
                 + "  -dsub               size of each sub-vector [integer]\n"),
         ARGS(ARGS_BASIC_HELP.message + ARGS_DICTIONARY_HELP.message + ARGS_TRAINING_HELP.message + ARGS_QUANTIZATION_HELP.message);
 

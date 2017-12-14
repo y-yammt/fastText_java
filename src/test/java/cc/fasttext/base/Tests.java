@@ -19,15 +19,13 @@ import java.util.List;
 public final class Tests {
     public static final Logger LOGGER = LoggerFactory.getLogger(Tests.class);
 
-    public static final Path DESTINATION_DIR = Paths.get("out");
+    public static final Path DESTINATION_DIR;
 
     static {
-        init();
-    }
-
-    private static void init() {
         try {
-            Files.createDirectories(DESTINATION_DIR);
+            Path out = Paths.get("out");
+            Files.createDirectories(out);
+            DESTINATION_DIR = out.toRealPath();
         } catch (IOException e) {
             throw new AssertionError(e);
         }

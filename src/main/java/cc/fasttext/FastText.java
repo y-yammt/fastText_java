@@ -1,11 +1,24 @@
 package cc.fasttext;
 
+import cc.fasttext.Args.ModelName;
+import cc.fasttext.Dictionary.EntryType;
+import cc.fasttext.io.*;
+import cc.fasttext.io.impl.LocalIOStreams;
+import com.google.common.collect.*;
+import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.Validate;
+import org.apache.commons.math3.distribution.UniformIntegerDistribution;
+import org.apache.commons.math3.random.RandomGenerator;
+import org.apache.commons.math3.random.Well19937c;
+import org.apache.commons.math3.util.FastMath;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.*;
 import java.lang.ref.Reference;
 import java.lang.ref.SoftReference;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -17,21 +30,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-
-import org.apache.commons.lang.StringUtils;
-import org.apache.commons.lang.Validate;
-import org.apache.commons.math3.distribution.UniformIntegerDistribution;
-import org.apache.commons.math3.random.RandomGenerator;
-import org.apache.commons.math3.random.Well19937c;
-import org.apache.commons.math3.util.FastMath;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import cc.fasttext.Args.ModelName;
-import cc.fasttext.Dictionary.EntryType;
-import cc.fasttext.io.*;
-import cc.fasttext.io.impl.LocalIOStreams;
-import com.google.common.collect.*;
 
 /**
  * FastText class, can be used as a lib in other projects.
@@ -48,7 +46,7 @@ public strictfp class FastText {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(FastText.class);
 
-    public static final Factory DEFAULT_FACTORY = new Factory(new LocalIOStreams(), Well19937c::new, new PrintLogs.Flat(LOGGER::debug), StandardCharsets.UTF_8);
+    public static final Factory DEFAULT_FACTORY = new Factory(new LocalIOStreams(), Well19937c::new, new SimpleLogger(), StandardCharsets.UTF_8);
 
     private static final double FIND_NN_THRESHOLD = 1e-8;
     private final Args args;
@@ -99,6 +97,10 @@ public strictfp class FastText {
 
     public int getVersion() {
         return version;
+    }
+
+    protected Factory toFactory() {
+        return new Factory(fs, random, logs, dict.charset());
     }
 
     /**
@@ -215,7 +217,7 @@ public strictfp class FastText {
      * @return {@link Matrix}
      */
     private Matrix computeWordVectors() {
-        logs.print("Pre-computing word vectors... ");
+        logs.info("Pre-computing word vectors... ");
         Matrix res = new Matrix(dict.nwords(), args.dim());
         for (int i = 0; i < dict.nwords(); i++) {
             String word = dict.getWord(i);
@@ -225,7 +227,7 @@ public strictfp class FastText {
                 res.addRow(vec, i, 1.0f / norm);
             }
         }
-        logs.println("done.");
+        logs.infoln("done.");
         return res;
     }
 
@@ -524,9 +526,7 @@ public strictfp class FastText {
         if (!fs.canWrite(file)) {
             throw new IllegalArgumentException("Can't write to " + file);
         }
-        if (args.verbose() > 1) {
-            logs.println("Saving " + name + " to " + file);
-        }
+        logs.infoln("Saving %s to %s", name, file);
         try (Writer writer = new BufferedWriter(new OutputStreamWriter(fs.createOutput(file), dict.charset()))) {
             writer.write(lines + " " + args.dim() + "\n");
             for (int i = 0; i < lines; i++) {
@@ -581,9 +581,7 @@ public strictfp class FastText {
         if (!fs.canWrite(file)) {
             throw new IllegalArgumentException("Can't write to " + file);
         }
-        if (args.verbose() > 1) {
-            logs.println("Saving model to " + file);
-        }
+        logs.infoln("Saving model to %s", file);
         try (FTOutputStream out = new FTOutputStream(new BufferedOutputStream(fs.createOutput(file)))) {
             signModel(out);
             args.save(out);
@@ -903,7 +901,7 @@ public strictfp class FastText {
      * @param cutoff int, the size of result list
      * @return List of ints
      */
-    private List<Integer> selectEmbeddings(int cutoff) {
+    private List<Integer> selectEmbeddings(int cutoff) { // todo: long operation
         Vector norms = model.input().l2NormRow();
         List<Integer> idx = IntStream.iterate(0, i -> ++i).limit(model.input().getM()).boxed().collect(Collectors.toList());
         int eosId = dict.getId(Dictionary.EOS);
@@ -969,7 +967,6 @@ public strictfp class FastText {
         if (!ModelName.SUP.equals(args.model())) {
             throw new IllegalArgumentException("For now we only support quantization of supervised models");
         }
-        Factory factory = new Factory(fs, random, logs, dict.charset());
         Args qargs = new Args.Builder()
                 .copy(this.args)
                 .setQOut(other.qout())
@@ -980,6 +977,7 @@ public strictfp class FastText {
         Dictionary qdict = this.dict.copy();
         Matrix input;
         Matrix output = model.output().copy();
+        Factory factory = toFactory();
         if (qargs.cutoff() > 0 && qargs.cutoff() < model.input().getM()) {
             List<Integer> idx = qdict.prune(selectEmbeddings(qargs.cutoff()));
             input = new Matrix(idx.size(), qargs.dim());
@@ -994,8 +992,8 @@ public strictfp class FastText {
                         .setEpoch(other.epoch())
                         .setLR(other.lr())
                         .setThread(other.thread())
-                        .setVerbose(other.verbose())
                         .build();
+                logs.traceln("Start retraining ...");
                 Model model = factory.newTrainer(qargs, fileToRetrain, qdict, input, output).train();
                 input = model.input();
                 output = model.output();
@@ -1050,11 +1048,59 @@ public strictfp class FastText {
 
         @Override
         public String toString() {
-            return new Formatter(Locale.US).format("N\t%d%nP@%d: %.3f%nR@%d: %.3f%nNumber of examples: %d%n",
-                    examples, k, precision / (k * examples), k, precision / labels, examples).toString();
+            return String.format(Factory.LOCALE, "N\t%d%nP@%d: %.3f%nR@%d: %.3f%nNumber of examples: %d%n",
+                    examples, k, precision / (k * examples), k, precision / labels, examples);
         }
     }
 
+    /**
+     * Simple impl of {@link PrintLogs} based on standard logger
+     */
+    private static class SimpleLogger implements PrintLogs {
+
+        @Override
+        public boolean isTraceEnabled() {
+            return LOGGER.isTraceEnabled();
+        }
+
+        @Override
+        public boolean isDebugEnabled() {
+            return LOGGER.isDebugEnabled();
+        }
+
+        @Override
+        public boolean isInfoEnabled() {
+            return LOGGER.isInfoEnabled();
+        }
+
+        @Override
+        public void trace(String msg, Object... args) {
+            String res;
+            if (!isDebugEnabled() || (res = format(msg, args)) == null) return;
+            LOGGER.trace(res);
+        }
+
+        @Override
+        public void debug(String msg, Object... args) {
+            String res;
+            if (!isDebugEnabled() || (res = format(msg, args)) == null) return;
+            LOGGER.debug(res);
+        }
+
+        @Override
+        public void info(String msg, Object... args) {
+            String res;
+            if (!isInfoEnabled() || (res = format(msg, args)) == null) return;
+            LOGGER.info(res);
+        }
+
+        private static String format(String msg, Object... args) {
+            if (StringUtils.isEmpty(msg)) return null;
+            msg = FormatUtils.toNonHyphenatedLine(msg);
+            if (args.length == 0) return msg;
+            return String.format(Factory.LOCALE, msg, args);
+        }
+    }
 
     /**
      * A factory to produce new {@link FastText} api-interface.
@@ -1066,6 +1112,7 @@ public strictfp class FastText {
      * Created by @szuev on 07.12.2017.
      */
     public static class Factory {
+        public static final Locale LOCALE = Locale.US;
         // todo: buff size is experimental
         private static final int BUFF_SIZE = 100 * 1024;
 
@@ -1134,12 +1181,12 @@ public strictfp class FastText {
                 throw new IllegalArgumentException("Model file cannot be opened for loading: <" + uri + ">");
             }
             try (InputStream in = fs.openInput(uri)) {
-                logs.print("Load model " + uri + " ... ");
+                logs.debug("Load model %s ... ", uri);
                 FastText res = load(in);
-                logs.println("done.");
+                logs.debugln("done.");
                 return res;
             } catch (Exception e) {
-                logs.println("error: " + e);
+                logs.infoln("error: %s", e);
                 throw e;
             }
         }
@@ -1360,7 +1407,7 @@ public strictfp class FastText {
         private Dictionary readDictionary(Args args, String file) throws IOException {
             Dictionary res = new Dictionary(args, charset);
             try (FTReader reader = createReader(file)) {
-                res.readFromFile(reader, logs, args.verbose());
+                res.readFromFile(reader, logs);
             }
             return res;
         }
@@ -1407,21 +1454,6 @@ public strictfp class FastText {
             return createFastText(args, trainer.dictionary, model, FASTTEXT_VERSION);
         }
 
-        private void printInfo(Args args, Instant start, Instant end, long tokenCount_, float progress, float loss) {
-            if (PrintLogs.NULL.equals(logs)) return;
-            Duration d = Duration.between(start, end);
-            float t = d.get(ChronoUnit.SECONDS) + d.get(ChronoUnit.NANOS) / 1_000_000_000f;
-            float wst = tokenCount_ / t;
-            float lr = (float) (args.lr() * (1 - progress));
-            int eta = (int) (t / progress * (1 - progress) / args.thread());
-            int etaH = eta / 3600;
-            int etaM = (eta - etaH * 3600) / 60;
-            logs.printf("\rProgress: %.1f%% words/sec/thread: %.0f lr: %.6f loss: %.6f eta: %d h %d m", 100 * progress, wst, lr, loss, etaH, etaM);
-            if (progress == 1) {
-                logs.println();
-            }
-        }
-
         /**
          * Creates model.
          *
@@ -1453,16 +1485,6 @@ public strictfp class FastText {
          */
         private FastText createFastText(Args args, Dictionary dictionary, Model model, int version) {
             return new FastText(args, dictionary, model, version, this.fs, this.logs, this.random);
-        }
-
-        /**
-         * Copies FastText with new transient settings (fs,logs,random) provided by this factory.
-         *
-         * @param other {@link FastText}
-         * @return copy of specified fasttext.
-         */
-        public FastText createFastText(FastText other) {
-            return createFastText(other.args, other.dict, other.model, other.version);
         }
 
         /**
@@ -1536,7 +1558,7 @@ public strictfp class FastText {
              * @throws IllegalArgumentException in case wrong file refs.
              */
             public Model train() throws IOException, ExecutionException, IllegalArgumentException {
-                startThreads();
+                perform();
                 return Factory.this.createModel(args, dictionary, input, output, 0);
             }
 
@@ -1561,8 +1583,9 @@ public strictfp class FastText {
              *
              * @throws ExecutionException if any error occurs in any sub-treads
              * @throws IOException        if an I/O error occurs
+             * @see Args#thread()
              */
-            private void startThreads() throws ExecutionException, IOException {
+            private void perform() throws ExecutionException, IOException {
                 this.start = Instant.now();
                 this.tokenCount = new AtomicLong(0);
                 if (args.thread() <= 1) {
@@ -1664,15 +1687,49 @@ public strictfp class FastText {
                         if (localTokenCount > args.lrUpdateRate()) {
                             tokenCount.addAndGet(localTokenCount);
                             localTokenCount = 0;
-                            if (threadId == 0 && args.verbose() > 1) {
-                                printInfo(progress, model.getLoss());
+                            if (logs.isDebugEnabled() && threadId == 0) {
+                                logs.debug(progressMessage(progress, model.getLoss()));
                             }
                         }
                     }
                 }
-                if (threadId == 0 && args.verbose() > 0) {
-                    printInfo(1f, model.getLoss());
+                if (logs.isInfoEnabled() && threadId == 0) {
+                    logs.infoln(progressMessage(1, model.getLoss()));
                 }
+            }
+
+            /**
+             * Prints debug train info to console or somewhere else.
+             * <p>
+             * <pre>{@code void FastText::printInfo(real progress, real loss) {
+             *  real t = real(clock() - start) / CLOCKS_PER_SEC;
+             *  real wst = real(tokenCount) / t;
+             *  real lr = args_->lr * (1.0 - progress);
+             *  int eta = int(t / progress * (1 - progress) / args_->thread);
+             *  int etah = eta / 3600;
+             *  int etam = (eta - etah * 3600) / 60;
+             *  std::cerr << std::fixed;
+             *  std::cerr << "\rProgress: " << std::setprecision(1) << 100 * progress << "%";
+             *  std::cerr << "  words/sec/thread: " << std::setprecision(0) << wst;
+             *  std::cerr << "  lr: " << std::setprecision(6) << lr;
+             *  std::cerr << "  loss: " << std::setprecision(6) << loss;
+             *  std::cerr << "  eta: " << etah << "h" << etam << "m ";
+             *  std::cerr << std::flush;
+             * }}</pre>
+             *
+             * @param progress float
+             * @param loss     float
+             */
+            private String progressMessage(float progress, float loss) {
+                float t = ChronoUnit.NANOS.between(start, Instant.now()) / 1_000_000_000f;
+                float wst = tokenCount.get() / t;
+                float lr = (float) (args.lr() * (1 - progress));
+                int eta = (int) (t / progress * (1 - progress) / args.thread());
+                int etaH = eta / 3600;
+                int etaM = (eta - etaH * 3600) / 60;
+                return String.format(LOCALE,
+                        "\rProgress: %.1f%% words/sec/thread: %.0f lr: %.6f loss: %.6f eta: %d h %d m ",
+                        100 * progress, wst, lr, loss, etaH, etaM);
             }
 
             /**
@@ -1765,32 +1822,6 @@ public strictfp class FastText {
                         }
                     }
                 }
-            }
-
-            /**
-             * Prints debug train info to console or somewhere else.
-             * <p>
-             * <pre>{@code void FastText::printInfo(real progress, real loss) {
-             *  real t = real(clock() - start) / CLOCKS_PER_SEC;
-             *  real wst = real(tokenCount) / t;
-             *  real lr = args_->lr * (1.0 - progress);
-             *  int eta = int(t / progress * (1 - progress) / args_->thread);
-             *  int etah = eta / 3600;
-             *  int etam = (eta - etah * 3600) / 60;
-             *  std::cerr << std::fixed;
-             *  std::cerr << "\rProgress: " << std::setprecision(1) << 100 * progress << "%";
-             *  std::cerr << "  words/sec/thread: " << std::setprecision(0) << wst;
-             *  std::cerr << "  lr: " << std::setprecision(6) << lr;
-             *  std::cerr << "  loss: " << std::setprecision(6) << loss;
-             *  std::cerr << "  eta: " << etah << "h" << etam << "m ";
-             *  std::cerr << std::flush;
-             * }}</pre>
-             *
-             * @param progress float
-             * @param loss     float
-             */
-            private void printInfo(float progress, float loss) {
-                Factory.this.printInfo(args, start, Instant.now(), tokenCount.get(), progress, loss);
             }
         }
     }

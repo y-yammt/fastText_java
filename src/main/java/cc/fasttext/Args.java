@@ -1,23 +1,32 @@
 package cc.fasttext;
 
+import cc.fasttext.io.FTInputStream;
+import cc.fasttext.io.FTOutputStream;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
-
-import cc.fasttext.io.FTInputStream;
-import cc.fasttext.io.FTOutputStream;
 
 /**
  * Immutable Args object.
  * See:
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/args.cc'>args.cc</a> and
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/args.h'>args.h</a>
- * Help printing has been moved to {@link Main}
+ * <p>
+ * Help-printing has been moved to {@link Main}.
+ * The following settings have been excluded from this class (moved to Main):
+ * <code>-input</code>
+ * <code>-output</code>
+ * <code>-pretrainedVectors</code>
+ * <code>-verbose</code>
+ * <code>-saveOutput</code>
+ * <code>-retrain</code>
+ * These settings do not reflect the state or processes of {@link FastText fasttext}
+ * and needed once only while running app from command line.
  */
 public final strictfp class Args {
     // basic:
     private ModelName model = ModelName.SG;
-    private int verbose = 2;
     // dictionary:
     private int minCount = 5;
     private int minCountLabel = 0;
@@ -44,10 +53,6 @@ public final strictfp class Args {
 
     public ModelName model() {
         return model;
-    }
-
-    public int verbose() { // todo: wrong place for this setting: it does not reflect the state.
-        return verbose;
     }
 
     public LossName loss() {
@@ -208,7 +213,7 @@ public final strictfp class Args {
 
     @Override
     public String toString() {
-        return String.format("Args{model=%s" +
+        return String.format("{model=%s" +
                         ", minCount=%d, minCountLabel=%d, wordNgrams=%d, bucket=%d, minn=%d, maxn=%d, t=%s, label='%s'" +
                         ", lr=%s, lrUpdateRate=%d, dim=%d, ws=%d, epoch=%d, neg=%d, loss=%s, thread=%d" +
                         ", qout=%s, qnorm=%s, dsub=%d, cutoff=%d}",
@@ -226,7 +231,7 @@ public final strictfp class Args {
         private Args _args = new Args();
 
         public Builder copy(Args other) {
-            return setModel(other.model).setVerbose(other.verbose)
+            return setModel(other.model)
                     // dictionary:
                     .setLabel(other.label).setWordNgrams(other.wordNgrams)
                     .setMinCount(other.minCount).setMinCountLabel(other.minCountLabel)
@@ -322,11 +327,6 @@ public final strictfp class Args {
 
         public Builder setLabel(String label) {
             _args.label = Objects.requireNonNull(label, "Null label");
-            return this;
-        }
-
-        public Builder setVerbose(int verbose) {
-            _args.verbose = verbose;
             return this;
         }
 

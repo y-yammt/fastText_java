@@ -1,126 +1,151 @@
 package cc.fasttext.io;
 
 import java.io.PrintStream;
-import java.util.Formatter;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.function.Consumer;
-
-import org.apache.commons.lang.StringUtils;
 
 /**
- * Print logs while operations with {@link cc.fasttext.FastText FastText}.
- * Analogues of {@link java.io.PrintStream}
+ * Log printer, used during {@link cc.fasttext.FastText} operations.
+ * It is analogue of any other common java logger (e.g. log4j), but with only few log levels.
+ * Note: methods {@link #trace}, {@link #debug}, {@link #info} do not perform switching to new line.
  * <p>
  * Created by @szuev on 08.12.2017.
  */
 public interface PrintLogs {
-    PrintLogs NULL = new Fake();
-    PrintLogs STANDARD = new Console(System.out);
 
-    void print(String str);
+    boolean isTraceEnabled();
 
-    void println(String str);
+    boolean isDebugEnabled();
 
-    void println();
+    boolean isInfoEnabled();
 
-    void printf(String format, Object... args);
+    void trace(String msg, Object... args);
 
-    /**
-     * Empty impl of {@link PrintLogs}
-     */
-    class Fake implements PrintLogs {
-        @Override
-        public void print(String str) {
+    void debug(String msg, Object... args);
 
-        }
+    void info(String msg, Object... args);
 
-        @Override
-        public void println(String str) {
+    default boolean isEnabled() {
+        return isInfoEnabled() || isDebugEnabled() || isTraceEnabled();
+    }
 
-        }
+    default void traceln(String msg, Object... args) {
+        if (msg == null) return;
+        trace(msg + System.lineSeparator(), args);
+    }
 
-        @Override
-        public void println() {
+    default void debugln(String msg, Object... args) {
+        if (msg == null) return;
+        debug(msg + System.lineSeparator(), args);
+    }
 
-        }
+    default void infoln(String msg, Object... args) {
+        if (msg == null) return;
+        info(msg + System.lineSeparator(), args);
+    }
 
-        @Override
-        public void printf(String format, Object... args) {
+    @FunctionalInterface
+    interface MessagePrinter {
 
-        }
+        /**
+         * Prints formatted message
+         *
+         * @param pattern the message pattern
+         * @param args    array of arguments to paste into the message pattern
+         * @throws NullPointerException             if string pattern is null
+         * @throws java.util.IllegalFormatException if pattern and args do not match
+         * @see String#format(String, Object...)
+         * @see PrintStream#printf(String, Object...)
+         */
+        void printf(String pattern, Object... args);
     }
 
     /**
-     * To print to console, adapter for {@link PrintStream}
+     * A leveled wrapper around {@link MessagePrinter}, the default {@link PrintLogs} implementation.
      */
-    class Console implements PrintLogs {
+    class Impl implements PrintLogs, MessagePrinter {
+        private final Level level;
+        private final MessagePrinter delegate;
 
-        private final PrintStream out;
-
-        public Console(PrintStream out) {
-            this.out = Objects.requireNonNull(out, "Null out");
+        public Impl(Level level, MessagePrinter printer) {
+            this.level = level;
+            this.delegate = printer;
         }
 
         @Override
-        public void print(String str) {
-            out.print(str);
+        public boolean isTraceEnabled() {
+            return isGreaterOrEqual(Level.TRACE);
         }
 
         @Override
-        public void println(String str) {
-            out.println(str);
+        public boolean isDebugEnabled() {
+            return isGreaterOrEqual(Level.DEBUG);
         }
 
         @Override
-        public void println() {
-            out.println();
+        public boolean isInfoEnabled() {
+            return isGreaterOrEqual(Level.INFO);
+        }
+
+        private boolean isGreaterOrEqual(Level other) {
+            return this.level.compareTo(other) >= 0;
         }
 
         @Override
-        public void printf(String format, Object... args) {
-            out.printf(format, args);
+        public void printf(String pattern, Object... args) {
+            if (pattern == null) return;
+            delegate.printf(pattern, args);
         }
+
+        @Override
+        public boolean isEnabled() {
+            return Level.NONE != level;
+        }
+
+        @Override
+        public void trace(String msg, Object... args) {
+            if (!isTraceEnabled()) return;
+            printf(msg, args);
+        }
+
+        @Override
+        public void debug(String msg, Object... args) {
+            if (!isDebugEnabled()) return;
+            printf(msg, args);
+        }
+
+        @Override
+        public void info(String msg, Object... args) {
+            if (!isInfoEnabled()) return;
+            printf(msg, args);
+        }
+
     }
 
     /**
-     * To use with java logger.
+     * The log-level enum and the factory to create {@link PrintLogs}
      */
-    class Flat implements PrintLogs {
-        private final Consumer<String> logger;
-        private final Locale locale;
+    enum Level {
+        NONE, INFO, DEBUG, TRACE, ALL,;
 
-        public Flat(Locale locale, Consumer<String> logger) {
-            this.logger = Objects.requireNonNull(logger, "Null logger.");
-            this.locale = locale;
+        public static Level at(int index) {
+            try {
+                return values()[index];
+            } catch (IndexOutOfBoundsException e) {
+                return index > 0 ? ALL : NONE;
+            }
         }
 
-        public Flat(Consumer<String> logger) {
-            this(Locale.US, logger);
+        public PrintLogs createLogger(MessagePrinter printer) {
+            return new Impl(this, printer);
         }
 
-        @Override
-        public void print(String str) {
-            logger.accept(prepare(str));
-        }
-
-        @Override
-        public void println(String str) {
-            logger.accept(prepare(str));
-        }
-
-        @Override
-        public void println() {
-
-        }
-
-        @Override
-        public void printf(String format, Object... args) {
-            logger.accept(new Formatter(locale).format(prepare(format), args).toString());
-        }
-
-        private static String prepare(String msg) {
-            return StringUtils.replaceChars(msg, "\r\n", null);
+        public PrintLogs createLogger(PrintStream out) {
+            return createLogger((s, a) -> {
+                if (a.length == 0) {
+                    out.print(s);
+                } else {
+                    out.printf(s, a);
+                }
+            });
         }
     }
 }

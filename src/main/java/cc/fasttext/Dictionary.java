@@ -1,5 +1,16 @@
 package cc.fasttext;
 
+import cc.fasttext.io.FTInputStream;
+import cc.fasttext.io.FTOutputStream;
+import cc.fasttext.io.FTReader;
+import cc.fasttext.io.PrintLogs;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
+import com.google.common.primitives.UnsignedLong;
+import org.apache.commons.lang.Validate;
+import org.apache.commons.math3.distribution.UniformRealDistribution;
+import org.apache.commons.math3.random.RandomGenerator;
+
 import java.io.IOException;
 import java.io.Reader;
 import java.nio.charset.Charset;
@@ -8,18 +19,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
-
-import org.apache.commons.lang.Validate;
-import org.apache.commons.math3.distribution.UniformRealDistribution;
-import org.apache.commons.math3.random.RandomGenerator;
-
-import cc.fasttext.io.FTInputStream;
-import cc.fasttext.io.FTOutputStream;
-import cc.fasttext.io.FTReader;
-import cc.fasttext.io.PrintLogs;
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Multimap;
-import com.google.common.primitives.UnsignedLong;
 
 /**
  * See <a href='https://github.com/facebookresearch/fastText/blob/master/src/dictionary.cc'>dictionary.cc</a> &
@@ -409,19 +408,18 @@ public strictfp class Dictionary {
      *  }
      * }}</pre>
      *
-     * @param reader
-     * @param logs
-     * @param logLevel
-     * @throws IOException
-     * @throws IllegalStateException
+     * @param reader {@link FTReader}
+     * @param logs {@link PrintLogs}
+     * @throws IOException i/o error
+     * @throws IllegalStateException in case of no words found
      */
-    void readFromFile(FTReader reader, PrintLogs logs, int logLevel) throws IOException, IllegalStateException {
+    void readFromFile(FTReader reader, PrintLogs logs) throws IOException, IllegalStateException {
         long minThreshold = 1;
         String word;
         while ((word = readWord(reader)) != null) {
             add(word);
-            if (ntokens_ % 1_000_000 == 0 && logLevel > 1) {
-                logs.printf("\rRead %dM words", ntokens_ / 1_000_000);
+            if (logs.isDebugEnabled() && ntokens_ % 1_000_000 == 0) {
+                logs.debug("\rRead %dM words", ntokens_ / 1_000_000);
             }
             if (size_ > 0.75 * MAX_VOCAB_SIZE) {
                 minThreshold++;
@@ -431,11 +429,9 @@ public strictfp class Dictionary {
         threshold(this.args.minCount(), this.args.minCountLabel());
         initTableDiscard();
         initNgrams();
-        if (logLevel > 0) {
-            logs.printf("\rRead %dM words\n", ntokens_ / 1_000_000);
-            logs.println("Number of words:  " + nwords_);
-            logs.println("Number of labels: " + nlabels_);
-        }
+        logs.infoln("\rRead %dM words", ntokens_ / 1_000_000);
+        logs.infoln("Number of words:  %d", nwords_);
+        logs.infoln("Number of labels: %d", nlabels_);
         if (size_ == 0) {
             throw new IllegalStateException("Empty vocabulary. Try a smaller -minCount value.");
         }
