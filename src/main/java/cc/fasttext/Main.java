@@ -1,10 +1,5 @@
 package cc.fasttext;
 
-import cc.fasttext.io.FormatUtils;
-import cc.fasttext.io.IOStreams;
-import cc.fasttext.io.PrintLogs;
-import org.apache.commons.lang.StringUtils;
-
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.*;
@@ -14,6 +9,12 @@ import java.util.function.DoubleConsumer;
 import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import org.apache.commons.lang.StringUtils;
+
+import cc.fasttext.io.FormatUtils;
+import cc.fasttext.io.IOStreams;
+import cc.fasttext.io.PrintLogs;
 
 /**
  * The main class to run FastText as application from command line.
@@ -363,7 +364,7 @@ public class Main {
         }
         String bin = model + ".bin";
         String vec = model + ".vec";
-        if (java.util.stream.Stream.of(bin, vec, out).filter(Objects::nonNull).anyMatch(file -> !fileSystem().canWrite(file))) {
+        if (Stream.of(bin, vec, out).filter(Objects::nonNull).anyMatch(file -> !fileSystem().canWrite(file))) {
             throw Usage.TRAIN.toException("Wrong -output: can't write model " + data, Usage.ARGS);
         }
         String vectors = args.get("-pretrainedVectors");

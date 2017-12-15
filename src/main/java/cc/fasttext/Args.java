@@ -1,11 +1,11 @@
 package cc.fasttext;
 
-import cc.fasttext.io.FTInputStream;
-import cc.fasttext.io.FTOutputStream;
-
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
+
+import cc.fasttext.io.FTInputStream;
+import cc.fasttext.io.FTOutputStream;
 
 /**
  * Immutable Args object.
@@ -24,7 +24,7 @@ import java.util.Objects;
  * These settings do not reflect the state or processes of {@link FastText fasttext}
  * and needed once only while running app from command line.
  */
-public final strictfp class Args {
+public final class Args {
     // basic:
     private ModelName model = ModelName.SG;
     // dictionary:

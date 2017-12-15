@@ -20,7 +20,7 @@ import cc.fasttext.io.FTOutputStream;
  * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.cc'>matrix.cc</a> and
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.h'>matrix.h</a>
  */
-public strictfp class Matrix {
+public class Matrix {
 
     private float[][] data_;
 
@@ -113,6 +113,10 @@ public strictfp class Matrix {
 
     void validateMVector(Vector vector) {
         Validate.isTrue(Objects.requireNonNull(vector, "Null vector").size() == m_, "Wrong vector size: " + vector.size() + " (!= " + m_ + ")");
+    }
+
+    boolean isQuant() {
+        return false;
     }
 
     /**

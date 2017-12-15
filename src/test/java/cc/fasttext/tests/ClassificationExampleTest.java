@@ -92,7 +92,7 @@ public class ClassificationExampleTest {
                 " -bucket 10000000" +
                 " -epoch 5" +
                 " -thread 4" +
-                " -saveOutput 555", train, model));
+                " -saveOutput", train, model));
         Assert.assertTrue("No .bin found", Files.exists(bin));
         Assert.assertTrue("No .vec found", Files.exists(vec));
         Assert.assertTrue("No .output found", Files.exists(out));
@@ -114,8 +114,8 @@ public class ClassificationExampleTest {
                 " -cutoff 100000", train, model));
         Assert.assertTrue("No .ftz found", Files.exists(ftz));
         Assert.assertTrue("No .vec found", Files.exists(vec));
-        // 1 mb allowed diff (random size of quantized model):
-        Assert.assertEquals("Incorrect size of dbpedia.ftz model", DBPEDIA_MODEL_FTZ_SIZE, Files.size(ftz), 1024);
+        // 1.5 mb allowed diff (random size of quantized model due to random nature of fasttext):
+        Assert.assertEquals("Incorrect size of dbpedia.ftz model", DBPEDIA_MODEL_FTZ_SIZE, Files.size(ftz), 1536);
     }
 
     private Path getModelBinPath() throws Exception {

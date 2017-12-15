@@ -19,7 +19,7 @@ import com.google.common.primitives.Ints;
  * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.cc'>model.cc</a> and
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.h'>model.h</>
  */
-public strictfp class Model {
+public class Model {
 
     static final int SIGMOID_TABLE_SIZE = 512;
     static final int MAX_SIGMOID = 8;
@@ -39,7 +39,6 @@ public strictfp class Model {
     private Vector hidden_;
     private Vector output_;
     private Vector grad_;
-    private int hsz_; // dim
     private int osz_; // output vocabSize
     private float loss_;
     private long nexamples_;
@@ -62,7 +61,6 @@ public strictfp class Model {
         wo_ = wo;
         args_ = args;
         osz_ = wo.getM();
-        hsz_ = args.dim();
         negpos = 0;
         loss_ = 0.0f;
         nexamples_ = 1L;
@@ -272,7 +270,7 @@ public strictfp class Model {
         grad_.clear();
         computeOutputSoftmax();
         for (int i = 0; i < osz_; i++) {
-            float label = (i == target) ? 1.0f : 0.0f;
+            float label = i == target ? 1.0f : 0.0f;
             float alpha = lr * (label - output_.get(i));
             grad_.addRow(wo_, i, alpha);
             wo_.addRow(hidden_, i, alpha);
@@ -298,7 +296,7 @@ public strictfp class Model {
      * @param hidden {@link Vector}
      */
     private void computeHidden(List<Integer> input, Vector hidden) {
-        Validate.isTrue(hidden.size() == hsz_, "Wrong size of hidden vector: " + hidden.size() + "!=" + hsz_);
+        Validate.isTrue(hidden.size() == args_.dim(), "Wrong size of hidden vector: " + hidden.size() + "!=" + args_.dim());
         hidden.clear();
         for (Integer it : input) {
             if (isQuant()) {
@@ -499,19 +497,19 @@ public strictfp class Model {
     public void update(List<Integer> input, int target, float lr) {
         Validate.isTrue(target >= 0);
         Validate.isTrue(target < osz_);
-        if (input.size() == 0) {
+        if (input.isEmpty()) {
             return;
         }
         computeHidden(input, hidden_);
-        if (args_.loss() == LossName.NS) {
+        if (LossName.NS == args_.loss()) {
             loss_ += negativeSampling(target, lr);
-        } else if (args_.loss() == Args.LossName.HS) {
+        } else if (LossName.HS == args_.loss()) {
             loss_ += hierarchicalSoftmax(target, lr);
         } else {
             loss_ += softmax(target, lr);
         }
         nexamples_ += 1;
-        if (args_.model() == ModelName.SUP) {
+        if (ModelName.SUP == args_.model()) {
             grad_.mul(1.0f / input.size());
         }
         for (Integer it : input) {

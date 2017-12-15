@@ -25,7 +25,7 @@ import com.google.common.primitives.Ints;
  *
  * Created by @szuev on 27.10.2017.
  */
-public strictfp class ProductQuantizer {
+public class ProductQuantizer {
 
     private static final int NBITS = 8;
     private static final int KSUB = 1 << NBITS;

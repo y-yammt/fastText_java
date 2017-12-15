@@ -1,11 +1,13 @@
 package cc.fasttext.io.impl;
 
-import cc.fasttext.io.ScrollableInputStream;
-
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Path;
 import java.util.Objects;
+
+import org.apache.commons.math3.util.FastMath;
+
+import cc.fasttext.io.ScrollableInputStream;
 
 /**
  * The simple version of {@link org.apache.hadoop.fs.RawLocalFileSystem.LocalFSFileInputStream}
@@ -43,7 +45,7 @@ public class LocalInputStream extends ScrollableInputStream {
 
     @Override
     public int available() throws IOException {
-        long res = Math.max(0L, getLen() - getPos());
+        long res = FastMath.max(0L, getLen() - getPos());
         return res > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) res;
     }
 

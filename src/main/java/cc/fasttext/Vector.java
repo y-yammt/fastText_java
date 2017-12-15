@@ -15,7 +15,7 @@ import com.google.common.primitives.Floats;
  * See <a href='https://github.com/facebookresearch/fastText/blob/master/src/vector.cc'>vector.cc</a> &
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/vector.h'>vector.h</a>
  */
-public strictfp class Vector {
+public class Vector {
 
     private float[] data_;
 
@@ -125,9 +125,8 @@ public strictfp class Vector {
      * @param a float
      */
     public void mul(float a) {
-        DoubleUnaryOperator op = v -> v * a;
         for (int i = 0; i < size(); i++) {
-            compute(i, op);
+            data_[i] *= a;
         }
     }
 
@@ -146,11 +145,15 @@ public strictfp class Vector {
      * @param i      (int64_t originally) matrix row num (m-dimension)
      */
     public void addRow(Matrix matrix, int i) {
-        if (matrix instanceof QMatrix) {
+        Validate.isTrue(i >= 0 && i < matrix.getM(), "Incompatible index (" + i + ") and matrix m-size (" + matrix.getM() + ")");
+        Validate.isTrue(size() == matrix.getN(), "Wrong matrix n-size: " + size() + " != " + matrix.getN());
+        if (matrix.isQuant()) {
             addRow((QMatrix) matrix, i);
             return;
         }
-        addRow(matrix, i, 1);
+        for (int j = 0; j < matrix.getN(); j++) {
+            data_[j] += matrix.at(i, j);
+        }
     }
 
     /**

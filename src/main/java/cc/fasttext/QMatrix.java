@@ -15,7 +15,7 @@ import cc.fasttext.io.FTOutputStream;
  * <p>
  * Created by @szuev on 24.10.2017.
  */
-public strictfp class QMatrix extends Matrix {
+public class QMatrix extends Matrix {
 
     private boolean qnorm_;
     private int codesize_;
@@ -86,6 +86,11 @@ public strictfp class QMatrix extends Matrix {
     @Override
     public void set(int i, int j, float value) {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    boolean isQuant() {
+        return true;
     }
 
     @Override

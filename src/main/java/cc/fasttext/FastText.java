@@ -1,19 +1,5 @@
 package cc.fasttext;
 
-import cc.fasttext.Args.ModelName;
-import cc.fasttext.Dictionary.EntryType;
-import cc.fasttext.io.*;
-import cc.fasttext.io.impl.LocalIOStreams;
-import com.google.common.collect.*;
-import org.apache.commons.lang.StringUtils;
-import org.apache.commons.lang.Validate;
-import org.apache.commons.math3.distribution.UniformIntegerDistribution;
-import org.apache.commons.math3.random.RandomGenerator;
-import org.apache.commons.math3.random.Well19937c;
-import org.apache.commons.math3.util.FastMath;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.*;
 import java.lang.ref.Reference;
 import java.lang.ref.SoftReference;
@@ -31,6 +17,21 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.Validate;
+import org.apache.commons.math3.distribution.UniformIntegerDistribution;
+import org.apache.commons.math3.random.RandomGenerator;
+import org.apache.commons.math3.random.Well19937c;
+import org.apache.commons.math3.util.FastMath;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import cc.fasttext.Args.ModelName;
+import cc.fasttext.Dictionary.EntryType;
+import cc.fasttext.io.*;
+import cc.fasttext.io.impl.LocalIOStreams;
+import com.google.common.collect.*;
+
 /**
  * FastText class, can be used as a lib in other projects.
  * It is assumed that all public methods of the instance do not change the state of the object and therefore thread-safe.
@@ -40,7 +41,7 @@ import java.util.stream.StreamSupport;
  *
  * @author Ivan
  */
-public strictfp class FastText {
+public class FastText {
     public static final int FASTTEXT_VERSION = 12;
     public static final int FASTTEXT_FILEFORMAT_MAGIC_INT32 = 793712314;
 
@@ -1076,7 +1077,7 @@ public strictfp class FastText {
         @Override
         public void trace(String msg, Object... args) {
             String res;
-            if (!isDebugEnabled() || (res = format(msg, args)) == null) return;
+            if (!isTraceEnabled() || (res = format(msg, args)) == null) return;
             LOGGER.trace(res);
         }
 
@@ -1112,8 +1113,7 @@ public strictfp class FastText {
      * Created by @szuev on 07.12.2017.
      */
     public static class Factory {
-        public static final Locale LOCALE = Locale.US;
-        // todo: buff size is experimental
+        public static final Locale LOCALE = Locale.ENGLISH;
         private static final int BUFF_SIZE = 100 * 1024;
 
         private final IOStreams fs;
@@ -1728,7 +1728,7 @@ public strictfp class FastText {
                 int etaH = eta / 3600;
                 int etaM = (eta - etaH * 3600) / 60;
                 return String.format(LOCALE,
-                        "\rProgress: %.1f%% words/sec/thread: %.0f lr: %.6f loss: %.6f eta: %d h %d m ",
+                        "\rProgress: %.1f%%  words/sec/thread: %.0f  lr: %.6f  loss: %.6f  eta: %dh%dm ",
                         100 * progress, wst, lr, loss, etaH, etaM);
             }
 
@@ -1747,7 +1747,7 @@ public strictfp class FastText {
              * @param labels List of ints
              */
             private void supervised(Model model, float lr, List<Integer> line, List<Integer> labels) {
-                if (labels.size() == 0 || line.size() == 0)
+                if (labels.isEmpty() || line.isEmpty())
                     return;
                 UniformIntegerDistribution uniform = new UniformIntegerDistribution(model.random(), 0, labels.size() - 1);
                 int i = uniform.sample();
