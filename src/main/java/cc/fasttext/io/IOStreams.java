@@ -3,6 +3,11 @@ package cc.fasttext.io;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Paths;
+import java.util.Objects;
 
 /**
  * Abstract factory to create {@link java.io.InputStream} and {@link java.io.OutputStream} with the same nature
@@ -79,4 +84,24 @@ public interface IOStreams {
         throw new UnsupportedOperationException("TODO: implement");
     }
 
+    /**
+     * Makes an URI from String.
+     *
+     * @param uri String, file-ref
+     * @return {@link URI}
+     * @throws NullPointerException     if null uri
+     * @throws IllegalArgumentException if wrong uri
+     */
+    static URI toURI(String uri) {
+        try {
+            return new URI(Objects.requireNonNull(uri, "Null uri"));
+        } catch (URISyntaxException u) {
+            try {
+                return Paths.get(uri).toUri();
+            } catch (InvalidPathException i) {
+                u.addSuppressed(i);
+            }
+            throw new IllegalArgumentException("Wrong file-ref <" + uri + ">", u);
+        }
+    }
 }

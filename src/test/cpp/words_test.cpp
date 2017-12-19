@@ -57,11 +57,11 @@ int main(int argc, char** argv)
 {
     std::vector<std::string> args(argv, argv + argc);
     if (args.size() < 2) {
-        std::cerr << "Wrong input" << std::endl;
+        std::cerr << "Wrong input: file" << std::endl;
         exit(-2);
     }
     std::string infile = args[1];
-    std::cout << "infile:\t" << infile << "\n";
+    std::cout << "file:\t" << infile << "\n";
 
     std::ifstream ifs(infile);
 
@@ -76,10 +76,8 @@ int main(int argc, char** argv)
         }
         std::cout << "count:\t" <<  count << "\n";
 
-        std::cout << "[" << std::endl;
         for (auto i = words.begin(); i != words.end(); ++i)
-            std::cout << *i << ", ";
-        std::cout << "]" << std::endl;
+            std::cerr << *i << "\n";
         ifs.close();
     } else {
         std::cerr << "Test file cannot be opened!" << std::endl;

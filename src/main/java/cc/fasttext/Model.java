@@ -1,19 +1,18 @@
 package cc.fasttext;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-
+import cc.fasttext.Args.LossName;
+import cc.fasttext.Args.ModelName;
+import com.google.common.collect.TreeMultimap;
+import com.google.common.primitives.Ints;
 import org.apache.commons.lang.Validate;
 import org.apache.commons.math3.random.RandomAdaptor;
 import org.apache.commons.math3.random.RandomGenerator;
 import org.apache.commons.math3.util.FastMath;
 
-import cc.fasttext.Args.LossName;
-import cc.fasttext.Args.ModelName;
-import com.google.common.collect.TreeMultimap;
-import com.google.common.primitives.Ints;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 
 /**
  * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.cc'>model.cc</a> and
@@ -135,13 +134,13 @@ public class Model {
      */
     private float binaryLogistic(int target, boolean label, float lr) {
         float score = sigmoid(wo_.dotRow(hidden_, target));
-        float alpha = lr * ((label ? 1.0f : 0.0f) - score);
+        float alpha = lr * ((label ? 1 : 0) - score);
         grad_.addRow(wo_, target, alpha);
         wo_.addRow(hidden_, target, alpha);
         if (label) {
             return -log(score);
         } else {
-            return -log(1.0f - score);
+            return -log(1 - score);
         }
     }
 
@@ -532,7 +531,7 @@ public class Model {
      *
      * @param counts List of longs (int64_t)
      */
-    public void setTargetCounts(final List<Long> counts) {
+    public void setTargetCounts(List<Long> counts) {
         Validate.isTrue(counts.size() == osz_);
         if (LossName.NS == args_.loss()) {
             initTableNegatives(counts);
@@ -565,11 +564,11 @@ public class Model {
         negatives = new ArrayList<>(counts.size());
         double z = 0.0;
         for (long count : counts) {
-            z += FastMath.pow(count, 0.5);
+            z += FastMath.sqrt(count);
         }
         for (int i = 0; i < counts.size(); i++) {
-            double c = FastMath.pow(counts.get(i), 0.5);
-            for (int j = 0; j < c * NEGATIVE_TABLE_SIZE / z; j++) {
+            double c = FastMath.sqrt(counts.get(i)) * NEGATIVE_TABLE_SIZE / z;
+            for (int j = 0; j < c; j++) {
                 negatives.add(i);
             }
         }

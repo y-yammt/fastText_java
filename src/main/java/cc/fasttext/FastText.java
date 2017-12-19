@@ -1,5 +1,19 @@
 package cc.fasttext;
 
+import cc.fasttext.Args.ModelName;
+import cc.fasttext.Dictionary.EntryType;
+import cc.fasttext.io.*;
+import cc.fasttext.io.impl.LocalIOStreams;
+import com.google.common.collect.*;
+import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.Validate;
+import org.apache.commons.math3.distribution.UniformIntegerDistribution;
+import org.apache.commons.math3.random.RandomGenerator;
+import org.apache.commons.math3.random.Well19937c;
+import org.apache.commons.math3.util.FastMath;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.*;
 import java.lang.ref.Reference;
 import java.lang.ref.SoftReference;
@@ -16,21 +30,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-
-import org.apache.commons.lang.StringUtils;
-import org.apache.commons.lang.Validate;
-import org.apache.commons.math3.distribution.UniformIntegerDistribution;
-import org.apache.commons.math3.random.RandomGenerator;
-import org.apache.commons.math3.random.Well19937c;
-import org.apache.commons.math3.util.FastMath;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import cc.fasttext.Args.ModelName;
-import cc.fasttext.Dictionary.EntryType;
-import cc.fasttext.io.*;
-import cc.fasttext.io.impl.LocalIOStreams;
-import com.google.common.collect.*;
 
 /**
  * FastText class, can be used as a lib in other projects.
@@ -1105,7 +1104,7 @@ public class FastText {
 
     /**
      * A factory to produce new {@link FastText} api-interface.
-     *
+
      * @see IOStreams
      * @see PrintLogs
      * @see RandomGenerator
@@ -1412,7 +1411,12 @@ public class FastText {
             return res;
         }
 
-        private FTReader createReader(String fileName) throws IOException {
+        /**
+         * @param fileName file path
+         * @return {@link FTReader}
+         * @throws IOException if i/o error
+         */
+        protected FTReader createReader(String fileName) throws IOException {
             return new FTReader(fs.openScrollable(fileName), charset, BUFF_SIZE);
         }
 
@@ -1500,8 +1504,8 @@ public class FastText {
             private final Matrix input;
             private final Matrix output;
 
-            private Instant start;
-            private AtomicLong tokenCount;
+            private Instant start;          // original: clock_t start;
+            private AtomicLong tokenCount;  // original: std::atomic<int64_t> tokenCount;
 
             private Trainer(Args args, String file, long size, Dictionary dictionary, Matrix input, Matrix output) {
                 this.args = Objects.requireNonNull(args, "Null args");
@@ -1667,13 +1671,13 @@ public class FastText {
                     long skip = threadId * size / args.thread();
                     reader.skipBytes(skip);
                     model = Factory.this.createModel(args, dictionary, input, output, threadId);
-                    long ntokens = dictionary.ntokens();
+                    long epochTokens = args.epoch() * dictionary.ntokens();
                     long localTokenCount = 0;
                     List<Integer> line = new ArrayList<>();
                     List<Integer> labels = new ArrayList<>();
-                    while (tokenCount.longValue() < args.epoch() * ntokens) {
-                        float progress = tokenCount.floatValue() / (args.epoch() * ntokens);
-                        float lr = (float) (args.lr() * (1.0 - progress));
+                    while (tokenCount.longValue() < epochTokens) {
+                        float progress = tokenCount.floatValue() / epochTokens;
+                        float lr = (float) (args.lr() * (1 - progress));
                         if (ModelName.SUP.equals(args.model())) {
                             localTokenCount += dictionary.getLine(reader, line, labels);
                             supervised(model, lr, line, labels);
@@ -1699,7 +1703,7 @@ public class FastText {
             }
 
             /**
-             * Prints debug train info to console or somewhere else.
+             * Composes message to print debug train info to console or somewhere else.
              * <p>
              * <pre>{@code void FastText::printInfo(real progress, real loss) {
              *  real t = real(clock() - start) / CLOCKS_PER_SEC;

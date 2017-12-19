@@ -1,5 +1,17 @@
 package cc.fasttext;
 
+import cc.fasttext.io.FTInputStream;
+import cc.fasttext.io.FTOutputStream;
+import cc.fasttext.io.FTReader;
+import cc.fasttext.io.PrintLogs;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
+import com.google.common.primitives.UnsignedLong;
+import org.apache.commons.lang.Validate;
+import org.apache.commons.math3.distribution.UniformRealDistribution;
+import org.apache.commons.math3.random.RandomGenerator;
+import org.apache.commons.math3.util.FastMath;
+
 import java.io.IOException;
 import java.io.Reader;
 import java.nio.charset.Charset;
@@ -8,19 +20,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
-
-import org.apache.commons.lang.Validate;
-import org.apache.commons.math3.distribution.UniformRealDistribution;
-import org.apache.commons.math3.random.RandomGenerator;
-import org.apache.commons.math3.util.FastMath;
-
-import cc.fasttext.io.FTInputStream;
-import cc.fasttext.io.FTOutputStream;
-import cc.fasttext.io.FTReader;
-import cc.fasttext.io.PrintLogs;
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Multimap;
-import com.google.common.primitives.UnsignedLong;
 
 /**
  * See <a href='https://github.com/facebookresearch/fastText/blob/master/src/dictionary.cc'>dictionary.cc</a> &
@@ -444,6 +443,7 @@ public class Dictionary {
     }
 
     /**
+     * Reads next word from stream.
      * Original code:
      * <pre>{@code bool Dictionary::readWord(std::istream& in, std::string& word) const {
      *  char c;
@@ -482,8 +482,7 @@ public class Dictionary {
             if (c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == 0x000b || c == '\f' || c == '\0') {
                 if (sb.length() == 0) {
                     if (c == '\n') {
-                        sb.append(EOS);
-                        return sb.toString();
+                        return EOS;
                     }
                     continue;
                 } else {

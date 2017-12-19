@@ -18,7 +18,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.FileSystemNotFoundException;
-import java.nio.file.InvalidPathException;
 import java.nio.file.Paths;
 import java.util.AbstractMap;
 import java.util.Map;
@@ -88,7 +87,7 @@ public class ExtraMain {
             home = "/";
         }
         System.setProperty("hadoop.home.dir", home);
-        FileSystem fs = FileSystem.get(toURI(url), conf);
+        FileSystem fs = FileSystem.get(IOStreams.toURI(url), conf);
         return new HadoopIOStreams(fs) {
             @Override
             public String toString() {
@@ -137,27 +136,6 @@ public class ExtraMain {
     }
 
     /**
-     * Creates an URI from String.
-     *
-     * @param uri String, file-ref
-     * @return {@link URI}
-     * @throws NullPointerException     if null uri
-     * @throws IllegalArgumentException if wrong uri
-     */
-    public static URI toURI(String uri) {
-        try {
-            return new URI(Objects.requireNonNull(uri, "Null uri"));
-        } catch (URISyntaxException u) {
-            try {
-                return Paths.get(uri).toUri();
-            } catch (InvalidPathException i) {
-                u.addSuppressed(i);
-            }
-            throw new IllegalArgumentException("Wrong file-ref <" + uri + ">", u);
-        }
-    }
-
-    /**
      * Created by @szuev on 28.11.2017.
      */
     public static class CombinedIOStreams implements IOStreams {
@@ -203,7 +181,7 @@ public class ExtraMain {
         }
 
         private static URI getRoot(String uri) {
-            return toURI(uri).resolve("/");
+            return IOStreams.toURI(uri).resolve("/");
         }
     }
 }

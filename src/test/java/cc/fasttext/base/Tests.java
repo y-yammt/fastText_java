@@ -53,7 +53,7 @@ public final class Tests {
         List<String> errors = new ArrayList<>();
         for (int i = 0; i < actual.size(); i++) {
             if (expected.get(i).equals(actual.get(i))) continue;
-            errors.add(String.format("Wrong label #%d: expected('%s')!=actual('%s')", i, expected.get(i), actual.get(i)));
+            errors.add(String.format("Wrong item #%d: expected('%s')!=actual('%s')", i, expected.get(i), actual.get(i)));
         }
         errors.forEach(LOGGER::warn);
         Assert.assertTrue("Errors: " + errors.size(), errors.size() <= allowedDeviation);

@@ -8,7 +8,6 @@ import org.apache.hadoop.fs.Path;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.URI;
 
 
 /**
@@ -41,7 +40,13 @@ public class HadoopIOStreams implements IOStreams {
         return fs.getFileStatus(toPath(uri)).getLen();
     }
 
-    public Path toPath(String uri) {
-        return new Path(URI.create(uri).getPath());
+    /**
+     * Makes a hadoop fs path
+     *
+     * @param uri String
+     * @return {@link Path hdfs path}
+     */
+    public static Path toPath(String uri) {
+        return new Path(IOStreams.toURI(uri).getPath());
     }
 }

@@ -3,6 +3,7 @@
 ##
 ## Comparing training time (Java vs C++).
 ## To fix script use "sed -i -e 's/\r$//' /file"
+## Run example: nohup ./fastText/compare_test.sh 1g -jar &> /home/avicomp/fastText/logs/nohup.log &
 ##
 
 if [ $# -eq 0 ]
@@ -57,65 +58,73 @@ else
     exit 2
 fi
 
+PREPARE=true
+HADOOP_ROOT="/home/hadoop/hdfs"
+HADOOP_DIR="/tmp/out"
+BIG_FILE=${HADOOP_DIR}"/pak-raw-text.txt"
+BIG_FILE_REF=${HADOOP_ROOT}${BIG_FILE}
+IN_FILE=${HADOOP_DIR}"/test.${size}${suffix}.txt"
+IN_FILE_REF=${HADOOP_ROOT}${IN_FILE}
 
-hdfs_root="/home/hadoop/hdfs"
-hdfs_dir="/tmp/out"
-big_file=${hdfs_dir}"/pak-raw-text.txt"
-big_file_ref=${hdfs_root}${big_file}
-in_file=${hdfs_dir}"/test.${size}${suffix}.txt"
-in_file_ref=${hdfs_root}${in_file}
-
-if [ ! -f $big_file_ref ]
-then
-    echo "No big file <${big_file_ref}> in system!"
-    exit 3
-fi
-
-model_prefix=${hdfs_dir}"/test${size}${suffix}."
+model_prefix=${HADOOP_DIR}"/test${size}${suffix}."
 model_suffix=".cbox.d128.w5.hs"
-log_dir="/tmp/fasttext-test"
-log_prefix=${log_dir}"/fasttext.${size}${suffix}."
+LOG_DIR="/home/avicomp/fastText/logs"
+log_prefix=${LOG_DIR}"/fasttext.${size}${suffix}."
 log_suffix=".log"
 
-java_XMX_GB=5
-java_vm_opts="java.library.path=/opt/hadoop-2.8.1/lib/native"
-hadoop_url="hdfs://172.16.35.1:54310"
-hadoop_user="hadoop"
+JAVA_XMX_GB=10
+HADOOP_VM_OPTS="java.library.path=/opt/hadoop-2.8.1/lib/native"
+HADOOP_HOST="172.16.35.1"
+HADOOP_PORT="54310"
+HADOOP_USER="hadoop"
+hadoop_fs_prefix="hdfs://${HADOOP_USER}@${HADOOP_HOST}:${HADOOP_PORT}"
 
-fs_args="cbow -thread 4 -dim 128 -ws 5 -epoch 10 -minCount 5"
-fs_cpp="/tmp/fasttext-test/fastText/fasttext"
-fs_jar_file="/tmp/fasttext-test/fasttext-hadoop-jar-with-dependencies.jar"
-fs_java="java -jar -Xmx${java_XMX_GB}G -D${java_vm_opts} ${fs_jar_file} -hadoop-url ${hadoop_url} -hadoop-user ${hadoop_user}"
+FS_ARGS="cbow -thread 4 -dim 128 -ws 5 -epoch 10 -minCount 5"
+FS_CPP_HOME="/home/avicomp/fastText/build/"
+fs_cpp_exe=${FS_CPP_HOME}"fasttext"
+fs_jar_file="fasttext-hadoop-jar-with-dependencies.jar"
+FS_JAVA_HOME="/home/avicomp/fastText/java/"
+fs_java_exe="java -jar -Xmx${JAVA_XMX_GB}G -D${HADOOP_VM_OPTS} ${FS_JAVA_HOME}${fs_jar_file}"
 
-if [[ -f $in_file_ref && `ls -la ${in_file_ref} | awk -F " " {'print $5'}` -eq $bytes ]]
+MARK_CPP="cpp"
+MARK_JAVA="jar"
+logs_cpp=${log_prefix}${MARK_CPP}${log_suffix}
+logs_java=${log_prefix}${MARK_JAVA}${log_suffix}
+
+if $PREPARE
 then
-    echo "File <${in_file_ref}> already exists"
-else
-    echo "Create a input file <${in_file_ref}> from the existing big file <${big_file_ref}>"
-    head -c ${bytes} ${big_file_ref} > ${in_file_ref}
-    real_size=`ls -la ${in_file_ref} | awk -F " " {'print $5'}`
-    i=0
-    lim=1000
-    while (( $real_size != $bytes && $i < $lim ))
-    do
-        sleep 1
-        real_size=`ls -la ${in_file_ref} | awk -F " " {'print $5'}`
-        ((i++))
-    done
-    if (( $i == $lim ))
+    if [ ! -f $BIG_FILE_REF ]
     then
-        echo "Real size: ${real_size}, but expected: ${bytes}"
-        exit $real_size
+        echo "No big file <${BIG_FILE_REF}> in system!"
+        exit 3
     fi
-    echo "File created!"
+
+    if [[ -f $IN_FILE_REF && `ls -la ${IN_FILE_REF} | awk -F " " {'print $5'}` -eq $bytes ]]
+    then
+        echo "File <${IN_FILE_REF}> already exists"
+    else
+        echo "Create a input file <${IN_FILE_REF}> from the existing big file <${BIG_FILE_REF}>"
+        head -c ${bytes} ${BIG_FILE_REF} > ${IN_FILE_REF}
+        real_size=`ls -la ${IN_FILE_REF} | awk -F " " {'print $5'}`
+        i=0
+        lim=1000
+        while (( $real_size != $bytes && $i < $lim ))
+        do
+            sleep 1
+            real_size=`ls -la ${IN_FILE_REF} | awk -F " " {'print $5'}`
+            ((i++))
+        done
+        if (( $i == $lim ))
+        then
+            echo "Real size: ${real_size}, but expected: ${bytes}"
+            exit $real_size
+        fi
+        echo "File created!"
+    fi
 fi
 
-mark_cpp="cpp"
-mark_java="jar"
-logs_cpp=${log_prefix}${mark_cpp}${log_suffix}
-logs_java=${log_prefix}${mark_java}${log_suffix}
-fs_run_cpp="{ time ${fs_cpp} ${fs_args} -input ${in_file_ref} -output ${hdfs_root}${model_prefix}${mark_cpp}${model_suffix} ; } >& ${logs_cpp}"
-fs_run_java="{ time ${fs_java} ${fs_args} -input ${in_file} -output ${model_prefix}${mark_java}${model_suffix} ; } >& ${logs_java}"
+fs_run_cpp="{ time ${fs_cpp_exe} ${FS_ARGS} -input ${IN_FILE_REF} -output ${HADOOP_ROOT}${model_prefix}${MARK_CPP}${model_suffix} ; } >& ${logs_cpp}"
+fs_run_java="{ time ${fs_java_exe} ${FS_ARGS} -input ${hadoop_fs_prefix}${IN_FILE} -output ${hadoop_fs_prefix}${model_prefix}${MARK_JAVA}${model_suffix} ; } >& ${logs_java}"
 
 if $is_run_cpp
 then

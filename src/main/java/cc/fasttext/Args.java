@@ -1,11 +1,11 @@
 package cc.fasttext;
 
+import cc.fasttext.io.FTInputStream;
+import cc.fasttext.io.FTOutputStream;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
-
-import cc.fasttext.io.FTInputStream;
-import cc.fasttext.io.FTOutputStream;
 
 /**
  * Immutable Args object.
@@ -44,7 +44,7 @@ public final class Args {
     private int epoch = 5;
     private int neg = 5;
     private LossName loss = LossName.NS;
-    private int thread = 1;
+    private int thread = 12;
     // quantization:
     private boolean qout;
     private boolean qnorm;
