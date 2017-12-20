@@ -5,11 +5,13 @@ import java.nio.charset.Charset;
 import java.util.Objects;
 
 /**
+ * TODO: deprecated: will be replaced with {@link WordReader}
  * FastText scrollable buffered input {@link Reader reader} with supporting mark/resets functionality.
  * <p>
  * Created by @szuev on 23.10.2017.
  */
 @SuppressWarnings({"WeakerAccess", "UnusedReturnValue", "NullableProblems", "SameParameterValue"})
+@Deprecated
 public class FTReader extends Reader {
     private static final int DEFAULT_CHAR_BUFFER_LENGTH = 8192;
     private static final int UNKNOWN_POSITION = -2;

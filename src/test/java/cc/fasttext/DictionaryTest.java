@@ -5,7 +5,6 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -13,6 +12,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
@@ -60,17 +60,23 @@ public class DictionaryTest {
         testReadWords(data, words);
     }
 
-    public static void testReadWords(Path dataFile, Path wordsFile) throws IOException {
+    public static void testReadWords(Path dataFile, Path wordsFile) throws Exception {
         List<String> expected = Files.lines(wordsFile).collect(Collectors.toList());
-        LOGGER.debug("Expected num of words: {}", expected.size());
-        int i = 0;
         try (Reader r = Files.newBufferedReader(dataFile)) {
-            String actual = Dictionary.readWord(r);
-            if (++i == expected.size()) {
-                Assert.assertNull("Expected end of stream", actual);
+            testReadWords(expected, () -> Dictionary.readWord(r));
+        }
+    }
+
+    public static void testReadWords(List<String> expected, Callable<String> nextWord) throws Exception {
+        LOGGER.debug("Expected num of words: {}", expected.size());
+        for (int i = 0; ; i++) {
+            String actual = nextWord.call();
+            if (actual == null) {
+                Assert.assertEquals("Unexpected end of stream", expected.size(), i);
                 return;
             }
-            Assert.assertEquals("Wrong word #" + i, actual, expected.get(i - 1));
+            String exp = expected.get(i);
+            Assert.assertEquals("Wrong word #" + i, exp, actual);
         }
     }
 
