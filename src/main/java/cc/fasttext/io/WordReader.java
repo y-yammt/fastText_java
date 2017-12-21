@@ -3,38 +3,42 @@ package cc.fasttext.io;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.Objects;
+import java.util.*;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * The buffered stream reader which allows to read word-tokens from any binary {@link InputStream input stream}.
  * Not thread-safe.
- * Must be fast.
+ * Expected to be faster then standard {@link java.io.BufferedReader BufferedReader}.
  * <p>
  * Created by @szuev on 20.12.2017.
  */
 public class WordReader implements Closeable {
     public static final int END = -129;
+
     private final Charset charset;
-    private final InputStream in;
+    protected final InputStream in;
     private final String newLine;
     private final byte[] delimiters;
     private final byte[] buffer;
 
     private int index;
     private int res;
-    private byte[] tmp;
     private int start;
+    private byte[] tmp;
 
     /**
-     * Main constructor.
+     * The main constructor.
      *
      * @param in            {@link InputStream} the input stream to wrap
      * @param charset       {@link Charset} encoding
      * @param bufferSize    the size of buffer
-     * @param newLineSymbol String, to return on new line
-     * @param delimiters    sequence of delimiters as byte array, not empty, the first element will be treated as new line symbol (e.g. '\n')
+     * @param newLineSymbol String to return on new line
+     * @param delimiters    sequence of delimiters as byte array, not empty, the first element will be treated as line separator symbol (e.g. '\n')
      */
     public WordReader(InputStream in, Charset charset, int bufferSize, String newLineSymbol, byte... delimiters) {
         this.charset = Objects.requireNonNull(charset, "Null charset");
@@ -54,14 +58,23 @@ public class WordReader implements Closeable {
         this(in, charset, bufferSize, newLineSymbol, Objects.requireNonNull(delimiters, "Null delimiters").getBytes(charset));
     }
 
+    public WordReader(InputStream in, String newLineSymbol, String delimiters) {
+        this(in, StandardCharsets.UTF_8, 8 * 1024, newLineSymbol, delimiters);
+    }
+
+    /**
+     * Constructs a char token reader with '\n' as line separator and space ('\u0020') as token separator.
+     *
+     * @param in {@link InputStream} to wrap
+     */
     public WordReader(InputStream in) {
-        this(in, StandardCharsets.UTF_8, 8 * 1024, "\n", "\n ");
+        this(in, "\n", "\n ");
     }
 
     /**
      * Reads the next byte of data from the underling input stream.
      *
-     * @return byte, int from -128 to 127 or {@link #END} in case of end of stream.
+     * @return byte, int from -128 to 127 or {@link #END -129} in case of stream end.
      * @throws IOException if some I/O error occurs
      * @see InputStream#read(byte[], int, int)
      */
@@ -75,7 +88,7 @@ public class WordReader implements Closeable {
                     System.arraycopy(buffer, start, tmp, 0, tmp.length);
                 }
             }
-            res = read(buffer, 0, buffer.length);
+            res = in.read(buffer, 0, buffer.length);
             if (res == -1) {
                 return END;
             }
@@ -89,31 +102,6 @@ public class WordReader implements Closeable {
 
     /**
      * Reads next word token from the underling input stream.
-     * Original c++ code from dictionary.cc:
-     * <pre>{@code bool Dictionary::readWord(std::istream& in, std::string& word) const {
-     *  char c;
-     *  std::streambuf& sb = *in.rdbuf();
-     *  word.clear();
-     *  while ((c = sb.sbumpc()) != EOF) {
-     *      if (c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == '\v' || c == '\f' || c == '\0') {
-     *          if (word.empty()) {
-     *              if (c == '\n') {
-     *                  word += EOS;
-     *                  return true;
-     *              }
-     *              continue;
-     *          } else {
-     *              if (c == '\n')
-     *                  sb.sungetc();
-     *              return true;
-     *          }
-     *      }
-     *      word.push_back(c);
-     *  }
-     *  in.get();
-     *  return !word.empty();
-     * }
-     * }</pre>
      *
      * @return String or null in case of end of stream
      * @throws IOException if some I/O error occurs
@@ -142,6 +130,23 @@ public class WordReader implements Closeable {
         return len == 0 ? null : makeString(len);
     }
 
+    /**
+     * Resets the state variables.
+     */
+    protected void reset() {
+        start = index = res = 0;
+        tmp = null;
+    }
+
+    /**
+     * Answers if the end of stream is reached.
+     *
+     * @return boolean
+     */
+    protected boolean isEnd() {
+        return res == -1 || res != 0 && res < buffer.length && index >= res;
+    }
+
     protected boolean isDelimiter(int b) {
         for (byte i : delimiters) {
             if (b == i) return true;
@@ -153,12 +158,8 @@ public class WordReader implements Closeable {
         return delimiters[0] == b;
     }
 
-    protected int read(byte[] array, int offset, int length) throws IOException {
-        return in.read(array, offset, length);
-    }
-
     private String makeString(int len) {
-        String res;
+        String str;
         if (start > index) {
             byte[] bytes = new byte[len];
             if (len <= tmp.length) {
@@ -168,15 +169,47 @@ public class WordReader implements Closeable {
                 System.arraycopy(tmp, 0, bytes, 0, tmp.length);
                 System.arraycopy(buffer, 0, bytes, tmp.length, len - tmp.length);
             }
-            res = new String(bytes, charset);
+            str = new String(bytes, charset);
         } else {
-            res = new String(buffer, start, len, charset);
+            str = new String(buffer, start, len, charset);
         }
-        return res;
+        return str;
     }
 
     @Override
     public void close() throws IOException {
         in.close();
+    }
+
+    public Stream<String> words() {
+        Iterator<String> iter = new Iterator<String>() {
+            String next = null;
+
+            @Override
+            public boolean hasNext() {
+                if (next != null) {
+                    return true;
+                } else {
+                    try {
+                        next = nextWord();
+                        return next != null;
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+            }
+
+            @Override
+            public String next() {
+                if (next != null || hasNext()) {
+                    String line = this.next;
+                    this.next = null;
+                    return line;
+                } else {
+                    throw new NoSuchElementException();
+                }
+            }
+        };
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iter, Spliterator.ORDERED | Spliterator.NONNULL), false);
     }
 }

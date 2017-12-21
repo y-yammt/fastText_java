@@ -1,15 +1,18 @@
 package cc.fasttext;
 
+import cc.fasttext.io.WordReader;
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -52,7 +55,7 @@ public class DictionaryTest {
     }
 
     @Test
-    public void testReadWords() throws Exception {
+    public void testReadWords1() throws Exception {
         Path data = Paths.get(DictionaryTest.class.getResource("/text-data.txt").toURI());
         Path words = Paths.get(DictionaryTest.class.getResource("/text-data.words").toURI());
         LOGGER.info("Data file {}", data);
@@ -62,9 +65,25 @@ public class DictionaryTest {
 
     public static void testReadWords(Path dataFile, Path wordsFile) throws Exception {
         List<String> expected = Files.lines(wordsFile).collect(Collectors.toList());
-        try (Reader r = Files.newBufferedReader(dataFile)) {
-            testReadWords(expected, () -> Dictionary.readWord(r));
+        try (WordReader r = Dictionary.createWordReader(Files.newInputStream(dataFile), StandardCharsets.UTF_8, 8 * 1024)) {
+            testReadWords(expected, r::nextWord);
         }
+    }
+
+    @Test
+    public void testReadWords2() throws Exception {
+        Path data = Paths.get(DictionaryTest.class.getResource("/dbpedia.cut.test").toURI());
+        List<String> expected = new ArrayList<>();
+        try (Reader r = Files.newBufferedReader(data)) {
+            String token;
+            while ((token = readWord(r)) != null) {
+                expected.add(token);
+            }
+        }
+        LOGGER.debug("Expected num of words: {}", expected.size());
+        List<String> actual = Dictionary.createSeekableWordReader(Files.newInputStream(data), StandardCharsets.UTF_8, 1024)
+                .words().collect(Collectors.toList());
+        Assert.assertEquals(expected, actual);
     }
 
     public static void testReadWords(List<String> expected, Callable<String> nextWord) throws Exception {
@@ -80,5 +99,60 @@ public class DictionaryTest {
         }
     }
 
+    /**
+     * Reads next word from the stream.
+     * Original code (from dictionary.cc):
+     * <pre>{@code bool Dictionary::readWord(std::istream& in, std::string& word) const {
+     *  char c;
+     *  std::streambuf& sb = *in.rdbuf();
+     *  word.clear();
+     *  while ((c = sb.sbumpc()) != EOF) {
+     *      if (c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == '\v' || c == '\f' || c == '\0') {
+     *          if (word.empty()) {
+     *              if (c == '\n') {
+     *                  word += EOS;
+     *                  return true;
+     *              }
+     *              continue;
+     *          } else {
+     *              if (c == '\n')
+     *                  sb.sungetc();
+     *              return true;
+     *          }
+     *      }
+     *      word.push_back(c);
+     *  }
+     *  in.get();
+     *  return !word.empty();
+     * }
+     * }</pre>
+     *
+     * @param reader, {@link java.io.Reader} markSupported = true.
+     * @return String or null if the end of stream
+     * @throws IOException if something is wrong
+     */
+    public static String readWord(java.io.Reader reader) throws IOException {
+        StringBuilder sb = new StringBuilder();
+        int i;
+        while ((i = reader.read()) != -1) {
+            char c = (char) i;
+            if (c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == 0x000b || c == '\f' || c == '\0') {
+                if (sb.length() == 0) {
+                    if (c == '\n') {
+                        return Dictionary.EOS;
+                    }
+                    continue;
+                } else {
+                    if (c == '\n') {
+                        reader.reset();
+                    }
+                    return sb.toString();
+                }
+            }
+            reader.mark(1);
+            sb.append(c);
+        }
+        return sb.length() == 0 ? null : sb.toString();
+    }
 
 }

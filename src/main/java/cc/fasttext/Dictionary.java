@@ -1,9 +1,6 @@
 package cc.fasttext;
 
-import cc.fasttext.io.FTInputStream;
-import cc.fasttext.io.FTOutputStream;
-import cc.fasttext.io.FTReader;
-import cc.fasttext.io.PrintLogs;
+import cc.fasttext.io.*;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.primitives.UnsignedLong;
@@ -12,8 +9,10 @@ import org.apache.commons.math3.distribution.UniformRealDistribution;
 import org.apache.commons.math3.random.RandomGenerator;
 import org.apache.commons.math3.util.FastMath;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.Reader;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
 import java.util.*;
 import java.util.function.BiConsumer;
@@ -28,6 +27,7 @@ import java.util.stream.Collectors;
 public class Dictionary {
 
     public static final String EOS = "</s>";
+    public static final String DELIMITERS = "\n\r\t \u000b\f\0";
     public static final String BOW = "<";
     public static final String EOW = ">";
 
@@ -386,119 +386,6 @@ public class Dictionary {
     }
 
     /**
-     * <pre>{@code void Dictionary::readFromFile(std::istream& in) {
-     *  std::string word;
-     *  int64_t minThreshold = 1;
-     *  while (readWord(in, word)) {
-     *      add(word);
-     *      if (ntokens_ % 1000000 == 0 && args_->verbose > 1) {
-     *          std::cerr << "\rRead " << ntokens_  / 1000000 << "M words" << std::flush;
-     *      }
-     *      if (size_ > 0.75 * MAX_VOCAB_SIZE) {
-     *          minThreshold++;
-     *          threshold(minThreshold, minThreshold);
-     *      }
-     *  }
-     *  threshold(args_->minCount, args_->minCountLabel);
-     *  initTableDiscard();
-     *  initNgrams();
-     *  if (args_->verbose > 0) {
-     *      std::cerr << "\rRead " << ntokens_  / 1000000 << "M words" << std::endl;
-     *      std::cerr << "Number of words:  " << nwords_ << std::endl;
-     *      std::cerr << "Number of labels: " << nlabels_ << std::endl;
-     *  }
-     *  if (size_ == 0) {
-     *      std::cerr << "Empty vocabulary. Try a smaller -minCount value." << std::endl;
-     *      exit(EXIT_FAILURE);
-     *  }
-     * }}</pre>
-     *
-     * @param reader {@link FTReader}
-     * @param logs   {@link PrintLogs}
-     * @throws IOException           i/o error
-     * @throws IllegalStateException in case of no words found
-     */
-    void readFromFile(FTReader reader, PrintLogs logs) throws IOException, IllegalStateException {
-        long minThreshold = 1;
-        String word;
-        while ((word = readWord(reader)) != null) {
-            add(word);
-            if (logs.isDebugEnabled() && ntokens % 1_000_000 == 0) {
-                logs.debug("\rRead %dM words", ntokens / 1_000_000);
-            }
-            if (size > 0.75 * MAX_VOCAB_SIZE) {
-                minThreshold++;
-                threshold(minThreshold, minThreshold);
-            }
-        }
-        threshold(this.args.minCount(), this.args.minCountLabel());
-        initTableDiscard();
-        initNgrams();
-        logs.infoln("\rRead %dM words", ntokens / 1_000_000);
-        logs.infoln("Number of words:  %d", nwords);
-        logs.infoln("Number of labels: %d", nlabels);
-        if (size == 0) {
-            throw new IllegalStateException("Empty vocabulary. Try a smaller -minCount value.");
-        }
-    }
-
-    /**
-     * Reads next word from stream.
-     * Original code:
-     * <pre>{@code bool Dictionary::readWord(std::istream& in, std::string& word) const {
-     *  char c;
-     *  std::streambuf& sb = *in.rdbuf();
-     *  word.clear();
-     *  while ((c = sb.sbumpc()) != EOF) {
-     *      if (c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == '\v' || c == '\f' || c == '\0') {
-     *          if (word.empty()) {
-     *              if (c == '\n') {
-     *                  word += EOS;
-     *                  return true;
-     *              }
-     *              continue;
-     *          } else {
-     *              if (c == '\n')
-     *                  sb.sungetc();
-     *              return true;
-     *          }
-     *      }
-     *      word.push_back(c);
-     *  }
-     *  in.get();
-     *  return !word.empty();
-     * }
-     * }</pre>
-     *
-     * @param reader, {@link Reader} markSupported = true.
-     * @return String or null if the end of stream
-     * @throws IOException if something is wrong
-     */
-    public static String readWord(Reader reader) throws IOException {
-        StringBuilder sb = new StringBuilder();
-        int i;
-        while ((i = reader.read()) != -1) {
-            char c = (char) i;
-            if (c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == 0x000b || c == '\f' || c == '\0') {
-                if (sb.length() == 0) {
-                    if (c == '\n') {
-                        return EOS;
-                    }
-                    continue;
-                } else {
-                    if (c == '\n') {
-                        reader.reset();
-                    }
-                    return sb.toString();
-                }
-            }
-            reader.mark(1);
-            sb.append(c);
-        }
-        return sb.length() == 0 ? null : sb.toString();
-    }
-
-    /**
      * <pre>{@code void Dictionary::initTableDiscard() {
      *  pdiscard_.resize(size_);
      *  for (size_t i = 0; i < size_; i++) {
@@ -538,6 +425,7 @@ public class Dictionary {
         return counts;
     }
 
+
     /**
      * <pre>{@code
      * int32_t Dictionary::getLine(std::istream& in, std::vector<int32_t>& words, std::vector<int32_t>& labels, std::minstd_rand& rng) const {
@@ -565,34 +453,47 @@ public class Dictionary {
      * }
      * }</pre>
      *
-     * @param in     {@link FTReader}
+     * @param in     {@link SeekableReader}
      * @param words  List of words
      * @param labels List of labels
      * @return int32_t
      * @throws IOException if an I/O error occurs
      */
-    int getLine(FTReader in, List<Integer> words, List<Integer> labels) throws IOException {
+    int getLine(SeekableReader in, List<Integer> words, List<Integer> labels) throws IOException {
+        in.rewind();
         List<Integer> wordHashes = new ArrayList<>();
         int ntokens = 0;
-        reset(in);
         words.clear();
         labels.clear();
         String token;
-        while ((token = readWord(in)) != null) {
+        while ((token = in.nextWord()) != null) {
+            ntokens++;
             long h = hash(token);
             int wid = getId(token, h);
             EntryType type = wid < 0 ? getType(token) : getType(wid);
-            ntokens++;
             if (EntryType.WORD == type) {
                 addSubwords(words, token, wid);
                 wordHashes.add((int) h);
             } else if (type == EntryType.LABEL && wid >= 0) {
                 labels.add(wid - nwords);
             }
-            if (Objects.equals(token, EOS)) break;
+            if (Objects.equals(token, EOS)) {
+                break;
+            }
         }
         addWordNgrams(words, wordHashes, args.wordNgrams());
         return ntokens;
+    }
+
+    List<Integer> getLine(String line) {
+        List<Integer> res = new ArrayList<>();
+        InputStream in = new ByteArrayInputStream(line.getBytes(charset));
+        try {
+            getLine(createReader(in), res, new ArrayList<>());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return res;
     }
 
     /**
@@ -617,19 +518,19 @@ public class Dictionary {
      * }
      * }</pre>
      *
-     * @param in    {@link FTReader}
+     * @param in    {@link SeekableReader}
      * @param words List of words
      * @param rng   {@link RandomGenerator}
      * @return int32_t
      * @throws IOException if an I/O error occurs
      */
-    int getLine(FTReader in, List<Integer> words, RandomGenerator rng) throws IOException {
+    int getLine(SeekableReader in, List<Integer> words, RandomGenerator rng) throws IOException {
+        in.rewind();
         UniformRealDistribution uniform = new UniformRealDistribution(rng, 0, 1);
         int ntokens = 0;
-        reset(in);
         words.clear();
         String token;
-        while ((token = readWord(in)) != null) {
+        while ((token = in.nextWord()) != null) {
             long h = hash(token);
             int wid = getId(token, h);
             if (wid < 0) continue;
@@ -807,22 +708,14 @@ public class Dictionary {
     }
 
     /**
-     * <pre>{@code
-     * void Dictionary::reset(std::istream& in) const {
-     *  if (in.eof()) {
-     *      in.clear();
-     *      in.seekg(std::streampos(0));
-     *  }
-     * }
-     * }</pre>
+     * Creates a dictionary Reader instance.
      *
-     * @param in
+     * @param in {@link InputStream}
+     * @return {@link SeekableReader}
+     * @see #createWordReader(InputStream, Charset, int)
      */
-    public static void reset(FTReader in) throws IOException {
-        if (!in.end()) {
-            return;
-        }
-        in.rewind();
+    public SeekableReader createReader(InputStream in) {
+        return createSeekableWordReader(in, charset, FastText.Factory.BUFF_SIZE);
     }
 
     /**
@@ -834,8 +727,8 @@ public class Dictionary {
      *  return words_[lid + nwords_].word;
      * }}</pre>
      *
-     * @param lid
-     * @return
+     * @param lid int32_t
+     * @return String, label
      */
     public String getLabel(int lid) {
         if (lid < 0 || lid >= nlabels) {
@@ -984,6 +877,27 @@ public class Dictionary {
     }
 
     /**
+     * Makes a full (deep) copy of the instance
+     *
+     * @return {@link Dictionary}
+     */
+    Dictionary copy() {
+        Dictionary res = new Dictionary(args, charset);
+        res.size = this.size;
+        res.nwords = this.nwords;
+        res.nlabels = this.nlabels;
+        res.ntokens = this.ntokens;
+        res.pruneIdxSize = this.pruneIdxSize;
+        res.word2int = new HashMap<>(this.word2int);
+        res.words = new ArrayList<>(this.words.size());
+        this.words.forEach(entry -> res.words.add(entry.copy()));
+        res.words = new ArrayList<>(this.words);
+        res.pruneIdx = new HashMap<>(this.pruneIdx);
+        res.pdiscard = new ArrayList<>(this.pdiscard);
+        return res;
+    }
+
+    /**
      * <pre>{@code
      * void Dictionary::save(std::ostream& out) const {
      *  out.write((char*) &size_, sizeof(int32_t));
@@ -1086,24 +1000,158 @@ public class Dictionary {
     }
 
     /**
-     * Makes a deep copy of instance
+     * Reads a dictionary from stream.
+     * <pre>{@code void Dictionary::readFromFile(std::istream& in) {
+     *  std::string word;
+     *  int64_t minThreshold = 1;
+     *  while (readWord(in, word)) {
+     *      add(word);
+     *      if (ntokens_ % 1000000 == 0 && args_->verbose > 1) {
+     *          std::cerr << "\rRead " << ntokens_  / 1000000 << "M words" << std::flush;
+     *      }
+     *      if (size_ > 0.75 * MAX_VOCAB_SIZE) {
+     *          minThreshold++;
+     *          threshold(minThreshold, minThreshold);
+     *      }
+     *  }
+     *  threshold(args_->minCount, args_->minCountLabel);
+     *  initTableDiscard();
+     *  initNgrams();
+     *  if (args_->verbose > 0) {
+     *      std::cerr << "\rRead " << ntokens_  / 1000000 << "M words" << std::endl;
+     *      std::cerr << "Number of words:  " << nwords_ << std::endl;
+     *      std::cerr << "Number of labels: " << nlabels_ << std::endl;
+     *  }
+     *  if (size_ == 0) {
+     *      std::cerr << "Empty vocabulary. Try a smaller -minCount value." << std::endl;
+     *      exit(EXIT_FAILURE);
+     *  }
+     * }}</pre>
      *
+     * @param in {@link InputStream}
+     * @param args {@link Args}
+     * @param charset {@link Charset}
+     * @param bufferSize int buffer size
+     * @param logs {@link PrintLogs} to log process
      * @return {@link Dictionary}
+     * @throws IOException in case of error with stream
+     * @throws IllegalStateException if no words in dictionary
      */
-    Dictionary copy() {
+    public static Dictionary read(InputStream in, Args args, Charset charset, int bufferSize, PrintLogs logs)
+            throws IOException, IllegalStateException {
+        WordReader reader = createWordReader(in, charset, bufferSize);
         Dictionary res = new Dictionary(args, charset);
-        res.size = this.size;
-        res.nwords = this.nwords;
-        res.nlabels = this.nlabels;
-        res.ntokens = this.ntokens;
-        res.pruneIdxSize = this.pruneIdxSize;
-        res.word2int = new HashMap<>(this.word2int);
-        res.words = new ArrayList<>(this.words.size());
-        this.words.forEach(entry -> res.words.add(entry.copy()));
-        res.words = new ArrayList<>(this.words);
-        res.pruneIdx = new HashMap<>(this.pruneIdx);
-        res.pdiscard = new ArrayList<>(this.pdiscard);
+        long step = 1_000_000;
+
+        long minThreshold = 1;
+        String word;
+
+        while ((word = reader.nextWord()) != null) {
+            res.add(word);
+            if (logs.isDebugEnabled() && res.ntokens % step == 0) {
+                logs.debug("\rRead %dM words", res.ntokens / step);
+            }
+            if (res.size > 0.75 * MAX_VOCAB_SIZE) {
+                minThreshold++;
+                res.threshold(minThreshold, minThreshold);
+            }
+        }
+        res.threshold(args.minCount(), args.minCountLabel());
+        res.initTableDiscard();
+        res.initNgrams();
+        logs.infoln("\rRead %dM words", res.ntokens / step);
+        logs.infoln("Number of words:  %d", res.nwords);
+        logs.infoln("Number of labels: %d", res.nlabels);
+        if (res.size == 0) {
+            throw new IllegalStateException("Empty vocabulary. Try a smaller -minCount value.");
+        }
         return res;
+    }
+
+    /**
+     * Creates a word reader.
+     *
+     * @param in       {@link InputStream}
+     * @param charset  {@link Charset}
+     * @param buffSize int buffer size
+     * @return {@link WordReader}
+     */
+    public static WordReader createWordReader(InputStream in, Charset charset, int buffSize) {
+        return new WordReader(in, charset, buffSize, EOS, DELIMITERS);
+    }
+
+    /**
+     * Creates a word reader with seek supporting
+     *
+     * @param in       {@link InputStream}
+     * @param charset  {@link Charset}
+     * @param buffSize int buffer size
+     * @return {@link SeekableReader}
+     */
+    public static SeekableReader createSeekableWordReader(InputStream in, Charset charset, int buffSize) {
+        return new SeekableReader(in, charset, buffSize, EOS, DELIMITERS);
+    }
+
+    /**
+     * The seekable word reader.
+     *
+     * @see WordReader
+     */
+    public static class SeekableReader extends WordReader {
+
+        public SeekableReader(InputStream in, Charset charset, int bufferSize, String newLineSymbol, String delimiters) {
+            super(in, charset, bufferSize, newLineSymbol, delimiters);
+        }
+
+        /**
+         * @return true on end of stream
+         */
+        @Override
+        public boolean isEnd() {
+            return super.isEnd();
+        }
+
+        /**
+         * Seeks to the given offset in bytes from the start of the stream.
+         *
+         * @param n number of bytes
+         * @throws IOException                   if an I/O error occurs
+         * @throws UnsupportedOperationException if this operation is not supported by the underlying stream
+         * @throws IllegalStateException         if the result position is wrong after seek operation
+         */
+        public void seek(long n) throws IOException, UnsupportedOperationException, IllegalStateException {
+            checkIsSeekable();
+            doSeek(n);
+            if (n == ((ScrollableInputStream) in).getPos()) {
+                super.reset();
+                return;
+            }
+            throw new IllegalStateException("Can't seek to " + n + " position.");
+        }
+
+        /**
+         * Resets stream to the start position.
+         *
+         * @throws IOException                   if an I/O error occurs
+         * @throws UnsupportedOperationException if this operation is not supported by the underlying stream
+         */
+        public void rewind() throws IOException, UnsupportedOperationException {
+            if (!isEnd()) return;
+            checkIsSeekable();
+            doSeek(0);
+        }
+
+        private void checkIsSeekable() {
+            if (in instanceof ScrollableInputStream) {
+                return;
+            }
+            throw new UnsupportedOperationException("Encapsulated stream is not seekable.");
+        }
+
+        private void doSeek(long n) throws IOException {
+            ((ScrollableInputStream) in).seek(n);
+            super.reset();
+        }
     }
 
     public enum EntryType {

@@ -1,16 +1,12 @@
 package cc.fasttext;
 
 import cc.fasttext.base.Tests;
-import cc.fasttext.io.FTReader;
 import cc.fasttext.io.WordReader;
 import org.apache.commons.math3.distribution.UniformIntegerDistribution;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -78,9 +74,9 @@ public class ReaderPerformanceTester {
 
     private static Set<String> dictionaryRead(Path p, Integer buffSize) {
         Set<String> res = new LinkedHashSet<>();
-        try (FTReader r = new FTReader(Files.newInputStream(p), StandardCharsets.UTF_8, buffSize)) {
+        try (Reader r = new BufferedReader(new InputStreamReader(Files.newInputStream(p), StandardCharsets.UTF_8), buffSize)) {
             String w;
-            while ((w = Dictionary.readWord(r)) != null) {
+            while ((w = DictionaryTest.readWord(r)) != null) {
                 res.add(w);
             }
             return res;

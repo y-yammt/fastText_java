@@ -1,13 +1,12 @@
 package cc.fasttext.io.impl;
 
+import cc.fasttext.io.ScrollableInputStream;
+import org.apache.commons.math3.util.FastMath;
+
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Path;
 import java.util.Objects;
-
-import org.apache.commons.math3.util.FastMath;
-
-import cc.fasttext.io.ScrollableInputStream;
 
 /**
  * The simple version of {@link org.apache.hadoop.fs.RawLocalFileSystem.LocalFSFileInputStream}
@@ -39,7 +38,7 @@ public class LocalInputStream extends ScrollableInputStream {
     }
 
     @Override
-    public long getLen() throws IOException {
+    public long getLen() {
         return size;
     }
 

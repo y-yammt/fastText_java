@@ -172,9 +172,7 @@ public class FastText {
         line += "\n";
         Vector res = new Vector(args.dim());
         if (ModelName.SUP.equals(args.model())) {
-            FTReader in = new FTReader(new ByteArrayInputStream(line.getBytes(dict.charset())), dict.charset());
-            List<Integer> words = new ArrayList<>();
-            dict.getLine(in, words, new ArrayList<>());
+            List<Integer> words = dict.getLine(line);
             if (words.isEmpty()) return res;
             for (int w : words) {
                 addInputVector(res, w);
@@ -661,9 +659,8 @@ public class FastText {
         double precision = 0.0;
         List<Integer> line = new ArrayList<>();
         List<Integer> labels = new ArrayList<>();
-        FTReader reader = new FTReader(in, dict.charset());
-        while (!reader.end()) {
-            dict.getLine(reader, line, labels);
+        Dictionary.SeekableReader reader = dict.createReader(in);
+        while (!reader.isEnd() && dict.getLine(reader, line, labels) != 0) {
             if (labels.isEmpty() || line.isEmpty()) {
                 continue;
             }
@@ -691,44 +688,6 @@ public class FastText {
         try (InputStream in = fs.openInput(file)) {
             return test(in, k);
         }
-    }
-
-    /**
-     * <pre>{@code
-     * void FastText::predict(std::istream& in, int32_t k, std::vector<std::pair<real,std::string>>& predictions) const {
-     *  std::vector<int32_t> words, labels;
-     *  predictions.clear();
-     *  dict_->getLine(in, words, labels, model_->rng);
-     *  predictions.clear();
-     *  if (words.empty()) return;
-     *  Vector hidden(args_->dim);
-     *  Vector output(dict_->nlabels());
-     *  std::vector<std::pair<real,int32_t>> modelPredictions;
-     *  model_->predict(words, k, modelPredictions, hidden, output);
-     *  for (auto it = modelPredictions.cbegin(); it != modelPredictions.cend(); it++) {
-     *      predictions.push_back(std::make_pair(it->first, dict_->getLabel(it->second)));
-     *  }
-     * }}</pre>
-     *
-     * @param in {@link FTReader}
-     * @param k  number of labels for each input line, the size of multimap.
-     * @return {@link Multimap}, labels as keys, probabilities (floats) as values
-     * @throws IOException if something wrong
-     */
-    private Multimap<String, Float> predict(FTReader in, int k) throws IOException {
-        List<Integer> words = new ArrayList<>();
-        List<Integer> labels = new ArrayList<>();
-        dict.getLine(in, words, labels);
-        if (words.isEmpty()) {
-            return ImmutableListMultimap.of();
-        }
-        Vector hidden = new Vector(args.dim());
-        Vector output = new Vector(dict.nlabels());
-        TreeMultimap<Float, Integer> map = model.predict(words, k, hidden, output);
-        @SuppressWarnings("ConstantConditions")
-        Multimap<String, Float> res = TreeMultimap.create((left, right) -> compareLabels(args.label(), left, right), map.keySet().comparator());
-        map.forEach((f, i) -> res.put(dict.getLabel(i), f));
-        return res;
     }
 
     /**
@@ -770,7 +729,6 @@ public class FastText {
      * @param predictions {@link Multimap}, labels (String) as keys, probabilities (float) as values
      * @return {@link Map}
      * @throws IllegalStateException in case duplicate labels found
-     * @see #predict(FTReader, int)
      */
     private static Map<String, Float> toProbabilityMap(Multimap<String, Float> predictions) throws IllegalStateException {
         return toStandardMap(predictions, p -> (float) FastMath.exp(p.getValue()));
@@ -810,25 +768,16 @@ public class FastText {
     public Stream<Map<String, Float>> predict(InputStream in, int k) {
         Objects.requireNonNull(in, "Null input");
         Validate.isTrue(k > 0, "Not positive factor");
-        FTReader reader = new FTReader(in, dict.charset());
+        Dictionary.SeekableReader reader = dict.createReader(in);
         Spliterator<Map<String, Float>> res = Spliterators.spliteratorUnknownSize(new Iterator<Map<String, Float>>() {
             @Override
             public boolean hasNext() {
-                try {
-                    return !reader.end();
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
+                return !reader.isEnd();
             }
 
             @Override
             public Map<String, Float> next() {
-                boolean hasNext;
-                try {
-                    hasNext = !reader.end();
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
+                boolean hasNext = !reader.isEnd();
                 if (!hasNext) throw new NoSuchElementException();
                 try {
                     return toProbabilityMap(predict(reader, k));
@@ -838,6 +787,44 @@ public class FastText {
             }
         }, 0);
         return StreamSupport.stream(res, false).filter(m -> !m.isEmpty());
+    }
+
+    /**
+     * <pre>{@code
+     * void FastText::predict(std::istream& in, int32_t k, std::vector<std::pair<real,std::string>>& predictions) const {
+     *  std::vector<int32_t> words, labels;
+     *  predictions.clear();
+     *  dict_->getLine(in, words, labels, model_->rng);
+     *  predictions.clear();
+     *  if (words.empty()) return;
+     *  Vector hidden(args_->dim);
+     *  Vector output(dict_->nlabels());
+     *  std::vector<std::pair<real,int32_t>> modelPredictions;
+     *  model_->predict(words, k, modelPredictions, hidden, output);
+     *  for (auto it = modelPredictions.cbegin(); it != modelPredictions.cend(); it++) {
+     *      predictions.push_back(std::make_pair(it->first, dict_->getLabel(it->second)));
+     *  }
+     * }}</pre>
+     *
+     * @param in {@link Dictionary.SeekableReader}
+     * @param k  int the factor
+     * @return {@link Multimap}
+     * @throws IOException if i/o error occures
+     */
+    private Multimap<String, Float> predict(Dictionary.SeekableReader in, int k) throws IOException {
+        List<Integer> words = new ArrayList<>();
+        List<Integer> labels = new ArrayList<>();
+        dict.getLine(in, words, labels);
+        if (words.isEmpty()) {
+            return ImmutableListMultimap.of();
+        }
+        Vector hidden = new Vector(args.dim());
+        Vector output = new Vector(dict.nlabels());
+        TreeMultimap<Float, Integer> map = model.predict(words, k, hidden, output);
+        @SuppressWarnings("ConstantConditions")
+        Multimap<String, Float> res = TreeMultimap.create((left, right) -> compareLabels(args.label(), left, right), map.keySet().comparator());
+        map.forEach((f, i) -> res.put(dict.getLabel(i), f));
+        return res;
     }
 
     /**
@@ -872,15 +859,23 @@ public class FastText {
      * @param line String data to analyze
      * @param k    int, the factor (size of result map)
      * @return Map, labels as keys, probability as values
-     * @throws IOException              if something wrong with underling IO mechanisms (i.o. {@link FTReader})
      * @throws IllegalStateException    if duplicate labels in the output
      * @throws IllegalArgumentException if wrong input
      */
-    public Map<String, Float> predictLine(String line, int k) throws IOException, IllegalStateException, IllegalArgumentException {
+    public Map<String, Float> predictLine(String line, int k) throws IllegalStateException, IllegalArgumentException {
         Validate.notEmpty(line, "Null line specified.");
         Validate.isTrue(k > 0, "Negative or zero factor");
-        FTReader r = new FTReader(new ByteArrayInputStream(line.getBytes(dict.charset().name())), dict.charset());
-        return toProbabilityMap(predict(r, k));
+        List<Integer> words = dict.getLine(line);
+        if (words.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Vector hidden = new Vector(args.dim());
+        Vector output = new Vector(dict.nlabels());
+        TreeMultimap<Float, Integer> map = model.predict(words, k, hidden, output);
+        @SuppressWarnings("ConstantConditions")
+        Multimap<String, Float> res = TreeMultimap.create((left, right) -> compareLabels(args.label(), left, right), map.keySet().comparator());
+        map.forEach((f, i) -> res.put(dict.getLabel(i), f));
+        return toProbabilityMap(res);
     }
 
     /**
@@ -952,7 +947,7 @@ public class FastText {
      *  model_->setQuantizePointer(qinput_, qoutput_, args_->qout);
      * }}</pre>
      *
-     * @param other
+     * @param other {@link Args} with quantization settings.
      * @param fileToRetrain String, the file uri with data to perform retrain, nullable
      * @return new {@link FastText fasttext model} instance.
      * @throws IOException              if an I/O error occurs while retraining.
@@ -1104,7 +1099,7 @@ public class FastText {
 
     /**
      * A factory to produce new {@link FastText} api-interface.
-
+     *
      * @see IOStreams
      * @see PrintLogs
      * @see RandomGenerator
@@ -1113,7 +1108,7 @@ public class FastText {
      */
     public static class Factory {
         public static final Locale LOCALE = Locale.ENGLISH;
-        private static final int BUFF_SIZE = 100 * 1024;
+        public static final int BUFF_SIZE = 8 * 1024;
 
         private final IOStreams fs;
         private final PrintLogs logs;
@@ -1283,7 +1278,7 @@ public class FastText {
                 throw new IllegalArgumentException("Invalid model file.\nPlease download the updated model from " +
                         "www.fasttext.cc.\nSee issue #332 on Github for more information.\n");
             }
-            // todo warn: after following line different args in the dictionary and this object:
+            // todo warn: after following line different args in the dictionary and result model:
             args = new Args.Builder().copy(args).setQOut(inputStream.readBoolean()).build();
             Matrix output;
             QMatrix qoutput;
@@ -1404,20 +1399,9 @@ public class FastText {
          * @throws IOException if an I/O error occurs
          */
         private Dictionary readDictionary(Args args, String file) throws IOException {
-            Dictionary res = new Dictionary(args, charset);
-            try (FTReader reader = createReader(file)) {
-                res.readFromFile(reader, logs);
+            try (InputStream in = fs.openInput(file)) {
+                return Dictionary.read(in, args, charset, BUFF_SIZE, logs);
             }
-            return res;
-        }
-
-        /**
-         * @param fileName file path
-         * @return {@link FTReader}
-         * @throws IOException if i/o error
-         */
-        protected FTReader createReader(String fileName) throws IOException {
-            return new FTReader(fs.openScrollable(fileName), charset, BUFF_SIZE);
         }
 
         private Matrix createInput(Args args, Dictionary dictionary) {
@@ -1516,8 +1500,8 @@ public class FastText {
                 this.output = Objects.requireNonNull(output, "Null output matrix");
             }
 
-            private FTReader createReader() throws IOException {
-                return Factory.this.createReader(file);
+            private Dictionary.SeekableReader createReader() throws IOException {
+                return dictionary.createReader(fs.openScrollable(file));
             }
 
             /**
@@ -1667,9 +1651,9 @@ public class FastText {
              */
             private void trainThread(int threadId) throws IOException {
                 Model model;
-                try (FTReader reader = createReader()) {
+                try (Dictionary.SeekableReader in = createReader()) {
                     long skip = threadId * size / args.thread();
-                    reader.skipBytes(skip);
+                    in.seek(skip);
                     model = Factory.this.createModel(args, dictionary, input, output, threadId);
                     long epochTokens = args.epoch() * dictionary.ntokens();
                     long localTokenCount = 0;
@@ -1679,13 +1663,13 @@ public class FastText {
                         float progress = tokenCount.floatValue() / epochTokens;
                         float lr = (float) (args.lr() * (1 - progress));
                         if (ModelName.SUP.equals(args.model())) {
-                            localTokenCount += dictionary.getLine(reader, line, labels);
+                            localTokenCount += dictionary.getLine(in, line, labels);
                             supervised(model, lr, line, labels);
                         } else if (ModelName.CBOW.equals(args.model())) {
-                            localTokenCount += dictionary.getLine(reader, line, model.random());
+                            localTokenCount += dictionary.getLine(in, line, model.random());
                             cbow(model, lr, line);
                         } else if (ModelName.SG.equals(args.model())) {
-                            localTokenCount += dictionary.getLine(reader, line, model.random());
+                            localTokenCount += dictionary.getLine(in, line, model.random());
                             skipgram(model, lr, line);
                         }
                         if (localTokenCount > args.lrUpdateRate()) {

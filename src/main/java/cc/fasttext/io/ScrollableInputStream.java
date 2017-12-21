@@ -11,9 +11,9 @@ import java.io.InputStream;
 public abstract class ScrollableInputStream extends InputStream {
 
     /**
-     * Seek to the given offset in bytes from the start of the stream.
-     * The next read() will be from that location.  Can't
-     * seek past the end of the file.
+     * Seeks to the given offset in bytes from the start of the stream.
+     * The next read() will be from that location.
+     * Can't seek past the end of the file.
      *
      * @param bytes
      * @throws IOException
@@ -21,7 +21,7 @@ public abstract class ScrollableInputStream extends InputStream {
     public abstract void seek(long bytes) throws IOException;
 
     /**
-     * Return the current offset from the start of the file
+     * Returns the current offset from the start of the file
      *
      * @return
      * @throws IOException
