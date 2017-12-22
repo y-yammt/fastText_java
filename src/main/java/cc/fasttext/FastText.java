@@ -41,8 +41,14 @@ import java.util.stream.StreamSupport;
  * @author Ivan
  */
 public class FastText {
+    // binary file version:
     public static final int FASTTEXT_VERSION = 12;
+    // binary file signature:
     public static final int FASTTEXT_FILEFORMAT_MAGIC_INT32 = 793712314;
+
+    // experimental, use parallel streams where it makes sense:
+    public static final boolean USE_PARALLEL_COMPUTATION = true;
+    public static final int PARALLEL_SIZE_THRESHOLD = 300;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(FastText.class);
 
@@ -1278,7 +1284,6 @@ public class FastText {
                 throw new IllegalArgumentException("Invalid model file.\nPlease download the updated model from " +
                         "www.fasttext.cc.\nSee issue #332 on Github for more information.\n");
             }
-            // todo warn: after following line different args in the dictionary and result model:
             args = new Args.Builder().copy(args).setQOut(inputStream.readBoolean()).build();
             Matrix output;
             QMatrix qoutput;
@@ -1400,7 +1405,7 @@ public class FastText {
          */
         private Dictionary readDictionary(Args args, String file) throws IOException {
             try (InputStream in = fs.openInput(file)) {
-                return Dictionary.read(in, args, charset, BUFF_SIZE, logs);
+                return Dictionary.read(in, args, charset, logs);
             }
         }
 
@@ -1662,20 +1667,20 @@ public class FastText {
                     while (tokenCount.longValue() < epochTokens) {
                         float progress = tokenCount.floatValue() / epochTokens;
                         float lr = (float) (args.lr() * (1 - progress));
-                        if (ModelName.SUP.equals(args.model())) {
+                        if (ModelName.SUP == args.model()) {
                             localTokenCount += dictionary.getLine(in, line, labels);
                             supervised(model, lr, line, labels);
-                        } else if (ModelName.CBOW.equals(args.model())) {
+                        } else if (ModelName.CBOW == args.model()) {
                             localTokenCount += dictionary.getLine(in, line, model.random());
                             cbow(model, lr, line);
-                        } else if (ModelName.SG.equals(args.model())) {
+                        } else if (ModelName.SG == args.model()) {
                             localTokenCount += dictionary.getLine(in, line, model.random());
                             skipgram(model, lr, line);
                         }
                         if (localTokenCount > args.lrUpdateRate()) {
                             tokenCount.addAndGet(localTokenCount);
                             localTokenCount = 0;
-                            if (logs.isDebugEnabled() && threadId == 0) {
+                            if (threadId == 0 && logs.isDebugEnabled()) {
                                 logs.debug(progressMessage(progress, model.getLoss()));
                             }
                         }
@@ -1737,8 +1742,7 @@ public class FastText {
             private void supervised(Model model, float lr, List<Integer> line, List<Integer> labels) {
                 if (labels.isEmpty() || line.isEmpty())
                     return;
-                UniformIntegerDistribution uniform = new UniformIntegerDistribution(model.random(), 0, labels.size() - 1);
-                int i = uniform.sample();
+                int i = new UniformIntegerDistribution(model.random(), 0, labels.size() - 1).sample();
                 model.update(line, labels.get(i), lr);
             }
 

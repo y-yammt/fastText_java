@@ -1,15 +1,15 @@
 package cc.fasttext;
 
+import cc.fasttext.io.FormatUtils;
+import com.google.common.primitives.Floats;
+import org.apache.commons.lang.Validate;
+import org.apache.commons.math3.util.FastMath;
+
 import java.util.List;
 import java.util.Objects;
 import java.util.function.DoubleUnaryOperator;
 import java.util.stream.Collectors;
-
-import org.apache.commons.lang.Validate;
-import org.apache.commons.math3.util.FastMath;
-
-import cc.fasttext.io.FormatUtils;
-import com.google.common.primitives.Floats;
+import java.util.stream.IntStream;
 
 /**
  * See <a href='https://github.com/facebookresearch/fastText/blob/master/src/vector.cc'>vector.cc</a> &
@@ -125,6 +125,10 @@ public class Vector {
      * @param a float
      */
     public void mul(float a) {
+        if (FastText.USE_PARALLEL_COMPUTATION && size() > FastText.PARALLEL_SIZE_THRESHOLD) {
+            IntStream.range(0, size()).parallel().forEach(i -> data_[i] *= a);
+            return;
+        }
         for (int i = 0; i < size(); i++) {
             data_[i] *= a;
         }
@@ -149,6 +153,10 @@ public class Vector {
         Validate.isTrue(size() == matrix.getN(), "Wrong matrix n-size: " + size() + " != " + matrix.getN());
         if (matrix.isQuant()) {
             addRow((QMatrix) matrix, i);
+            return;
+        }
+        if (FastText.USE_PARALLEL_COMPUTATION && matrix.getN() > FastText.PARALLEL_SIZE_THRESHOLD) {
+            IntStream.range(0, matrix.getN()).parallel().forEach(j -> data_[j] += matrix.at(i, j));
             return;
         }
         for (int j = 0; j < matrix.getN(); j++) {
@@ -190,6 +198,10 @@ public class Vector {
     public void addRow(Matrix matrix, int i, float a) {
         Validate.isTrue(i >= 0 && i < matrix.getM(), "Incompatible index (" + i + ") and matrix m-size (" + matrix.getM() + ")");
         Validate.isTrue(size() == matrix.getN(), "Wrong matrix n-size: " + size() + " != " + matrix.getN());
+        if (FastText.USE_PARALLEL_COMPUTATION && matrix.getN() > FastText.PARALLEL_SIZE_THRESHOLD) {
+            IntStream.range(0, matrix.getN()).parallel().forEach(j -> data_[j] += a * matrix.at(i, j));
+            return;
+        }
         for (int j = 0; j < matrix.getN(); j++) {
             data_[j] += a * matrix.at(i, j);
         }

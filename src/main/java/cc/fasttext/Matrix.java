@@ -1,5 +1,13 @@
 package cc.fasttext;
 
+import cc.fasttext.io.FTInputStream;
+import cc.fasttext.io.FTOutputStream;
+import org.apache.commons.lang.Validate;
+import org.apache.commons.math3.distribution.UniformRealDistribution;
+import org.apache.commons.math3.random.RandomGenerator;
+import org.apache.commons.math3.random.SynchronizedRandomGenerator;
+import org.apache.commons.math3.util.FastMath;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -7,14 +15,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.DoubleUnaryOperator;
 import java.util.stream.Collectors;
-
-import org.apache.commons.lang.Validate;
-import org.apache.commons.math3.distribution.UniformRealDistribution;
-import org.apache.commons.math3.random.RandomGenerator;
-import org.apache.commons.math3.util.FastMath;
-
-import cc.fasttext.io.FTInputStream;
-import cc.fasttext.io.FTOutputStream;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 
 /**
  * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.cc'>matrix.cc</a> and
@@ -74,6 +76,10 @@ public class Matrix {
         return n_;
     }
 
+    public long size() {
+        return (long) n_ * m_;
+    }
+
     public float get(int i, int j) {
         validateMIndex(i);
         validateNIndex(j);
@@ -131,9 +137,23 @@ public class Matrix {
      * }</pre>
      *
      * @param rnd {@link RandomGenerator}
-     * @param a float, distribution bound
+     * @param a   float, distribution bound
      */
     public void uniform(RandomGenerator rnd, float a) {
+        // the order of setting random is important to have the same prediction result as using c++ version for supervised model. wtf ?
+        uniform(false, rnd, a);
+    }
+
+    void uniform(boolean tryParallel, RandomGenerator rnd, float a) {
+        if (FastText.USE_PARALLEL_COMPUTATION && tryParallel && size() > FastText.PARALLEL_SIZE_THRESHOLD * FastText.PARALLEL_SIZE_THRESHOLD) {
+            UniformRealDistribution uniform = new UniformRealDistribution(new SynchronizedRandomGenerator(rnd), -a, a);
+            LongStream.range(0, size()).parallel().forEach(k -> {
+                long i = k / n_;
+                long j = k - i * n_;
+                data_[(int) i][(int) j] = (float) uniform.sample();
+            });
+            return;
+        }
         UniformRealDistribution uniform = new UniformRealDistribution(rnd, -a, a);
         for (int i = 0; i < m_; i++) {
             for (int j = 0; j < n_; j++) {
@@ -141,7 +161,6 @@ public class Matrix {
             }
         }
     }
-
     /**
      * <pre>{@code real Matrix::dotRow(const Vector& vec, int64_t i) const {
      *  assert(i >= 0);
@@ -164,9 +183,14 @@ public class Matrix {
     public float dotRow(Vector vector, int i) {
         validateMIndex(i);
         validateNVector(vector);
-        float d = 0f;
-        for (int j = 0; j < getN(); j++) {
-            d += data_[i][j] * vector.get(j);
+        float d;
+        if (FastText.USE_PARALLEL_COMPUTATION && n_ > FastText.PARALLEL_SIZE_THRESHOLD) {
+            d = (float) IntStream.range(0, n_).parallel().mapToDouble(j -> data_[i][j] * vector.get(j)).sum();
+        } else {
+            d = 0;
+            for (int j = 0; j < n_; j++) {
+                d += data_[i][j] * vector.get(j);
+            }
         }
         if (Float.isNaN(d)) {
             throw new IllegalStateException("Encountered NaN.");
@@ -191,7 +215,11 @@ public class Matrix {
     public void addRow(Vector vector, int i, float a) {
         validateMIndex(i);
         validateNVector(vector);
-        for (int j = 0; j < getN(); j++) {
+        if (FastText.USE_PARALLEL_COMPUTATION && n_ > FastText.PARALLEL_SIZE_THRESHOLD) {
+            IntStream.range(0, n_).parallel().forEach(j -> data_[i][j] += a * vector.get(j));
+            return;
+        }
+        for (int j = 0; j < n_; j++) {
             data_[i][j] += a * vector.get(j);
         }
     }

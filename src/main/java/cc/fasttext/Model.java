@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.IntStream;
 
 /**
  * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.cc'>model.cc</a> and
@@ -504,7 +505,7 @@ public class Model {
             loss_ += negativeSampling(target, lr);
         } else if (LossName.HS == args_.loss()) {
             loss_ += hierarchicalSoftmax(target, lr);
-        } else {
+        } else { // softmax
             loss_ += softmax(target, lr);
         }
         nexamples_ += 1;
@@ -562,14 +563,25 @@ public class Model {
      */
     private void initTableNegatives(List<Long> counts) {
         negatives = new ArrayList<>(counts.size());
-        double z = 0.0;
-        for (long count : counts) {
-            z += FastMath.sqrt(count);
-        }
-        for (int i = 0; i < counts.size(); i++) {
-            double c = FastMath.sqrt(counts.get(i)) * NEGATIVE_TABLE_SIZE / z;
-            for (int j = 0; j < c; j++) {
-                negatives.add(i);
+        if (FastText.USE_PARALLEL_COMPUTATION && counts.size() > FastText.PARALLEL_SIZE_THRESHOLD) {
+            List<Integer> sync = Collections.synchronizedList(negatives);
+            double z = counts.parallelStream().mapToDouble(FastMath::sqrt).sum();
+            IntStream.range(0, counts.size()).parallel().forEach(i -> {
+                double c = FastMath.sqrt(counts.get(i)) * NEGATIVE_TABLE_SIZE / z;
+                for (int j = 0; j < c; j++) {
+                    sync.add(i);
+                }
+            });
+        } else {
+            double z = 0.0;
+            for (long count : counts) {
+                z += FastMath.sqrt(count);
+            }
+            for (int i = 0; i < counts.size(); i++) {
+                double c = FastMath.sqrt(counts.get(i)) * NEGATIVE_TABLE_SIZE / z;
+                for (int j = 0; j < c; j++) {
+                    negatives.add(i);
+                }
             }
         }
         Collections.shuffle(negatives, new RandomAdaptor(rng));

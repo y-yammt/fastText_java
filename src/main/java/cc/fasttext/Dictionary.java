@@ -3,6 +3,7 @@ package cc.fasttext;
 import cc.fasttext.io.*;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
+import com.google.common.primitives.Floats;
 import com.google.common.primitives.UnsignedLong;
 import org.apache.commons.lang.Validate;
 import org.apache.commons.math3.distribution.UniformRealDistribution;
@@ -19,6 +20,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * See <a href='https://github.com/facebookresearch/fastText/blob/master/src/dictionary.cc'>dictionary.cc</a> &
@@ -26,10 +28,10 @@ import java.util.stream.Collectors;
  */
 public class Dictionary {
 
-    public static final String EOS = "</s>";
-    public static final String DELIMITERS = "\n\r\t \u000b\f\0";
     public static final String BOW = "<";
     public static final String EOW = ">";
+    public static final String EOS = BOW + "/s" + EOW;
+    public static final String DELIMITERS = "\n\r\t \u000b\f\0";
 
     public static final int MAX_VOCAB_SIZE = 30_000_000;
     public static final int MAX_LINE_SIZE = 1024;
@@ -39,26 +41,44 @@ public class Dictionary {
     private static final long ADD_WORDS_NGRAMS_FACTOR_LONG = 116_049_371L;
     private static final UnsignedLong ADD_WORDS_NGRAMS_FACTOR_UNSIGNED_LONG = UnsignedLong.valueOf(ADD_WORDS_NGRAMS_FACTOR_LONG);
 
+    private static final long READ_LOG_STEP = 1_000_000;
+
     private static final Comparator<Entry> ENTRY_COMPARATOR = Comparator.comparing((Function<Entry, EntryType>) t -> t.type)
             .thenComparing(Comparator.comparingLong((ToLongFunction<Entry>) value -> value.count).reversed());
 
-    private List<Entry> words;
+    private List<Entry> words = new ArrayList<>(MAX_VOCAB_SIZE);
     private List<Float> pdiscard;
-    private Map<Long, Integer> word2int;
+    private Map<Long, Integer> word2int = new HashMap<>(MAX_VOCAB_SIZE);
     private int size;
     private int nwords;
     private int nlabels;
     private long ntokens;
     private long pruneIdxSize = PRUNE_IDX_SIZE_DEFAULT;
     private Map<Integer, Integer> pruneIdx = new HashMap<>();
-    private final Args args;
     private final Charset charset;
 
+    // args:
+    private final UnsignedLong bucket;
+    private final int maxn;
+    private final int minn;
+    private final int wordNgrams;
+    private final Args.ModelName model;
+    private final String label;
+    private final double t;
+
     Dictionary(Args args, Charset charset) {
-        this.args = args;
+        this(args.model(), args.label(), args.samplingThreshold(), UnsignedLong.valueOf(args.bucket()), args.maxn(), args.minn(), args.wordNgrams(), charset);
+    }
+
+    private Dictionary(Args.ModelName model, String label, double samplingThreshold, UnsignedLong bucket, int maxn, int minn, int wordNgrams, Charset charset) {
+        this.model = model;
+        this.label = label;
+        this.bucket = bucket;
+        this.t = samplingThreshold;
+        this.maxn = maxn;
+        this.minn = minn;
+        this.wordNgrams = wordNgrams;
         this.charset = charset;
-        word2int = new HashMap<>(MAX_VOCAB_SIZE);
-        words = new ArrayList<>(MAX_VOCAB_SIZE);
     }
 
     public Charset charset() {
@@ -185,7 +205,7 @@ public class Dictionary {
      * @return {@link EntryType}
      */
     private EntryType getType(String w) {
-        return w.startsWith(args.label()) ? EntryType.LABEL : EntryType.WORD;
+        return w.startsWith(label) ? EntryType.LABEL : EntryType.WORD;
     }
 
     /**
@@ -269,14 +289,22 @@ public class Dictionary {
      * }}</pre>
      */
     private void initNgrams() {
+        if (FastText.USE_PARALLEL_COMPUTATION && size > FastText.PARALLEL_SIZE_THRESHOLD) {
+            IntStream.range(0, size).parallel().forEach(this::initNgrams);
+            return;
+        }
         for (int i = 0; i < size; i++) {
-            String word = BOW + words.get(i).word + EOW;
-            Entry e = words.get(i);
-            e.subwords.clear();
-            e.subwords.add(i);
-            if (!EOS.equals(e.word)) {
-                computeSubwords(word, e.subwords);
-            }
+            initNgrams(i);
+        }
+    }
+
+    private void initNgrams(int i) {
+        Entry e = words.get(i);
+        String word = BOW + e.word + EOW;
+        e.subwords.clear();
+        e.subwords.add(i);
+        if (!EOS.equals(e.word)) {
+            computeSubwords(word, e.subwords);
         }
     }
 
@@ -327,9 +355,9 @@ public class Dictionary {
      *  }
      * }}</pre>
      *
-     * @param word
-     * @param ngrams
-     * @param substrings
+     * @param word String, the word
+     * @param ngrams List of ints
+     * @param substrings List of strings
      */
     private void computeSubwords(String word, List<Integer> ngrams, List<String> substrings) {
         computeSubwords(word, ngrams, substrings, (nrgams, h) -> ngrams.add(nwords + h));
@@ -339,13 +367,13 @@ public class Dictionary {
         for (int i = 0; i < word.length(); i++) {
             if ((word.charAt(i) & 0xC0) == 0x80) continue;
             StringBuilder ngram = new StringBuilder();
-            for (int j = i, n = 1; j < word.length() && n <= args.maxn(); n++) {
+            for (int j = i, n = 1; j < word.length() && n <= maxn; n++) {
                 ngram.append(word.charAt(j++));
                 while (j < word.length() && (word.charAt(j) & 0xC0) == 0x80) {
                     ngram.append(word.charAt(j++));
                 }
-                if (n >= args.minn() && !(n == 1 && (i == 0 || j == word.length()))) {
-                    int h = (int) (hash(ngram.toString()) % args.bucket());
+                if (n >= minn && !(n == 1 && (i == 0 || j == word.length()))) {
+                    int h = (int) (hash(ngram.toString()) % bucket.intValue());
                     pushMethod.accept(ngrams, h);
                     if (substrings != null) {
                         substrings.add(ngram.toString());
@@ -370,8 +398,8 @@ public class Dictionary {
      * }
      * }</pre>
      *
-     * @param hashes
-     * @param id
+     * @param hashes List of ints
+     * @param id int
      */
     private void pushHash(List<Integer> hashes, int id) {
         if (pruneIdxSize == 0 || id < 0) return;
@@ -395,10 +423,17 @@ public class Dictionary {
      * }}</pre>
      */
     private void initTableDiscard() {
-        pdiscard = new ArrayList<>(size);
+        pdiscard = Floats.asList(new float[size]);
+        if (FastText.USE_PARALLEL_COMPUTATION && size > FastText.PARALLEL_SIZE_THRESHOLD) {
+            IntStream.range(0, size).parallel().forEach(i -> {
+                float f = ((float) words.get(i).count) / ntokens;
+                pdiscard.set(i, (float) (FastMath.sqrt(t / f) + t / f));
+            });
+            return;
+        }
         for (int i = 0; i < size; i++) {
             float f = ((float) words.get(i).count) / ntokens;
-            pdiscard.add((float) (FastMath.sqrt(args.samplingThreshold() / f) + args.samplingThreshold() / f));
+            pdiscard.set(i, (float) (FastMath.sqrt(t / f) + t / f));
         }
     }
 
@@ -413,8 +448,8 @@ public class Dictionary {
      * }
      * }</pre>
      *
-     * @param type
-     * @return
+     * @param type {@link EntryType}
+     * @return List of longs
      */
     public List<Long> getCounts(EntryType type) {
         List<Long> counts = new ArrayList<>(EntryType.LABEL == type ? nlabels() : nwords());
@@ -474,18 +509,18 @@ public class Dictionary {
             if (EntryType.WORD == type) {
                 addSubwords(words, token, wid);
                 wordHashes.add((int) h);
-            } else if (type == EntryType.LABEL && wid >= 0) {
+            } else if (EntryType.LABEL == type && wid >= 0) {
                 labels.add(wid - nwords);
             }
             if (Objects.equals(token, EOS)) {
                 break;
             }
         }
-        addWordNgrams(words, wordHashes, args.wordNgrams());
+        addWordNgrams(words, wordHashes);
         return ntokens;
     }
 
-    List<Integer> getLine(String line) {
+    public List<Integer> getLine(String line) {
         List<Integer> res = new ArrayList<>();
         InputStream in = new ByteArrayInputStream(line.getBytes(charset));
         try {
@@ -560,7 +595,7 @@ public class Dictionary {
     private boolean discard(int id, double rand) {
         Validate.isTrue(id >= 0);
         Validate.isTrue(id < nwords);
-        return args.model() != Args.ModelName.SUP && rand > pdiscard.get(id);
+        return model != Args.ModelName.SUP && rand > pdiscard.get(id);
     }
 
     /**
@@ -581,14 +616,26 @@ public class Dictionary {
      * @param n      int
      */
     private void addWordNgrams(List<Integer> line, List<Integer> hashes, int n) {
-        UnsignedLong bucket = UnsignedLong.valueOf(args.bucket());
-        for (int i = 0; i < hashes.size(); i++) { // int32_t
-            UnsignedLong h = UnsignedLong.fromLongBits(hashes.get(i)); // uint64_t
-            for (int j = i + 1; j < hashes.size() && j < i + n; j++) { // h = h * 116049371 + hashes[j] :
-                h = h.times(ADD_WORDS_NGRAMS_FACTOR_UNSIGNED_LONG).plus(UnsignedLong.fromLongBits(hashes.get(j)));
-                pushHash(line, h.mod(bucket).intValue()); // h % args_->bucket
-            }
+        if (FastText.USE_PARALLEL_COMPUTATION && hashes.size() > FastText.PARALLEL_SIZE_THRESHOLD) {
+            List<Integer> sync = Collections.synchronizedList(line);
+            IntStream.range(0, hashes.size()).parallel().forEach(i -> addWordNgrams(sync, hashes, i, n));
+            return;
         }
+        for (int i = 0; i < hashes.size(); i++) { // int32_t
+            addWordNgrams(line, hashes, i, n);
+        }
+    }
+
+    private void addWordNgrams(List<Integer> line, List<Integer> hashes, int i, int n) {
+        UnsignedLong h = UnsignedLong.fromLongBits(hashes.get(i)); // uint64_t
+        for (int j = i + 1; j < hashes.size() && j < i + n; j++) { // h = h * 116049371 + hashes[j] :
+            h = h.times(ADD_WORDS_NGRAMS_FACTOR_UNSIGNED_LONG).plus(UnsignedLong.fromLongBits(hashes.get(j)));
+            pushHash(line, h.mod(bucket).intValue()); // h % args_->bucket
+        }
+    }
+
+    private void addWordNgrams(List<Integer> line, List<Integer> hashes) {
+        addWordNgrams(line, hashes, wordNgrams);
     }
 
     /**
@@ -606,19 +653,18 @@ public class Dictionary {
      * }
      * }}</pre>
      *
-     * @param line
-     * @param token
-     * @param wid
+     * @param line List of ints
+     * @param token String token
+     * @param wid int, word id
      */
     private void addSubwords(List<Integer> line, String token, int wid) {
         if (wid < 0) { // out of vocab
             computeSubwords(BOW + token + EOW, line);
         } else {
-            if (args.maxn() <= 0) { // in vocab w/o subwords
+            if (maxn <= 0) { // in vocab w/o subwords
                 line.add(wid);
             } else { // in vocab w/ subwords
-                List<Integer> ngrams = getSubwords(wid);
-                line.addAll(ngrams);
+                line.addAll(getSubwords(wid));
             }
         }
     }
@@ -713,6 +759,7 @@ public class Dictionary {
      * @param in {@link InputStream}
      * @return {@link SeekableReader}
      * @see #createWordReader(InputStream, Charset, int)
+     * @see #createSeekableWordReader(InputStream, Charset, int)
      */
     public SeekableReader createReader(InputStream in) {
         return createSeekableWordReader(in, charset, FastText.Factory.BUFF_SIZE);
@@ -777,9 +824,9 @@ public class Dictionary {
      * @param labelThreshold
      */
     void threshold(long wordThreshold, long labelThreshold) {
-        // todo: mb parallel stream ?
+        // todo: mb parallel stream
         ArrayList<Entry> words = this.words.stream()
-                .sorted(ENTRY_COMPARATOR) // todo: why?
+                .sorted(ENTRY_COMPARATOR)
                 .filter(e -> (EntryType.WORD != e.type || e.count >= wordThreshold) && (EntryType.LABEL != e.type || e.count >= labelThreshold))
                 .collect(Collectors.toCollection(ArrayList::new));
         words.trimToSize();
@@ -882,7 +929,7 @@ public class Dictionary {
      * @return {@link Dictionary}
      */
     Dictionary copy() {
-        Dictionary res = new Dictionary(args, charset);
+        Dictionary res = new Dictionary(model, label, t, bucket, maxn, minn, wordNgrams, charset);
         res.size = this.size;
         res.nwords = this.nwords;
         res.nlabels = this.nlabels;
@@ -893,7 +940,7 @@ public class Dictionary {
         this.words.forEach(entry -> res.words.add(entry.copy()));
         res.words = new ArrayList<>(this.words);
         res.pruneIdx = new HashMap<>(this.pruneIdx);
-        res.pdiscard = new ArrayList<>(this.pdiscard);
+        res.pdiscard = Floats.asList(Floats.toArray(this.pdiscard));
         return res;
     }
 
@@ -1031,25 +1078,23 @@ public class Dictionary {
      * @param in {@link InputStream}
      * @param args {@link Args}
      * @param charset {@link Charset}
-     * @param bufferSize int buffer size
      * @param logs {@link PrintLogs} to log process
      * @return {@link Dictionary}
      * @throws IOException in case of error with stream
      * @throws IllegalStateException if no words in dictionary
      */
-    public static Dictionary read(InputStream in, Args args, Charset charset, int bufferSize, PrintLogs logs)
+    public static Dictionary read(InputStream in, Args args, Charset charset, PrintLogs logs)
             throws IOException, IllegalStateException {
-        WordReader reader = createWordReader(in, charset, bufferSize);
+        WordReader reader = createWordReader(in, charset, FastText.Factory.BUFF_SIZE);
         Dictionary res = new Dictionary(args, charset);
-        long step = 1_000_000;
 
         long minThreshold = 1;
         String word;
 
         while ((word = reader.nextWord()) != null) {
             res.add(word);
-            if (logs.isDebugEnabled() && res.ntokens % step == 0) {
-                logs.debug("\rRead %dM words", res.ntokens / step);
+            if (logs.isDebugEnabled() && res.ntokens % READ_LOG_STEP == 0) {
+                logs.debug("\rRead %dM words", res.ntokens / READ_LOG_STEP);
             }
             if (res.size > 0.75 * MAX_VOCAB_SIZE) {
                 minThreshold++;
@@ -1059,7 +1104,7 @@ public class Dictionary {
         res.threshold(args.minCount(), args.minCountLabel());
         res.initTableDiscard();
         res.initNgrams();
-        logs.infoln("\rRead %dM words", res.ntokens / step);
+        logs.infoln("\rRead %dM words", res.ntokens / READ_LOG_STEP);
         logs.infoln("Number of words:  %d", res.nwords);
         logs.infoln("Number of labels: %d", res.nlabels);
         if (res.size == 0) {
@@ -1131,14 +1176,16 @@ public class Dictionary {
 
         /**
          * Resets stream to the start position.
-         *
+
+         * @return true if stream has been reset to zero position
          * @throws IOException                   if an I/O error occurs
          * @throws UnsupportedOperationException if this operation is not supported by the underlying stream
          */
-        public void rewind() throws IOException, UnsupportedOperationException {
-            if (!isEnd()) return;
+        public boolean rewind() throws IOException, UnsupportedOperationException {
+            if (!isEnd()) return false;
             checkIsSeekable();
             doSeek(0);
+            return true;
         }
 
         private void checkIsSeekable() {
