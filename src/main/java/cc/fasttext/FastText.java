@@ -44,11 +44,11 @@ public class FastText {
     // binary file version:
     public static final int FASTTEXT_VERSION = 12;
     // binary file signature:
-    public static final int FASTTEXT_FILEFORMAT_MAGIC_INT32 = 793712314;
+    public static final int FASTTEXT_FILEFORMAT_MAGIC_INT32 = 793_712_314;
 
     // experimental, use parallel streams where it makes sense:
     public static final boolean USE_PARALLEL_COMPUTATION = true;
-    public static final int PARALLEL_SIZE_THRESHOLD = 300;
+    public static final int PARALLEL_SIZE_THRESHOLD_FACTOR = 100;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(FastText.class);
 

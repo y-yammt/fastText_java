@@ -1,13 +1,12 @@
 package cc.fasttext;
 
+import cc.fasttext.io.FTInputStream;
+import cc.fasttext.io.FTOutputStream;
+import org.apache.commons.math3.random.RandomGenerator;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.function.IntFunction;
-
-import org.apache.commons.math3.random.RandomGenerator;
-
-import cc.fasttext.io.FTInputStream;
-import cc.fasttext.io.FTOutputStream;
 
 /**
  * See <a href='https://github.com/facebookresearch/fastText/blob/master/src/qmatrix.cc'>qmatrix.cc</a> &
@@ -51,15 +50,15 @@ public class QMatrix extends Matrix {
      */
     public QMatrix(Matrix matrix, IntFunction<RandomGenerator> randomProvider, int dsub, boolean qnorm) {
         this.qnorm_ = qnorm;
-        this.m_ = matrix.m_;
-        this.n_ = matrix.n_;
-        this.codesize_ = this.m_ * ((this.n_ + dsub - 1) / dsub);
+        this.m = matrix.m;
+        this.n = matrix.n;
+        this.codesize_ = this.m * ((this.n + dsub - 1) / dsub);
         if (codesize_ > 0) {
             codes_ = new byte[codesize_];
         }
-        pq_ = new ProductQuantizer(randomProvider, this.n_, dsub);
+        pq_ = new ProductQuantizer(randomProvider, this.n, dsub);
         if (qnorm_) {
-            normCodes = new byte[this.m_];
+            normCodes = new byte[this.m];
             npq_ = new ProductQuantizer(randomProvider, 1, 1);
         }
         quantize(matrix);
@@ -94,7 +93,7 @@ public class QMatrix extends Matrix {
     }
 
     @Override
-    public void uniform(RandomGenerator rnd, float a) {
+    public void uniform(RandomGenerator rnd, float bound) {
         throw new UnsupportedOperationException();
     }
 
@@ -119,8 +118,7 @@ public class QMatrix extends Matrix {
     private void quantize(Matrix matrix) {
         if (qnorm_) {
             matrix = matrix.copy();
-            Vector norms = new Vector(matrix.getM());
-            matrix.l2NormRow(norms);
+            Vector norms = matrix.l2NormRow();
             matrix.divideRow(norms);
             quantizeNorm(norms);
         }
@@ -198,12 +196,12 @@ public class QMatrix extends Matrix {
     }
 
     @Override
-    public void multiplyRow(Vector denoms) {
+    public void multiplyRow(Vector vector) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void divideRow(Vector denoms) {
+    public void divideRow(Vector vector) {
         throw new UnsupportedOperationException();
     }
 
@@ -212,10 +210,6 @@ public class QMatrix extends Matrix {
         throw new UnsupportedOperationException();
     }
 
-    @Override
-    protected void l2NormRow(Vector norms) {
-        throw new UnsupportedOperationException();
-    }
 
     /**
      * <pre>{@code void QMatrix::save(std::ostream& out) {
@@ -237,8 +231,8 @@ public class QMatrix extends Matrix {
     @Override
     void save(FTOutputStream out) throws IOException {
         out.writeBoolean(qnorm_);
-        out.writeLong(m_);
-        out.writeLong(n_);
+        out.writeLong(m);
+        out.writeLong(n);
         out.writeInt(codesize_);
         for (byte b : codes_) {
             out.writeByte(b);
@@ -279,8 +273,8 @@ public class QMatrix extends Matrix {
     static QMatrix load(IntFunction<RandomGenerator> factory, FTInputStream in) throws IOException {
         QMatrix res = new QMatrix();
         res.qnorm_ = in.readBoolean();
-        res.m_ = (int) in.readLong();
-        res.n_ = (int) in.readLong();
+        res.m = (int) in.readLong();
+        res.n = (int) in.readLong();
         res.codesize_ = in.readInt();
         res.codes_ = new byte[res.codesize_];
         for (int i = 0; i < res.codesize_; i++) {
@@ -288,8 +282,8 @@ public class QMatrix extends Matrix {
         }
         res.pq_ = ProductQuantizer.load(factory, in);
         if (res.qnorm_) {
-            res.normCodes = new byte[res.m_];
-            for (int i = 0; i < res.m_; i++) {
+            res.normCodes = new byte[res.m];
+            for (int i = 0; i < res.m; i++) {
                 res.normCodes[i] = in.readByte();
             }
             res.npq_ = ProductQuantizer.load(factory, in);

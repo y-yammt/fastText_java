@@ -21,8 +21,10 @@ import java.util.function.Function;
 import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
+ * The dictionary.
  * See <a href='https://github.com/facebookresearch/fastText/blob/master/src/dictionary.cc'>dictionary.cc</a> &
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/dictionary.h'>dictionary.h</a>
  */
@@ -42,6 +44,8 @@ public class Dictionary {
     private static final UnsignedLong ADD_WORDS_NGRAMS_FACTOR_UNSIGNED_LONG = UnsignedLong.valueOf(ADD_WORDS_NGRAMS_FACTOR_LONG);
 
     private static final long READ_LOG_STEP = 1_000_000;
+
+    private static final int PARALLEL_SIZE_THRESHOLD = FastText.PARALLEL_SIZE_THRESHOLD_FACTOR * 100;
 
     private static final Comparator<Entry> ENTRY_COMPARATOR = Comparator.comparing((Function<Entry, EntryType>) t -> t.type)
             .thenComparing(Comparator.comparingLong((ToLongFunction<Entry>) value -> value.count).reversed());
@@ -289,7 +293,7 @@ public class Dictionary {
      * }}</pre>
      */
     private void initNgrams() {
-        if (FastText.USE_PARALLEL_COMPUTATION && size > FastText.PARALLEL_SIZE_THRESHOLD) {
+        if (FastText.USE_PARALLEL_COMPUTATION && size > PARALLEL_SIZE_THRESHOLD) {
             IntStream.range(0, size).parallel().forEach(this::initNgrams);
             return;
         }
@@ -424,7 +428,7 @@ public class Dictionary {
      */
     private void initTableDiscard() {
         pdiscard = Floats.asList(new float[size]);
-        if (FastText.USE_PARALLEL_COMPUTATION && size > FastText.PARALLEL_SIZE_THRESHOLD) {
+        if (FastText.USE_PARALLEL_COMPUTATION && size > PARALLEL_SIZE_THRESHOLD) {
             IntStream.range(0, size).parallel().forEach(i -> {
                 float f = ((float) words.get(i).count) / ntokens;
                 pdiscard.set(i, (float) (FastMath.sqrt(t / f) + t / f));
@@ -616,7 +620,7 @@ public class Dictionary {
      * @param n      int
      */
     private void addWordNgrams(List<Integer> line, List<Integer> hashes, int n) {
-        if (FastText.USE_PARALLEL_COMPUTATION && hashes.size() > FastText.PARALLEL_SIZE_THRESHOLD) {
+        if (FastText.USE_PARALLEL_COMPUTATION && hashes.size() > PARALLEL_SIZE_THRESHOLD) {
             List<Integer> sync = Collections.synchronizedList(line);
             IntStream.range(0, hashes.size()).parallel().forEach(i -> addWordNgrams(sync, hashes, i, n));
             return;
@@ -678,10 +682,10 @@ public class Dictionary {
      * }
      * }</pre>
      *
-     * @param i
-     * @return
+     * @param i int
+     * @return List of ints
      */
-    List<Integer> getSubwords(int i) {
+    public List<Integer> getSubwords(int i) {
         Validate.isTrue(i >= 0);
         Validate.isTrue(i < nwords);
         return words.get(i).subwords;
@@ -702,7 +706,7 @@ public class Dictionary {
      * @param word String
      * @return List of ints
      */
-    List<Integer> getSubwords(String word) {
+    public List<Integer> getSubwords(String word) {
         int i = getId(word);
         if (i >= 0) {
             return getSubwords(i);
@@ -731,7 +735,7 @@ public class Dictionary {
      * @param word String
      * @return {@link Multimap}
      */
-    Multimap<String, Integer> getSubwordsMap(String word) {
+    public Multimap<String, Integer> getSubwordsMap(String word) {
         List<Integer> ngrams = new ArrayList<>();
         List<String> substrings = new ArrayList<>();
         int i = getId(word);
@@ -790,7 +794,7 @@ public class Dictionary {
      *  }
      * }</pre>
      *
-     * @return
+     * @return true if pruned
      */
     public boolean isPruned() {
         return pruneIdxSize >= 0;
@@ -820,22 +824,24 @@ public class Dictionary {
      * }
      * }</pre>
      *
-     * @param wordThreshold
-     * @param labelThreshold
+     * @param wordThreshold long
+     * @param labelThreshold long
      */
     void threshold(long wordThreshold, long labelThreshold) {
-        // todo: mb parallel stream
-        ArrayList<Entry> words = this.words.stream()
-                .sorted(ENTRY_COMPARATOR)
+        Stream<Entry> entries = this.words.stream()
                 .filter(e -> (EntryType.WORD != e.type || e.count >= wordThreshold) && (EntryType.LABEL != e.type || e.count >= labelThreshold))
-                .collect(Collectors.toCollection(ArrayList::new));
+                .sorted(ENTRY_COMPARATOR);
+        if (FastText.USE_PARALLEL_COMPUTATION && this.size > PARALLEL_SIZE_THRESHOLD) {
+            entries = entries.parallel();
+        }
+        ArrayList<Entry> words = entries.collect(Collectors.toCollection(ArrayList::new));
         words.trimToSize();
         this.words = words;
         this.word2int = new HashMap<>(words.size());
         int wordsCount = 0;
         int labelsCount = 0;
         int count = 0;
-        for (Entry e : words) { // todo: move to one cycle?
+        for (Entry e : words) {
             long h = find(e.word);
             word2int.put(h, count++);
             if (EntryType.WORD == e.type) wordsCount++;
@@ -882,8 +888,8 @@ public class Dictionary {
      *  initNgrams();
      * }}</pre>
      *
-     * @param idx
-     * @return
+     * @param idx List of ints
+     * @return List of ints
      */
     List<Integer> prune(List<Integer> idx) {
         List<Integer> words = new ArrayList<>();
@@ -928,7 +934,7 @@ public class Dictionary {
      *
      * @return {@link Dictionary}
      */
-    Dictionary copy() {
+    public Dictionary copy() {
         Dictionary res = new Dictionary(model, label, t, bucket, maxn, minn, wordNgrams, charset);
         res.size = this.size;
         res.nwords = this.nwords;
@@ -1017,8 +1023,8 @@ public class Dictionary {
      *  initNgrams();
      * }}</pre>
      *
-     * @param args
-     * @param charset
+     * @param args {@link Args}
+     * @param charset {@link Charset}
      * @param in      {@link FTInputStream}
      * @return {@link Dictionary} new instance
      * @throws IOException if an I/O error occurs
@@ -1177,7 +1183,7 @@ public class Dictionary {
         /**
          * Resets stream to the start position.
 
-         * @return true if stream has been reset to zero position
+         * @return true if stream has been reset to initial zero position
          * @throws IOException                   if an I/O error occurs
          * @throws UnsupportedOperationException if this operation is not supported by the underlying stream
          */

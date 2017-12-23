@@ -79,10 +79,11 @@ public class ExtraMain {
         settings.forEach(conf::set);
         System.setProperty("HADOOP_USER_NAME", user);
         String home;
+        // todo: hadoop.home.dir
         try {
             URL resource = ExtraMain.class.getResource("/bin");
-            home = Paths.get(resource.toURI()).getParent().toString();
-        } catch (URISyntaxException | FileSystemNotFoundException e) { // if jar?
+            home = Paths.get(resource.toURI()).getParent().toString(); // wtf ?
+        } catch (URISyntaxException | FileSystemNotFoundException e) {
             LOGGER.warn("Can't find hdfs-home: {}", e.getMessage());
             home = "/";
         }

@@ -16,36 +16,37 @@ import java.util.stream.IntStream;
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/vector.h'>vector.h</a>
  */
 public class Vector {
+    private static final int PARALLEL_SIZE_THRESHOLD = FastText.PARALLEL_SIZE_THRESHOLD_FACTOR * 100;
 
-    private float[] data_;
+    private float[] data;
 
     public Vector(int size) {
         this(new float[size]);
     }
 
     Vector(float[] data) {
-        this.data_ = data;
+        this.data = data;
     }
 
     public int size() {
-        return data_.length;
+        return data.length;
     }
 
     public float get(int i) {
-        return data_[i];
+        return data[i];
     }
 
     public void set(int i, float value) {
-        data_[i] = value;
+        data[i] = value;
     }
 
     public void compute(int i, DoubleUnaryOperator operator) {
         Objects.requireNonNull(operator, "Null operator");
-        data_[i] = (float) operator.applyAsDouble(data_[i]);
+        data[i] = (float) operator.applyAsDouble(data[i]);
     }
 
     float[] data() {
-        return data_;
+        return data;
     }
 
     /**
@@ -54,11 +55,11 @@ public class Vector {
      * @return List of floats
      */
     public List<Float> getData() {
-        return Floats.asList(data_);
+        return Floats.asList(data);
     }
 
     public void clear() {
-        data_ = new float[data_.length];
+        data = new float[data.length];
     }
 
     /**
@@ -74,9 +75,14 @@ public class Vector {
      * @return float
      */
     public float norm() {
-        double sum = 0;
-        for (int i = 0; i < size(); i++) {
-            sum += data_[i] * data_[i];
+        double sum;
+        if (FastText.USE_PARALLEL_COMPUTATION && size() > PARALLEL_SIZE_THRESHOLD) {
+            sum = IntStream.range(0, size()).parallel().mapToDouble(i -> data[i] * data[i]).sum();
+        } else {
+            sum = 0;
+            for (int i = 0; i < size(); i++) {
+                sum += data[i] * data[i];
+            }
         }
         return (float) FastMath.sqrt(sum);
     }
@@ -109,8 +115,12 @@ public class Vector {
      */
     public void addVector(Vector source, float s) {
         Validate.isTrue(size() == Objects.requireNonNull(source, "Null source vector").size(), "Wrong size of vector: " + size() + "!=" + source.size());
+        if (FastText.USE_PARALLEL_COMPUTATION && size() > PARALLEL_SIZE_THRESHOLD) {
+            IntStream.range(0, size()).parallel().forEach(i -> data[i] += s * source.data[i]);
+            return;
+        }
         for (int i = 0; i < size(); i++) {
-            data_[i] += s * source.data_[i];
+            data[i] += s * source.data[i];
         }
     }
 
@@ -125,12 +135,12 @@ public class Vector {
      * @param a float
      */
     public void mul(float a) {
-        if (FastText.USE_PARALLEL_COMPUTATION && size() > FastText.PARALLEL_SIZE_THRESHOLD) {
-            IntStream.range(0, size()).parallel().forEach(i -> data_[i] *= a);
+        if (FastText.USE_PARALLEL_COMPUTATION && size() > PARALLEL_SIZE_THRESHOLD) {
+            IntStream.range(0, size()).parallel().forEach(i -> data[i] *= a);
             return;
         }
         for (int i = 0; i < size(); i++) {
-            data_[i] *= a;
+            data[i] *= a;
         }
     }
 
@@ -152,15 +162,15 @@ public class Vector {
         Validate.isTrue(i >= 0 && i < matrix.getM(), "Incompatible index (" + i + ") and matrix m-size (" + matrix.getM() + ")");
         Validate.isTrue(size() == matrix.getN(), "Wrong matrix n-size: " + size() + " != " + matrix.getN());
         if (matrix.isQuant()) {
-            addRow((QMatrix) matrix, i);
+            addQRow((QMatrix) matrix, i);
             return;
         }
-        if (FastText.USE_PARALLEL_COMPUTATION && matrix.getN() > FastText.PARALLEL_SIZE_THRESHOLD) {
-            IntStream.range(0, matrix.getN()).parallel().forEach(j -> data_[j] += matrix.at(i, j));
+        if (FastText.USE_PARALLEL_COMPUTATION && matrix.getN() > PARALLEL_SIZE_THRESHOLD) {
+            IntStream.range(0, matrix.getN()).parallel().forEach(j -> data[j] += matrix.at(i, j));
             return;
         }
         for (int j = 0; j < matrix.getN(); j++) {
-            data_[j] += matrix.at(i, j);
+            data[j] += matrix.at(i, j);
         }
     }
 
@@ -174,7 +184,7 @@ public class Vector {
      * @param matrix {@link QMatrix}
      * @param i      (int64_t originally) matrix row num (m-dimension)
      */
-    private void addRow(QMatrix matrix, int i) {
+    private void addQRow(QMatrix matrix, int i) {
         Validate.isTrue(i >= 0);
         matrix.addToVector(this, i);
     }
@@ -198,12 +208,12 @@ public class Vector {
     public void addRow(Matrix matrix, int i, float a) {
         Validate.isTrue(i >= 0 && i < matrix.getM(), "Incompatible index (" + i + ") and matrix m-size (" + matrix.getM() + ")");
         Validate.isTrue(size() == matrix.getN(), "Wrong matrix n-size: " + size() + " != " + matrix.getN());
-        if (FastText.USE_PARALLEL_COMPUTATION && matrix.getN() > FastText.PARALLEL_SIZE_THRESHOLD) {
-            IntStream.range(0, matrix.getN()).parallel().forEach(j -> data_[j] += a * matrix.at(i, j));
+        if (FastText.USE_PARALLEL_COMPUTATION && matrix.getN() > PARALLEL_SIZE_THRESHOLD) {
+            IntStream.range(0, matrix.getN()).parallel().forEach(j -> data[j] += a * matrix.at(i, j));
             return;
         }
         for (int j = 0; j < matrix.getN(); j++) {
-            data_[j] += a * matrix.at(i, j);
+            data[j] += a * matrix.at(i, j);
         }
     }
 
@@ -223,8 +233,12 @@ public class Vector {
     public void mul(Matrix matrix, Vector vector) {
         Validate.isTrue(matrix.getM() == size(), "Wrong matrix m-size: " + size() + " != " + matrix.getM());
         Validate.isTrue(matrix.getN() == vector.size(), "Matrix n-size (" + matrix.getN() + ") and vector size (" + vector.size() + ")  are not equal.");
+        if (FastText.USE_PARALLEL_COMPUTATION && size() > PARALLEL_SIZE_THRESHOLD) {
+            IntStream.range(0, size()).parallel().forEach(i -> data[i] = matrix.dotRow(vector, i));
+            return;
+        }
         for (int i = 0; i < size(); i++) {
-            data_[i] = matrix.dotRow(vector, i);
+            data[i] = matrix.dotRow(vector, i);
         }
     }
 

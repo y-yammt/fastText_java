@@ -5,7 +5,6 @@ import cc.fasttext.io.FTOutputStream;
 import org.apache.commons.lang.Validate;
 import org.apache.commons.math3.distribution.UniformRealDistribution;
 import org.apache.commons.math3.random.RandomGenerator;
-import org.apache.commons.math3.random.SynchronizedRandomGenerator;
 import org.apache.commons.math3.util.FastMath;
 
 import java.io.IOException;
@@ -13,21 +12,23 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoubleUnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.LongStream;
 
 /**
+ * The matrix.
  * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.cc'>matrix.cc</a> and
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.h'>matrix.h</a>
  */
 public class Matrix {
+    private static final int PARALLEL_SIZE_THRESHOLD = FastText.PARALLEL_SIZE_THRESHOLD_FACTOR * 100;
 
-    private float[][] data_;
+    private float[][] data;
 
-    protected int m_; // vocabSize
-    protected int n_; // layer1Size
+    protected int m; // vocabSize
+    protected int n; // layer1Size
 
     protected Matrix() {
     }
@@ -35,49 +36,54 @@ public class Matrix {
     public Matrix(int m, int n) {
         Validate.isTrue(m > 0, "Wrong m-size: " + m);
         Validate.isTrue(n > 0, "Wrong n-size: " + n);
-        this.m_ = m;
-        this.n_ = n;
-        this.data_ = new float[m][n];
+        this.m = m;
+        this.n = n;
+        this.data = new float[m][n];
     }
 
     public Matrix copy() {
-        Matrix res = new Matrix(m_, n_);
-        for (int i = 0; i < m_; i++) {
-            System.arraycopy(data_[i], 0, res.data_[i], 0, n_);
+        Matrix res = new Matrix(m, n);
+        for (int i = 0; i < m; i++) {
+            System.arraycopy(data[i], 0, res.data[i], 0, n);
         }
         return res;
     }
 
     float[] flatData() {
-        float[] res = new float[m_ * n_];
-        for (int i = 0; i < m_; i++) {
-            System.arraycopy(data_[i], 0, res, i * n_, n_);
+        float[] res = new float[m * n];
+        for (int i = 0; i < m; i++) {
+            System.arraycopy(data[i], 0, res, i * n, n);
         }
         return res;
     }
 
     float[][] data() {
-        return data_;
+        return data;
     }
 
+    /**
+     * Returns matrix data as collection of vectors.
+     *
+     * @return List of {@link Vector}s
+     */
     public List<Vector> getData() {
-        return Collections.unmodifiableList(Arrays.stream(data_).map(Vector::new).collect(Collectors.toList()));
+        return Collections.unmodifiableList(Arrays.stream(data).map(Vector::new).collect(Collectors.toList()));
     }
 
     public boolean isEmpty() {
-        return m_ == 0 || n_ == 0;
+        return m == 0 || n == 0;
     }
 
     public int getM() {
-        return m_;
+        return m;
     }
 
     public int getN() {
-        return n_;
+        return n;
     }
 
     public long size() {
-        return (long) n_ * m_;
+        return (long) n * m;
     }
 
     public float get(int i, int j) {
@@ -87,7 +93,7 @@ public class Matrix {
     }
 
     float at(int i, int j) {
-        return data_[i][j];
+        return data[i][j];
     }
 
     public void set(int i, int j, float value) {
@@ -97,28 +103,28 @@ public class Matrix {
     }
 
     void put(int i, int j, float value) {
-        data_[i][j] = value;
+        data[i][j] = value;
     }
 
     public void compute(int i, int j, DoubleUnaryOperator operator) {
         Objects.requireNonNull(operator, "Null operator");
-        data_[i][j] = (float) operator.applyAsDouble(data_[i][j]);
+        data[i][j] = (float) operator.applyAsDouble(data[i][j]);
     }
 
     void validateMIndex(int i) {
-        Validate.isTrue(i >= 0 && i < m_, "First index (" + i + ") is out of range [0, " + m_ + ")");
+        Validate.isTrue(i >= 0 && i < m, "First index (" + i + ") is out of range [0, " + m + ")");
     }
 
     void validateNIndex(int j) {
-        Validate.isTrue(j >= 0 && j < n_, "Second index (" + j + ") is out of range [0, " + n_ + ")");
+        Validate.isTrue(j >= 0 && j < n, "Second index (" + j + ") is out of range [0, " + n + ")");
     }
 
     void validateNVector(Vector vector) {
-        Validate.isTrue(Objects.requireNonNull(vector, "Null vector").size() == n_, "Wrong vector size: " + vector.size() + " (!= " + n_ + ")");
+        Validate.isTrue(Objects.requireNonNull(vector, "Null vector").size() == n, "Wrong vector size: " + vector.size() + " (!= " + n + ")");
     }
 
     void validateMVector(Vector vector) {
-        Validate.isTrue(Objects.requireNonNull(vector, "Null vector").size() == m_, "Wrong vector size: " + vector.size() + " (!= " + m_ + ")");
+        Validate.isTrue(Objects.requireNonNull(vector, "Null vector").size() == m, "Wrong vector size: " + vector.size() + " (!= " + m + ")");
     }
 
     boolean isQuant() {
@@ -136,31 +142,20 @@ public class Matrix {
      * }
      * }</pre>
      *
-     * @param rnd {@link RandomGenerator}
-     * @param a   float, distribution bound
+     * @param rnd   {@link RandomGenerator}
+     * @param bound float, distribution bound
      */
-    public void uniform(RandomGenerator rnd, float a) {
-        // the order of setting random is important to have the same prediction result as using c++ version for supervised model. wtf ?
-        uniform(false, rnd, a);
-    }
-
-    void uniform(boolean tryParallel, RandomGenerator rnd, float a) {
-        if (FastText.USE_PARALLEL_COMPUTATION && tryParallel && size() > FastText.PARALLEL_SIZE_THRESHOLD * FastText.PARALLEL_SIZE_THRESHOLD) {
-            UniformRealDistribution uniform = new UniformRealDistribution(new SynchronizedRandomGenerator(rnd), -a, a);
-            LongStream.range(0, size()).parallel().forEach(k -> {
-                long i = k / n_;
-                long j = k - i * n_;
-                data_[(int) i][(int) j] = (float) uniform.sample();
-            });
-            return;
-        }
-        UniformRealDistribution uniform = new UniformRealDistribution(rnd, -a, a);
-        for (int i = 0; i < m_; i++) {
-            for (int j = 0; j < n_; j++) {
-                data_[i][j] = (float) uniform.sample();
+    public void uniform(RandomGenerator rnd, float bound) {
+        // don't use parallel optimization:
+        // the order of setting random is important to have the same prediction result as for c++ version for supervised model. wtf ?
+        UniformRealDistribution uniform = new UniformRealDistribution(rnd, -bound, bound);
+        for (int i = 0; i < m; i++) {
+            for (int j = 0; j < n; j++) {
+                data[i][j] = (float) uniform.sample();
             }
         }
     }
+
     /**
      * <pre>{@code real Matrix::dotRow(const Vector& vec, int64_t i) const {
      *  assert(i >= 0);
@@ -184,12 +179,12 @@ public class Matrix {
         validateMIndex(i);
         validateNVector(vector);
         float d;
-        if (FastText.USE_PARALLEL_COMPUTATION && n_ > FastText.PARALLEL_SIZE_THRESHOLD) {
-            d = (float) IntStream.range(0, n_).parallel().mapToDouble(j -> data_[i][j] * vector.get(j)).sum();
+        if (FastText.USE_PARALLEL_COMPUTATION && n > PARALLEL_SIZE_THRESHOLD) {
+            d = (float) IntStream.range(0, n).parallel().mapToDouble(j -> data[i][j] * vector.get(j)).sum();
         } else {
             d = 0;
-            for (int j = 0; j < n_; j++) {
-                d += data_[i][j] * vector.get(j);
+            for (int j = 0; j < n; j++) {
+                d += data[i][j] * vector.get(j);
             }
         }
         if (Float.isNaN(d)) {
@@ -215,12 +210,12 @@ public class Matrix {
     public void addRow(Vector vector, int i, float a) {
         validateMIndex(i);
         validateNVector(vector);
-        if (FastText.USE_PARALLEL_COMPUTATION && n_ > FastText.PARALLEL_SIZE_THRESHOLD) {
-            IntStream.range(0, n_).parallel().forEach(j -> data_[i][j] += a * vector.get(j));
+        if (FastText.USE_PARALLEL_COMPUTATION && n > PARALLEL_SIZE_THRESHOLD) {
+            IntStream.range(0, n).parallel().forEach(j -> data[i][j] += a * vector.get(j));
             return;
         }
-        for (int j = 0; j < n_; j++) {
-            data_[i][j] += a * vector.get(j);
+        for (int j = 0; j < n; j++) {
+            data[i][j] += a * vector.get(j);
         }
     }
 
@@ -240,29 +235,16 @@ public class Matrix {
      *  }
      * }}</pre>
      *
-     * @param denoms {@link Vector}
-     * @param ib     int (orig: int64_t)
-     * @param ie     int (orig: int64_t)
+     * @param vector {@link Vector}
+     * @param start  int (orig: int64_t)
+     * @param end    int (orig: int64_t)
      */
-    protected void multiplyRow(Vector denoms, int ib, int ie) {
-        if (ie == -1) {
-            ie = m_;
-        }
-        Validate.isTrue(ie <= denoms.size());
-        for (int i = ib; i < ie; i++) {
-            float n = denoms.get(i - ib);
-            if (n == 0) {
-                continue;
-            }
-            DoubleUnaryOperator op = v -> v * n;
-            for (int j = 0; j < n_; j++) {
-                compute(i, j, op);
-            }
-        }
+    protected void multiplyRow(Vector vector, int start, int end) {
+        rowOp(vector, start, end, (left, right) -> left * right);
     }
 
-    public void multiplyRow(Vector denoms) {
-        multiplyRow(denoms, 0, -1);
+    public void multiplyRow(Vector vector) {
+        multiplyRow(vector, 0, -1);
     }
 
     /**
@@ -281,29 +263,45 @@ public class Matrix {
      *  }
      * }}</pre>
      *
-     * @param denoms
-     * @param ib
-     * @param ie
+     * @param start, int.
+     * @param end,   int. {@code -1} to use matrix m-size
+     * @param vector {@link Vector}
      */
-    protected void divideRow(Vector denoms, int ib, int ie) {
-        if (ie == -1) {
-            ie = m_;
+    protected void divideRow(Vector vector, int start, int end) {
+        rowOp(vector, start, end, (left, right) -> left / right);
+    }
+
+    public void divideRow(Vector vector) {
+        divideRow(vector, 0, -1);
+    }
+
+    protected void rowOp(Vector vector, int start, int end, DoubleBinaryOperator op) {
+        if (end == -1) {
+            end = m;
         }
-        Validate.isTrue(ie <= denoms.size());
-        for (int i = ib; i < ie; i++) {
-            float n = denoms.get(i - ib);
-            if (n == 0) {
-                continue;
-            }
-            DoubleUnaryOperator op = v -> v / n;
-            for (int j = 0; j < n_; j++) {
-                compute(i, j, op);
-            }
+        Validate.isTrue(end <= vector.size());
+        Validate.isTrue(end >= start);
+        if (FastText.USE_PARALLEL_COMPUTATION && end - start > PARALLEL_SIZE_THRESHOLD) {
+            IntStream.range(start, end).parallel().forEach(i -> vectorOp(vector, i, op, start));
+            return;
+        }
+        for (int i = start; i < end; i++) {
+            vectorOp(vector, i, op, start);
         }
     }
 
-    public void divideRow(Vector denoms) {
-        divideRow(denoms, 0, -1);
+    private void vectorOp(Vector vector, int i, DoubleBinaryOperator op, int shift) {
+        float val = vector.get(i - shift);
+        if (val == 0) {
+            return;
+        }
+        if (FastText.USE_PARALLEL_COMPUTATION && n > PARALLEL_SIZE_THRESHOLD) {
+            IntStream.range(0, n).parallel().forEach(j -> data[i][j] = (float) op.applyAsDouble(data[i][j], val));
+            return;
+        }
+        for (int j = 0; j < n; j++) {
+            data[i][j] = (float) op.applyAsDouble(data[i][j], val);
+        }
     }
 
     /**
@@ -323,10 +321,15 @@ public class Matrix {
      * @return float
      */
     private float l2NormRow(int i) {
-        float norm = 0.0f;
-        for (int j = 0; j < n_; j++) {
-            float v = at(i, j);
-            norm += v * v;
+        float norm;
+        if (FastText.USE_PARALLEL_COMPUTATION && n > PARALLEL_SIZE_THRESHOLD) {
+            norm = (float) IntStream.range(0, n).parallel().mapToDouble(j -> data[i][j] * data[i][j]).sum();
+        } else {
+            norm = 0;
+            for (int j = 0; j < n; j++) {
+                float v = at(i, j);
+                norm += v * v;
+            }
         }
         if (Float.isNaN(norm)) {
             throw new IllegalStateException("Encountered NaN.");
@@ -345,30 +348,14 @@ public class Matrix {
      * @return new {@link Vector}
      */
     public Vector l2NormRow() {
-        Vector res = new Vector(m_);
-        for (int i = 0; i < m_; i++) {
-            res.set(i, l2NormRow(i));
+        Vector res = new Vector(m);
+        IntStream ints = IntStream.range(0, m);
+        if (FastText.USE_PARALLEL_COMPUTATION && m > PARALLEL_SIZE_THRESHOLD) {
+            ints = ints.parallel();
         }
+        ints.forEach(i -> res.set(i, l2NormRow(i)));
         return res;
     }
-
-    /**
-     * <pre>{@code void Matrix::l2NormRow(Vector& norms) const {
-     *  assert(norms.size() == m_);
-     *  for (auto i = 0; i < m_; i++) {
-     *      norms[i] = l2NormRow(i);
-     *  }
-     * }}</pre>
-     *
-     * @param norms {@link Vector}
-     */
-    protected void l2NormRow(Vector norms) {
-        validateMVector(norms);
-        for (int i = 0; i < m_; i++) {
-            norms.set(i, l2NormRow(i));
-        }
-    }
-
 
     /**
      * <pre>{@code
@@ -382,11 +369,11 @@ public class Matrix {
      * @throws IOException if an I/O error occurs
      */
     void save(FTOutputStream out) throws IOException {
-        out.writeLong(m_);
-        out.writeLong(n_);
-        for (int i = 0; i < m_; i++) {
-            for (int j = 0; j < n_; j++) {
-                out.writeFloat(data_[i][j]);
+        out.writeLong(m);
+        out.writeLong(n);
+        for (int i = 0; i < m; i++) {
+            for (int j = 0; j < n; j++) {
+                out.writeFloat(data[i][j]);
             }
         }
     }
@@ -406,20 +393,25 @@ public class Matrix {
      */
     static Matrix load(FTInputStream in) throws IOException {
         Matrix res = new Matrix((int) in.readLong(), (int) in.readLong());
-        for (int i = 0; i < res.m_; i++) {
-            for (int j = 0; j < res.n_; j++) {
-                res.data_[i][j] = in.readFloat();
+        for (int i = 0; i < res.m; i++) {
+            for (int j = 0; j < res.n; j++) {
+                res.data[i][j] = in.readFloat();
             }
         }
         return res;
     }
 
+    /**
+     * Creates an empty matrix.
+     *
+     * @return {@link Matrix}
+     */
     static Matrix empty() {
         return new Matrix();
     }
 
     @Override
     public String toString() {
-        return String.format("%s[m=%d, n=%d]", getClass().getSimpleName(), m_, n_);
+        return String.format("%s[m=%d, n=%d]", getClass().getSimpleName(), m, n);
     }
 }

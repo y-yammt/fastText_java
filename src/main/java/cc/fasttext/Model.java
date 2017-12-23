@@ -4,6 +4,7 @@ import cc.fasttext.Args.LossName;
 import cc.fasttext.Args.ModelName;
 import com.google.common.collect.TreeMultimap;
 import com.google.common.primitives.Ints;
+import com.google.common.util.concurrent.AtomicDouble;
 import org.apache.commons.lang.Validate;
 import org.apache.commons.math3.random.RandomAdaptor;
 import org.apache.commons.math3.random.RandomGenerator;
@@ -21,21 +22,23 @@ import java.util.stream.IntStream;
  */
 public class Model {
 
-    static final int SIGMOID_TABLE_SIZE = 512;
-    static final int MAX_SIGMOID = 8;
-    static final int LOG_TABLE_SIZE = 512;
-    static final int NEGATIVE_TABLE_SIZE = 10_000_000;
+    private static final int SIGMOID_TABLE_SIZE = 512;
+    private static final int MAX_SIGMOID = 8;
+    private static final int LOG_TABLE_SIZE = 512;
+    private static final int NEGATIVE_TABLE_SIZE = 10_000_000;
 
     private static final Comparator<Float> HEAP_PROBABILITY_COMPARATOR = Comparator.reverseOrder();
     // the following order does not important, it is just to match c++ and java versions:
     private static final Comparator<Integer> HEAP_LABEL_COMPARATOR = Comparator.reverseOrder();//Integer::compareTo;
+
+    private static final int PARALLEL_SIZE_THRESHOLD = FastText.PARALLEL_SIZE_THRESHOLD_FACTOR * 100;
 
     private QMatrix qwi_;
     private QMatrix qwo_;
     private RandomGenerator rng;
     private Matrix wi_; // input
     private Matrix wo_; // output
-    private Args args_;
+
     private Vector hidden_;
     private Vector output_;
     private Vector grad_;
@@ -52,14 +55,29 @@ public class Model {
     private List<List<Boolean>> codes;
     private List<Node> tree;
 
+    // args:
+    private final Args.ModelName model;
+    private final Args.LossName loss;
+    private final int dim;
+    private final int neg;
+    private final boolean qout;
+
     public Model(Matrix wi, Matrix wo, Args args, RandomGenerator random) {
-        hidden_ = new Vector(args.dim());
+        this(wi, wo, args.model(), args.loss(), args.dim(), args.neg(), args.qout(), random);
+    }
+
+    private Model(Matrix wi, Matrix wo, Args.ModelName model, Args.LossName loss, int dim, int neg, boolean qout, RandomGenerator random) {
+        this.model = model;
+        this.loss = loss;
+        this.dim = dim;
+        this.neg = neg;
+        this.qout = qout;
+        hidden_ = new Vector(dim);
         output_ = new Vector(wo.getM());
-        grad_ = new Vector(args.dim());
+        grad_ = new Vector(dim);
         rng = random;
         wi_ = wi;
         wo_ = wo;
-        args_ = args;
         osz_ = wo.getM();
         negpos = 0;
         loss_ = 0.0f;
@@ -85,7 +103,7 @@ public class Model {
     Model setQuantizePointer(QMatrix qwi, QMatrix qwo) {
         this.qwi_ = qwi;
         this.qwo_ = qwo;
-        if (this.args_.qout()) {
+        if (this.qout) {
             this.osz_ = this.qwo_.getM();
         }
         return this;
@@ -164,9 +182,9 @@ public class Model {
      * @return float
      */
     private float negativeSampling(int target, float lr) {
-        float loss = 0.0f;
         grad_.clear();
-        for (int n = 0; n <= args_.neg(); n++) {
+        float loss = 0;
+        for (int n = 0; n <= neg; n++) {
             if (n == 0) {
                 loss += binaryLogistic(target, true, lr);
             } else {
@@ -227,12 +245,24 @@ public class Model {
      * @param output {@link Vector}
      */
     private void computeOutputSoftmax(Vector hidden, Vector output) {
-        if (isQuant() && args_.qout()) {
+        if (isQuant() && qout) {
             output.mul(qwo_, hidden);
         } else {
             output.mul(wo_, hidden);
         }
-        float max = output.get(0), z = 0.0f;
+        if (FastText.USE_PARALLEL_COMPUTATION && osz_ > PARALLEL_SIZE_THRESHOLD) {
+            double max = IntStream.range(0, osz_).parallel().mapToDouble(output::get).max().orElseThrow(() -> new IllegalStateException("Can't calc max"));
+            AtomicDouble z = new AtomicDouble();
+            IntStream.range(0, osz_).parallel().forEach(i -> {
+                double v = FastMath.exp(output.get(i) - max);
+                output.set(i, (float) v);
+                z.addAndGet(v);
+            });
+            IntStream.range(0, osz_).parallel().forEach(i -> output.set(i, output.get(i) / z.floatValue()));
+            return;
+        }
+        float max = output.get(0);
+        float z = 0.0f;
         for (int i = 0; i < osz_; i++) {
             max = FastMath.max(output.get(i), max);
         }
@@ -266,15 +296,16 @@ public class Model {
      * @param lr     float
      * @return float
      */
-    public float softmax(int target, float lr) {
+    private float softmax(int target, float lr) {
         grad_.clear();
         computeOutputSoftmax();
-        for (int i = 0; i < osz_; i++) {
+        IntStream ints = IntStream.range(0, osz_);
+        ints.forEach(i -> {
             float label = i == target ? 1.0f : 0.0f;
             float alpha = lr * (label - output_.get(i));
             grad_.addRow(wo_, i, alpha);
             wo_.addRow(hidden_, i, alpha);
-        }
+        });
         return -log(output_.get(target));
     }
 
@@ -296,15 +327,15 @@ public class Model {
      * @param hidden {@link Vector}
      */
     private void computeHidden(List<Integer> input, Vector hidden) {
-        Validate.isTrue(hidden.size() == args_.dim(), "Wrong size of hidden vector: " + hidden.size() + "!=" + args_.dim());
+        Validate.isTrue(hidden.size() == dim, "Wrong size of hidden vector: " + hidden.size() + "!=" + dim);
         hidden.clear();
-        for (Integer it : input) {
+        input.forEach(it -> {
             if (isQuant()) {
                 hidden.addRow(qwi_, it);
             } else {
                 hidden.addRow(wi_, it);
             }
-        }
+        });
         hidden.mul(1.0f / input.size());
     }
 
@@ -337,12 +368,12 @@ public class Model {
         if (k <= 0) {
             throw new IllegalArgumentException("k needs to be 1 or higher!");
         }
-        if (!ModelName.SUP.equals(args_.model())) {
+        if (!ModelName.SUP.equals(model)) {
             throw new IllegalArgumentException("Model needs to be supervised for prediction!");
         }
         TreeMultimap<Float, Integer> heap = TreeMultimap.create(HEAP_PROBABILITY_COMPARATOR, HEAP_LABEL_COMPARATOR);
         computeHidden(input, hidden);
-        if (LossName.HS == args_.loss()) {
+        if (LossName.HS == loss) {
             dfs(k, 2 * osz_ - 2, 0.0f, heap, hidden);
         } else {
             findKBest(k, heap, hidden, output);
@@ -458,7 +489,7 @@ public class Model {
             return;
         }
         float f;
-        if (isQuant() && args_.qout()) {
+        if (isQuant() && qout) {
             f = qwo_.dotRow(hidden, node - osz_);
         } else {
             f = wo_.dotRow(hidden, node - osz_);
@@ -501,20 +532,18 @@ public class Model {
             return;
         }
         computeHidden(input, hidden_);
-        if (LossName.NS == args_.loss()) {
+        if (LossName.NS == loss) {
             loss_ += negativeSampling(target, lr);
-        } else if (LossName.HS == args_.loss()) {
+        } else if (LossName.HS == loss) {
             loss_ += hierarchicalSoftmax(target, lr);
-        } else { // softmax
+        } else {
             loss_ += softmax(target, lr);
         }
         nexamples_ += 1;
-        if (ModelName.SUP == args_.model()) {
+        if (ModelName.SUP == model) {
             grad_.mul(1.0f / input.size());
         }
-        for (Integer it : input) {
-            wi_.addRow(grad_, it, 1.0f);
-        }
+        input.forEach(it -> wi_.addRow(grad_, it, 1.0f));
     }
 
     /**
@@ -534,10 +563,10 @@ public class Model {
      */
     public void setTargetCounts(List<Long> counts) {
         Validate.isTrue(counts.size() == osz_);
-        if (LossName.NS == args_.loss()) {
+        if (LossName.NS == loss) {
             initTableNegatives(counts);
         }
-        if (LossName.HS == args_.loss()) {
+        if (LossName.HS == loss) {
             buildTree(counts);
         }
     }
@@ -563,7 +592,7 @@ public class Model {
      */
     private void initTableNegatives(List<Long> counts) {
         negatives = new ArrayList<>(counts.size());
-        if (FastText.USE_PARALLEL_COMPUTATION && counts.size() > FastText.PARALLEL_SIZE_THRESHOLD) {
+        if (FastText.USE_PARALLEL_COMPUTATION && counts.size() > PARALLEL_SIZE_THRESHOLD) {
             List<Integer> sync = Collections.synchronizedList(negatives);
             double z = counts.parallelStream().mapToDouble(FastMath::sqrt).sum();
             IntStream.range(0, counts.size()).parallel().forEach(i -> {
