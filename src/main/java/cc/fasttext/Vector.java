@@ -1,22 +1,24 @@
 package cc.fasttext;
 
-import cc.fasttext.io.FormatUtils;
-import com.google.common.primitives.Floats;
-import org.apache.commons.lang.Validate;
-import org.apache.commons.math3.util.FastMath;
-
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.DoubleUnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.apache.commons.lang.Validate;
+import org.apache.commons.math3.util.FastMath;
+
+import cc.fasttext.io.FormatUtils;
+import com.google.common.primitives.Floats;
+
 /**
  * See <a href='https://github.com/facebookresearch/fastText/blob/master/src/vector.cc'>vector.cc</a> &
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/vector.h'>vector.h</a>
  */
 public class Vector {
-    private static final int PARALLEL_SIZE_THRESHOLD = FastText.PARALLEL_SIZE_THRESHOLD_FACTOR * 100;
+    private static final int PARALLEL_SIZE_THRESHOLD = FastText.PARALLEL_THRESHOLD_FACTOR * 100;
 
     private float[] data;
 
@@ -156,21 +158,22 @@ public class Vector {
      * }}</pre>
      *
      * @param matrix {@link Matrix}
-     * @param i      (int64_t originally) matrix row num (m-dimension)
+     * @param index  (int64_t originally) matrix row num (m-dimension)
+     * @see #addRow(Matrix, int, float)
      */
-    public void addRow(Matrix matrix, int i) {
-        Validate.isTrue(i >= 0 && i < matrix.getM(), "Incompatible index (" + i + ") and matrix m-size (" + matrix.getM() + ")");
+    public void addRow(Matrix matrix, int index) {
+        Validate.isTrue(index >= 0 && index < matrix.getM(), "Incompatible index (" + index + ") and matrix m-size (" + matrix.getM() + ")");
         Validate.isTrue(size() == matrix.getN(), "Wrong matrix n-size: " + size() + " != " + matrix.getN());
         if (matrix.isQuant()) {
-            addQRow((QMatrix) matrix, i);
+            addQRow((QMatrix) matrix, index);
             return;
         }
         if (FastText.USE_PARALLEL_COMPUTATION && matrix.getN() > PARALLEL_SIZE_THRESHOLD) {
-            IntStream.range(0, matrix.getN()).parallel().forEach(j -> data[j] += matrix.at(i, j));
+            IntStream.range(0, matrix.getN()).parallel().forEach(j -> data[j] += matrix.at(index, j));
             return;
         }
         for (int j = 0; j < matrix.getN(); j++) {
-            data[j] += matrix.at(i, j);
+            data[j] += matrix.at(index, j);
         }
     }
 
@@ -202,18 +205,19 @@ public class Vector {
      * }</pre>
      *
      * @param matrix {@link Matrix}
-     * @param i      m-dimension matrix coordinate
-     * @param a      float, multiplier
+     * @param index  m-dimension matrix coordinate
+     * @param factor float, multiplier
+     * @see #addRow(Matrix, int)
      */
-    public void addRow(Matrix matrix, int i, float a) {
-        Validate.isTrue(i >= 0 && i < matrix.getM(), "Incompatible index (" + i + ") and matrix m-size (" + matrix.getM() + ")");
+    public void addRow(Matrix matrix, int index, float factor) {
+        Validate.isTrue(index >= 0 && index < matrix.getM(), "Incompatible index (" + index + ") and matrix m-size (" + matrix.getM() + ")");
         Validate.isTrue(size() == matrix.getN(), "Wrong matrix n-size: " + size() + " != " + matrix.getN());
         if (FastText.USE_PARALLEL_COMPUTATION && matrix.getN() > PARALLEL_SIZE_THRESHOLD) {
-            IntStream.range(0, matrix.getN()).parallel().forEach(j -> data[j] += a * matrix.at(i, j));
+            IntStream.range(0, matrix.getN()).parallel().forEach(j -> data[j] += factor * matrix.at(index, j));
             return;
         }
         for (int j = 0; j < matrix.getN(); j++) {
-            data[j] += a * matrix.at(i, j);
+            data[j] += factor * matrix.at(index, j);
         }
     }
 
@@ -282,4 +286,27 @@ public class Vector {
         return getData().stream().map(FormatUtils::toString).collect(Collectors.joining(" "));
     }
 
+    /**
+     * Added to debug purposes
+     *
+     * @param o vector
+     * @return boolean
+     */
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Vector)) return false;
+        Vector vector = (Vector) o;
+        return Arrays.equals(data, vector.data);
+    }
+
+    /**
+     * Added to debug purposes
+     *
+     * @return int
+     */
+    @Override
+    public int hashCode() {
+        return Arrays.hashCode(data);
+    }
 }

@@ -9,13 +9,13 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang.StringUtils;
 
 /**
- * Temporary class to measure time of events in runtime to gather statistics.
- * TODO: will be removed.
+ * Events to measure time of events in runtime to gather statistics.
+ * TODO: it's temporary and will be removed.
  * <p>
  * Created by @szuev on 25.12.2017.
  */
 public enum Events {
-    GET_FILE_SZIE,
+    GET_FILE_SIZE,
     READ_DICT,
     IN_MATRIX_CREATE,
     OUT_MATRIX_CREATE,
@@ -25,13 +25,15 @@ public enum Events {
     CBOW_CALC,
     DIC_GET_SUBWORDS_INT,
     MODEL_UPDATE,
+    MODEL_COMPUTE_INPUTS_MAP,
     MODEL_COMPUTE_HIDDEN,
     MODEL_NEGATIVE_SAMPLING,
     MODEL_GRAD_MUL,
     MODEL_INPUT_ADD_ROW,
     CREATE_RES_MODEL,
     TRAIN,
-    SAVE_BIN,;
+    SAVE_BIN,
+    ALL;
     private ThreadLocal<Instant> start = new ThreadLocal<>();
     private ConcurrentLinkedQueue<Long> times = new ConcurrentLinkedQueue<>();
 

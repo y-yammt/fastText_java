@@ -1,10 +1,10 @@
 package cc.fasttext;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import org.apache.commons.lang.Validate;
 import org.apache.commons.math3.random.RandomAdaptor;
@@ -32,7 +32,7 @@ public class Model {
     // the following order does not important, it is just to match c++ and java versions:
     private static final Comparator<Integer> HEAP_LABEL_COMPARATOR = Comparator.reverseOrder();//Integer::compareTo;
 
-    private static final int PARALLEL_SIZE_THRESHOLD = FastText.PARALLEL_SIZE_THRESHOLD_FACTOR * 100;
+    private static final int PARALLEL_SIZE_THRESHOLD = FastText.PARALLEL_THRESHOLD_FACTOR * 100;
 
     private QMatrix qwi_;
     private QMatrix qwo_;
@@ -147,7 +147,7 @@ public class Model {
      *  }
      * }}</pre>
      *
-     * @param target int32_t
+     * @param target int32_t, index
      * @param label  bool
      * @param lr     float
      * @return float
@@ -326,6 +326,7 @@ public class Model {
      *
      * @param input  List of ints (int32_t)
      * @param hidden {@link Vector}
+     * @see #matrixToVector(Map)
      */
     private void computeHidden(List<Integer> input, Vector hidden) {
         Validate.isTrue(hidden.size() == dim, "Wrong size of hidden vector: " + hidden.size() + "!=" + dim);
@@ -501,6 +502,8 @@ public class Model {
     }
 
     /**
+     * Updates the model.
+     * Used while train only.
      * <pre>{@code void Model::update(const std::vector<int32_t>& input, int32_t target, real lr) {
      *  assert(target >= 0);
      *  assert(target < osz_);
@@ -526,14 +529,23 @@ public class Model {
      * @param target int
      * @param lr     float
      */
-    public void update(List<Integer> input, int target, float lr) {
+    void update(List<Integer> input, int target, float lr) {
         Validate.isTrue(target >= 0);
         Validate.isTrue(target < osz_);
         if (input.isEmpty()) {
             return;
         }
+        Events.MODEL_COMPUTE_INPUTS_MAP.start();
+        Stream<Integer> ints = input.stream();
+        if (FastText.USE_PARALLEL_COMPUTATION && input.size() > PARALLEL_SIZE_THRESHOLD) {
+            ints = ints.parallel();
+        }
+        Map<Integer, Long> map = ints.collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+        Events.MODEL_COMPUTE_INPUTS_MAP.end();
         Events.MODEL_COMPUTE_HIDDEN.start();
-        computeHidden(input, hidden_);
+        // compute hidden:
+        this.hidden_ = matrixToVector(map);
+        this.hidden_.mul(1.0f / input.size());
         Events.MODEL_COMPUTE_HIDDEN.end();
         if (LossName.NS == loss) {
             Events.MODEL_NEGATIVE_SAMPLING.start();
@@ -549,8 +561,29 @@ public class Model {
             grad_.mul(1.0f / input.size());
         }
         Events.MODEL_INPUT_ADD_ROW.start();
-        input.forEach(it -> wi_.addRow(grad_, it, 1.0f));
+        Stream<Map.Entry<Integer, Long>> pairs = map.entrySet().stream();
+        if (FastText.USE_PARALLEL_COMPUTATION && map.size() > PARALLEL_SIZE_THRESHOLD) {
+            pairs = pairs.parallel();
+        }
+        pairs.forEach(e -> wi_.addRow(grad_, e.getKey(), e.getValue()));
         Events.MODEL_INPUT_ADD_ROW.end();
+    }
+
+    /**
+     * Computes a vector by adding matrix rows with specified indexes.
+     *
+     * @param input the Map of indexes with its count as values
+     * @return {@link Vector}
+     * @see #computeHidden(List, Vector)
+     */
+    private Vector matrixToVector(Map<Integer, Long> input) {
+        Vector res = new Vector(dim);
+        Stream<Map.Entry<Integer, Long>> pairs = input.entrySet().stream();
+        if (FastText.USE_PARALLEL_COMPUTATION && input.size() > PARALLEL_SIZE_THRESHOLD) {
+            pairs = pairs.parallel();
+        }
+        pairs.forEach(e -> res.addRow(isQuant() ? qwi_ : wi_, e.getKey(), e.getValue()));
+        return res;
     }
 
     /**

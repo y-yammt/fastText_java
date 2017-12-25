@@ -1,12 +1,13 @@
 package cc.fasttext;
 
-import cc.fasttext.io.FTInputStream;
-import cc.fasttext.io.FTOutputStream;
-import org.apache.commons.math3.random.RandomGenerator;
-
 import java.io.IOException;
 import java.util.List;
 import java.util.function.IntFunction;
+
+import org.apache.commons.math3.random.RandomGenerator;
+
+import cc.fasttext.io.FTInputStream;
+import cc.fasttext.io.FTOutputStream;
 
 /**
  * See <a href='https://github.com/facebookresearch/fastText/blob/master/src/qmatrix.cc'>qmatrix.cc</a> &
@@ -191,7 +192,7 @@ public class QMatrix extends Matrix {
     }
 
     @Override
-    public void addRow(Vector vector, int i, float a) {
+    public void addRow(Vector vector, int index, float factor) {
         throw new UnsupportedOperationException();
     }
 

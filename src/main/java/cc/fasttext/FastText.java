@@ -48,8 +48,8 @@ public class FastText {
     public static final int FASTTEXT_FILEFORMAT_MAGIC_INT32 = 793_712_314;
 
     // experimental, use parallel streams where it makes sense:
-    public static final boolean USE_PARALLEL_COMPUTATION = false;
-    public static final int PARALLEL_SIZE_THRESHOLD_FACTOR = 100;
+    public static final boolean USE_PARALLEL_COMPUTATION = true;
+    public static final int PARALLEL_THRESHOLD_FACTOR = 100;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(FastText.class);
 
@@ -1349,7 +1349,7 @@ public class FastText {
          * @throws IllegalArgumentException if some input arguments are wrong
          * @see FastText#saveVectors(String)
          */
-        private Matrix loadInput(Args args, Dictionary dictionary, String file) throws IOException, IllegalArgumentException {
+        protected Matrix loadInput(Args args, Dictionary dictionary, String file) throws IOException, IllegalArgumentException {
             if (!fs.canRead(file)) {
                 throw new IllegalArgumentException("Pre-trained vectors file cannot be opened!");
             }
@@ -1406,32 +1406,32 @@ public class FastText {
          * @return {@link Dictionary}
          * @throws IOException if an I/O error occurs
          */
-        private Dictionary readDictionary(Args args, String file) throws IOException {
+        protected Dictionary readDictionary(Args args, String file) throws IOException {
             try (InputStream in = fs.openInput(file)) {
                 return Dictionary.read(in, args, charset, logs);
             }
         }
 
-        private Matrix createInput(Args args, Dictionary dictionary) {
+        protected Matrix createInput(Args args, Dictionary dictionary) {
             Matrix res = new Matrix(dictionary.nwords() + args.bucket(), args.dim());
             res.uniform(random.apply(1), 1.0f / args.dim());
             return res;
         }
 
-        private Matrix createOutput(Args args, Dictionary dictionary) {
+        protected Matrix createOutput(Args args, Dictionary dictionary) {
             if (ModelName.SUP.equals(args.model())) {
                 return new Matrix(dictionary.nlabels(), args.dim());
             }
             return new Matrix(dictionary.nwords(), args.dim());
         }
 
-        private Trainer newTrainer(Args args, String file, String vectors) throws IOException {
+        protected Trainer newTrainer(Args args, String file, String vectors) throws IOException {
             if (!fs.canRead(Objects.requireNonNull(file, "Null data file specified"))) {
                 throw new IllegalArgumentException("Input file cannot be opened: " + file);
             }
-            Events.GET_FILE_SZIE.start();
+            Events.GET_FILE_SIZE.start();
             long size = fs.size(file);
-            Events.GET_FILE_SZIE.end();
+            Events.GET_FILE_SIZE.end();
             Events.READ_DICT.start();
             Dictionary dic = readDictionary(args, file);
             Events.READ_DICT.end();
@@ -1444,7 +1444,7 @@ public class FastText {
             return new Trainer(args, file, size, dic, in, out);
         }
 
-        private Trainer newTrainer(Args args, String file, Dictionary dictionary, Matrix input, Matrix output) throws IOException {
+        protected Trainer newTrainer(Args args, String file, Dictionary dictionary, Matrix input, Matrix output) throws IOException {
             if (!fs.canRead(Objects.requireNonNull(file, "Null data file specified"))) {
                 throw new IllegalArgumentException("Input file cannot be opened: " + file);
             }
@@ -1487,7 +1487,7 @@ public class FastText {
          * @param seed   seed
          * @return {@link Model}
          */
-        private Model createModel(Args args, Dictionary dict, Matrix input, Matrix output, int seed) {
+        protected Model createModel(Args args, Dictionary dict, Matrix input, Matrix output, int seed) {
             Model res = new Model(input, output, args, random.apply(seed));
             if (ModelName.SUP.equals(args.model())) {
                 res.setTargetCounts(dict.getCounts(EntryType.LABEL));
@@ -1506,14 +1506,14 @@ public class FastText {
          * @param version    int version
          * @return {@link FastText}
          */
-        private FastText createFastText(Args args, Dictionary dictionary, Model model, int version) {
+        protected FastText createFastText(Args args, Dictionary dictionary, Model model, int version) {
             return new FastText(args, dictionary, model, version, this.fs, this.logs, this.random);
         }
 
         /**
          * Auxiliary class to perform model training.
          */
-        private class Trainer {
+        protected class Trainer {
             private final String file;
             private final long size;
 
@@ -1526,7 +1526,7 @@ public class FastText {
             private Instant start;          // original: clock_t start;
             private AtomicLong tokenCount;  // original: std::atomic<int64_t> tokenCount;
 
-            private Trainer(Args args, String file, long size, Dictionary dictionary, Matrix input, Matrix output) {
+            protected Trainer(Args args, String file, long size, Dictionary dictionary, Matrix input, Matrix output) {
                 this.args = Objects.requireNonNull(args, "Null args");
                 this.file = Objects.requireNonNull(file, "Null file");
                 this.size = size;
@@ -1535,7 +1535,7 @@ public class FastText {
                 this.output = Objects.requireNonNull(output, "Null output matrix");
             }
 
-            private Dictionary.SeekableReader createReader() throws IOException {
+            protected Dictionary.SeekableReader createReader() throws IOException {
                 return dictionary.createReader(fs.openScrollable(file));
             }
 
@@ -1613,7 +1613,7 @@ public class FastText {
              * @throws IOException        if an I/O error occurs
              * @see Args#thread()
              */
-            private void perform() throws ExecutionException, IOException {
+            protected void perform() throws ExecutionException, IOException {
                 this.start = Instant.now();
                 this.tokenCount = new AtomicLong(0);
                 if (args.thread() <= 1) {
@@ -1689,7 +1689,7 @@ public class FastText {
              * @param threadId the id of thread, used as random seed inside model
              * @throws IOException if an I/O error occurs
              */
-            private void trainThread(int threadId) throws IOException {
+            protected void trainThread(int threadId) throws IOException {
                 Model model;
                 try (Dictionary.SeekableReader in = createReader()) {
                     long skip = threadId * size / args.thread();
@@ -1754,7 +1754,7 @@ public class FastText {
              * @param progress float
              * @param loss     float
              */
-            private String progressMessage(float progress, float loss) {
+            protected String progressMessage(float progress, float loss) {
                 float t = ChronoUnit.NANOS.between(start, Instant.now()) / 1_000_000_000f;
                 float wst = tokenCount.get() / t;
                 float lr = (float) (args.lr() * (1 - progress));
@@ -1780,7 +1780,7 @@ public class FastText {
              * @param line   List of ints
              * @param labels List of ints
              */
-            private void supervised(Model model, float lr, List<Integer> line, List<Integer> labels) {
+            protected void supervised(Model model, float lr, List<Integer> line, List<Integer> labels) {
                 if (labels.isEmpty() || line.isEmpty())
                     return;
                 int i = new UniformIntegerDistribution(model.random(), 0, labels.size() - 1).sample();
@@ -1809,7 +1809,7 @@ public class FastText {
              * @param lr    float
              * @param line  List of ints
              */
-            private void cbow(Model model, float lr, List<Integer> line) {
+            protected void cbow(Model model, float lr, List<Integer> line) {
                 UniformIntegerDistribution uniform = new UniformIntegerDistribution(model.random(), 1, args.ws());
                 for (int w = 0; w < line.size(); w++) {
                     List<Integer> bow = new ArrayList<>();
@@ -1847,7 +1847,7 @@ public class FastText {
              * @param lr    float
              * @param line  List of ints
              */
-            private void skipgram(Model model, float lr, List<Integer> line) {
+            protected void skipgram(Model model, float lr, List<Integer> line) {
                 UniformIntegerDistribution uniform = new UniformIntegerDistribution(model.random(), 1, args.ws());
                 for (int w = 0; w < line.size(); w++) {
                     int boundary = uniform.sample();
