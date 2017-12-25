@@ -1,20 +1,21 @@
 package cc.fasttext;
 
-import cc.fasttext.Args.LossName;
-import cc.fasttext.Args.ModelName;
-import com.google.common.collect.TreeMultimap;
-import com.google.common.primitives.Ints;
-import com.google.common.util.concurrent.AtomicDouble;
-import org.apache.commons.lang.Validate;
-import org.apache.commons.math3.random.RandomAdaptor;
-import org.apache.commons.math3.random.RandomGenerator;
-import org.apache.commons.math3.util.FastMath;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.IntStream;
+
+import org.apache.commons.lang.Validate;
+import org.apache.commons.math3.random.RandomAdaptor;
+import org.apache.commons.math3.random.RandomGenerator;
+import org.apache.commons.math3.util.FastMath;
+
+import cc.fasttext.Args.LossName;
+import cc.fasttext.Args.ModelName;
+import com.google.common.collect.TreeMultimap;
+import com.google.common.primitives.Ints;
+import com.google.common.util.concurrent.AtomicDouble;
 
 /**
  * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.cc'>model.cc</a> and
@@ -531,9 +532,13 @@ public class Model {
         if (input.isEmpty()) {
             return;
         }
+        Events.MODEL_COMPUTE_HIDDEN.start();
         computeHidden(input, hidden_);
+        Events.MODEL_COMPUTE_HIDDEN.end();
         if (LossName.NS == loss) {
+            Events.MODEL_NEGATIVE_SAMPLING.start();
             loss_ += negativeSampling(target, lr);
+            Events.MODEL_NEGATIVE_SAMPLING.end();
         } else if (LossName.HS == loss) {
             loss_ += hierarchicalSoftmax(target, lr);
         } else {
@@ -543,7 +548,9 @@ public class Model {
         if (ModelName.SUP == model) {
             grad_.mul(1.0f / input.size());
         }
+        Events.MODEL_INPUT_ADD_ROW.start();
         input.forEach(it -> wi_.addRow(grad_, it, 1.0f));
+        Events.MODEL_INPUT_ADD_ROW.end();
     }
 
     /**

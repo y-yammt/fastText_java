@@ -1,19 +1,5 @@
 package cc.fasttext;
 
-import cc.fasttext.Args.ModelName;
-import cc.fasttext.Dictionary.EntryType;
-import cc.fasttext.io.*;
-import cc.fasttext.io.impl.LocalIOStreams;
-import com.google.common.collect.*;
-import org.apache.commons.lang.StringUtils;
-import org.apache.commons.lang.Validate;
-import org.apache.commons.math3.distribution.UniformIntegerDistribution;
-import org.apache.commons.math3.random.RandomGenerator;
-import org.apache.commons.math3.random.Well19937c;
-import org.apache.commons.math3.util.FastMath;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.*;
 import java.lang.ref.Reference;
 import java.lang.ref.SoftReference;
@@ -31,6 +17,21 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.Validate;
+import org.apache.commons.math3.distribution.UniformIntegerDistribution;
+import org.apache.commons.math3.random.RandomGenerator;
+import org.apache.commons.math3.random.Well19937c;
+import org.apache.commons.math3.util.FastMath;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import cc.fasttext.Args.ModelName;
+import cc.fasttext.Dictionary.EntryType;
+import cc.fasttext.io.*;
+import cc.fasttext.io.impl.LocalIOStreams;
+import com.google.common.collect.*;
+
 /**
  * FastText class, can be used as a lib in other projects.
  * It is assumed that all public methods of the instance do not change the state of the object and therefore thread-safe.
@@ -47,7 +48,7 @@ public class FastText {
     public static final int FASTTEXT_FILEFORMAT_MAGIC_INT32 = 793_712_314;
 
     // experimental, use parallel streams where it makes sense:
-    public static final boolean USE_PARALLEL_COMPUTATION = true;
+    public static final boolean USE_PARALLEL_COMPUTATION = false;
     public static final int PARALLEL_SIZE_THRESHOLD_FACTOR = 100;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(FastText.class);
@@ -582,6 +583,7 @@ public class FastText {
      * @throws IllegalArgumentException if no possible to write file
      */
     public void saveModel(String file) throws IOException, IllegalArgumentException {
+        Events.SAVE_BIN.start();
         if (!fs.canWrite(file)) {
             throw new IllegalArgumentException("Can't write to " + file);
         }
@@ -604,6 +606,7 @@ public class FastText {
                 model.output().save(out);
             }
         }
+        Events.SAVE_BIN.end();
     }
 
     /**
@@ -1426,10 +1429,18 @@ public class FastText {
             if (!fs.canRead(Objects.requireNonNull(file, "Null data file specified"))) {
                 throw new IllegalArgumentException("Input file cannot be opened: " + file);
             }
+            Events.GET_FILE_SZIE.start();
             long size = fs.size(file);
+            Events.GET_FILE_SZIE.end();
+            Events.READ_DICT.start();
             Dictionary dic = readDictionary(args, file);
+            Events.READ_DICT.end();
+            Events.IN_MATRIX_CREATE.start();
             Matrix in = vectors == null ? createInput(args, dic) : loadInput(args, dic, vectors);
+            Events.IN_MATRIX_CREATE.end();
+            Events.OUT_MATRIX_CREATE.start();
             Matrix out = createOutput(args, dic);
+            Events.OUT_MATRIX_CREATE.end();
             return new Trainer(args, file, size, dic, in, out);
         }
 
@@ -1441,10 +1452,29 @@ public class FastText {
             return new Trainer(args, file, size, dictionary, input, output);
         }
 
+        public FastText train(Args args, String file) throws IOException, ExecutionException {
+            return train(args, file, null);
+        }
+
+        /**
+         * Trains new model (FastText instance).
+         *
+         * @param args     {@link Args} the settings
+         * @param file     String, data file, not null
+         * @param vectors, String, pre-trained vectors file, can be null
+         * @return {@link FastText}
+         * @throws IOException        if something is wrong with input files
+         * @throws ExecutionException if something is wrong while training
+         */
         public FastText train(Args args, String file, String vectors) throws IOException, ExecutionException {
-            Trainer trainer = newTrainer(args, file, vectors);
-            Model model = trainer.train();
-            return createFastText(args, trainer.dictionary, model, FASTTEXT_VERSION);
+            Events.TRAIN.start();
+            try {
+                Trainer trainer = newTrainer(args, file, vectors);
+                Model model = trainer.train();
+                return createFastText(args, trainer.dictionary, model, FASTTEXT_VERSION);
+            } finally {
+                Events.TRAIN.end();
+            }
         }
 
         /**
@@ -1552,7 +1582,12 @@ public class FastText {
              */
             public Model train() throws IOException, ExecutionException, IllegalArgumentException {
                 perform();
-                return Factory.this.createModel(args, dictionary, input, output, 0);
+                Events.CREATE_RES_MODEL.start();
+                try {
+                    return Factory.this.createModel(args, dictionary, input, output, 0);
+                } finally {
+                    Events.CREATE_RES_MODEL.end();
+                }
             }
 
             /**
@@ -1658,7 +1693,9 @@ public class FastText {
                 Model model;
                 try (Dictionary.SeekableReader in = createReader()) {
                     long skip = threadId * size / args.thread();
+                    Events.FILE_SEEK.start();
                     in.seek(skip);
+                    Events.FILE_SEEK.end();
                     model = Factory.this.createModel(args, dictionary, input, output, threadId);
                     long epochTokens = args.epoch() * dictionary.ntokens();
                     long localTokenCount = 0;
@@ -1671,8 +1708,12 @@ public class FastText {
                             localTokenCount += dictionary.getLine(in, line, labels);
                             supervised(model, lr, line, labels);
                         } else if (ModelName.CBOW == args.model()) {
+                            Events.DIC_GET_LINE.start();
                             localTokenCount += dictionary.getLine(in, line, model.random());
+                            Events.DIC_GET_LINE.end();
+                            Events.CBOW_CALC.start();
                             cbow(model, lr, line);
+                            Events.CBOW_CALC.end();
                         } else if (ModelName.SG == args.model()) {
                             localTokenCount += dictionary.getLine(in, line, model.random());
                             skipgram(model, lr, line);
@@ -1776,11 +1817,15 @@ public class FastText {
                     for (int c = -boundary; c <= boundary; c++) {
                         int wc;
                         if (c != 0 && (wc = w + c) >= 0 && wc < line.size()) {
+                            Events.DIC_GET_SUBWORDS_INT.start();
                             List<Integer> ngrams = dictionary.getSubwords(line.get(wc));
+                            Events.DIC_GET_SUBWORDS_INT.end();
                             bow.addAll(ngrams);
                         }
                     }
+                    Events.MODEL_UPDATE.start();
                     model.update(bow, line.get(w), lr);
+                    Events.MODEL_UPDATE.end();
                 }
             }
 
