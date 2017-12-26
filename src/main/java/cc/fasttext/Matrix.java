@@ -1,5 +1,12 @@
 package cc.fasttext;
 
+import cc.fasttext.io.FTInputStream;
+import cc.fasttext.io.FTOutputStream;
+import org.apache.commons.lang.Validate;
+import org.apache.commons.math3.distribution.UniformRealDistribution;
+import org.apache.commons.math3.random.RandomGenerator;
+import org.apache.commons.math3.util.FastMath;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -10,21 +17,15 @@ import java.util.function.DoubleUnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import org.apache.commons.lang.Validate;
-import org.apache.commons.math3.distribution.UniformRealDistribution;
-import org.apache.commons.math3.random.RandomGenerator;
-import org.apache.commons.math3.util.FastMath;
-
-import cc.fasttext.io.FTInputStream;
-import cc.fasttext.io.FTOutputStream;
-
 /**
  * The matrix.
  * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.cc'>matrix.cc</a> and
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.h'>matrix.h</a>
  */
 public class Matrix {
-    private static final int PARALLEL_SIZE_THRESHOLD = FastText.PARALLEL_THRESHOLD_FACTOR * 100;
+
+    private static final int PARALLEL_SIZE_THRESHOLD = Integer.parseInt(System.getProperty("parallel.matrix.threshold",
+            String.valueOf(FastText.PARALLEL_THRESHOLD_FACTOR * 100)));
 
     private float[][] data;
 

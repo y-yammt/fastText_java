@@ -14,7 +14,6 @@ import java.util.stream.Collectors;
  * <p>
  * Created by @szuev on 25.12.2017.
  */
-@SuppressWarnings("UnusedAssignment")
 public enum Events {
     GET_FILE_SIZE,
     READ_DICT,
@@ -36,11 +35,15 @@ public enum Events {
     SAVE_BIN,
     ALL;
 
-    public static final boolean DISABLED = true;
+    // disabled by default
+    private static final boolean DISABLED = !Boolean.parseBoolean(System.getProperty("events", "false"));
 
     private ThreadLocal<Instant> start = new ThreadLocal<>();
     private ConcurrentLinkedQueue<Long> times = new ConcurrentLinkedQueue<>();
 
+    public static boolean isDisabled() {
+        return DISABLED;
+    }
 
     public void start() {
         if (DISABLED) return;

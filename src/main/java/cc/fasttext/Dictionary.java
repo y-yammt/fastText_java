@@ -1,5 +1,15 @@
 package cc.fasttext;
 
+import cc.fasttext.io.*;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
+import com.google.common.primitives.Floats;
+import com.google.common.primitives.UnsignedLong;
+import org.apache.commons.lang.Validate;
+import org.apache.commons.math3.distribution.UniformRealDistribution;
+import org.apache.commons.math3.random.RandomGenerator;
+import org.apache.commons.math3.util.FastMath;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -12,17 +22,6 @@ import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-
-import org.apache.commons.lang.Validate;
-import org.apache.commons.math3.distribution.UniformRealDistribution;
-import org.apache.commons.math3.random.RandomGenerator;
-import org.apache.commons.math3.util.FastMath;
-
-import cc.fasttext.io.*;
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Multimap;
-import com.google.common.primitives.Floats;
-import com.google.common.primitives.UnsignedLong;
 
 /**
  * The dictionary.
@@ -46,7 +45,8 @@ public class Dictionary {
 
     private static final long READ_LOG_STEP = 1_000_000;
 
-    private static final int PARALLEL_SIZE_THRESHOLD = FastText.PARALLEL_THRESHOLD_FACTOR * 100;
+    private static final int PARALLEL_SIZE_THRESHOLD = Integer.parseInt(System.getProperty("parallel.dictionary.threshold",
+            String.valueOf(FastText.PARALLEL_THRESHOLD_FACTOR * 100)));
 
     private static final Comparator<Entry> ENTRY_COMPARATOR = Comparator.comparing((Function<Entry, EntryType>) t -> t.type)
             .thenComparing(Comparator.comparingLong((ToLongFunction<Entry>) value -> value.count).reversed());

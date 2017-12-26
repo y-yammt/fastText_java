@@ -1,21 +1,20 @@
 package cc.fasttext;
 
-import java.util.*;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
-import java.util.stream.Stream;
-
-import org.apache.commons.lang.Validate;
-import org.apache.commons.math3.random.RandomAdaptor;
-import org.apache.commons.math3.random.RandomGenerator;
-import org.apache.commons.math3.util.FastMath;
-
 import cc.fasttext.Args.LossName;
 import cc.fasttext.Args.ModelName;
 import com.google.common.collect.TreeMultimap;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.AtomicDouble;
+import org.apache.commons.lang.Validate;
+import org.apache.commons.math3.random.RandomAdaptor;
+import org.apache.commons.math3.random.RandomGenerator;
+import org.apache.commons.math3.util.FastMath;
+
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.cc'>model.cc</a> and
@@ -32,7 +31,8 @@ public class Model {
     // the following order does not important, it is just to match c++ and java versions:
     private static final Comparator<Integer> HEAP_LABEL_COMPARATOR = Comparator.reverseOrder();//Integer::compareTo;
 
-    private static final int PARALLEL_SIZE_THRESHOLD = FastText.PARALLEL_THRESHOLD_FACTOR * 100;
+    private static final int PARALLEL_SIZE_THRESHOLD = Integer.parseInt(System.getProperty("parallel.model.threshold",
+            String.valueOf(FastText.PARALLEL_THRESHOLD_FACTOR * 100)));
 
     private QMatrix qwi_;
     private QMatrix qwo_;

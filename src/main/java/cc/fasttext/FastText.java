@@ -1,5 +1,19 @@
 package cc.fasttext;
 
+import cc.fasttext.Args.ModelName;
+import cc.fasttext.Dictionary.EntryType;
+import cc.fasttext.io.*;
+import cc.fasttext.io.impl.LocalIOStreams;
+import com.google.common.collect.*;
+import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.Validate;
+import org.apache.commons.math3.distribution.UniformIntegerDistribution;
+import org.apache.commons.math3.random.RandomGenerator;
+import org.apache.commons.math3.random.Well19937c;
+import org.apache.commons.math3.util.FastMath;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.*;
 import java.lang.ref.Reference;
 import java.lang.ref.SoftReference;
@@ -17,21 +31,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import org.apache.commons.lang.StringUtils;
-import org.apache.commons.lang.Validate;
-import org.apache.commons.math3.distribution.UniformIntegerDistribution;
-import org.apache.commons.math3.random.RandomGenerator;
-import org.apache.commons.math3.random.Well19937c;
-import org.apache.commons.math3.util.FastMath;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import cc.fasttext.Args.ModelName;
-import cc.fasttext.Dictionary.EntryType;
-import cc.fasttext.io.*;
-import cc.fasttext.io.impl.LocalIOStreams;
-import com.google.common.collect.*;
-
 /**
  * FastText class, can be used as a lib in other projects.
  * It is assumed that all public methods of the instance do not change the state of the object and therefore thread-safe.
@@ -48,8 +47,8 @@ public class FastText {
     public static final int FASTTEXT_FILEFORMAT_MAGIC_INT32 = 793_712_314;
 
     // experimental, use parallel streams where it makes sense:
-    public static final boolean USE_PARALLEL_COMPUTATION = true;
-    public static final int PARALLEL_THRESHOLD_FACTOR = 100;
+    public static final boolean USE_PARALLEL_COMPUTATION = Boolean.parseBoolean(System.getProperty("parallel", "true"));
+    static final int PARALLEL_THRESHOLD_FACTOR = 100;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(FastText.class);
 

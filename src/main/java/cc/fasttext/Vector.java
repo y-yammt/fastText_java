@@ -1,5 +1,10 @@
 package cc.fasttext;
 
+import cc.fasttext.io.FormatUtils;
+import com.google.common.primitives.Floats;
+import org.apache.commons.lang.Validate;
+import org.apache.commons.math3.util.FastMath;
+
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -7,18 +12,14 @@ import java.util.function.DoubleUnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import org.apache.commons.lang.Validate;
-import org.apache.commons.math3.util.FastMath;
-
-import cc.fasttext.io.FormatUtils;
-import com.google.common.primitives.Floats;
-
 /**
  * See <a href='https://github.com/facebookresearch/fastText/blob/master/src/vector.cc'>vector.cc</a> &
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/vector.h'>vector.h</a>
  */
 public class Vector {
-    private static final int PARALLEL_SIZE_THRESHOLD = FastText.PARALLEL_THRESHOLD_FACTOR * 100;
+
+    private static final int PARALLEL_SIZE_THRESHOLD = Integer.parseInt(System.getProperty("parallel.vector.threshold",
+            String.valueOf(FastText.PARALLEL_THRESHOLD_FACTOR * 100)));
 
     private float[] data;
 
