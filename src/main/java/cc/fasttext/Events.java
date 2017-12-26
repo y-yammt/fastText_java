@@ -1,19 +1,20 @@
 package cc.fasttext;
 
+import org.apache.commons.lang.StringUtils;
+
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang.StringUtils;
-
 /**
- * Events to measure time of events in runtime to gather statistics.
+ * Class to measure time of events in runtime to gather statistics.
  * TODO: it's temporary and will be removed.
  * <p>
  * Created by @szuev on 25.12.2017.
  */
+@SuppressWarnings("UnusedAssignment")
 public enum Events {
     GET_FILE_SIZE,
     READ_DICT,
@@ -34,16 +35,22 @@ public enum Events {
     TRAIN,
     SAVE_BIN,
     ALL;
+
+    public static final boolean DISABLED = true;
+
     private ThreadLocal<Instant> start = new ThreadLocal<>();
     private ConcurrentLinkedQueue<Long> times = new ConcurrentLinkedQueue<>();
 
+
     public void start() {
+        if (DISABLED) return;
         Instant now = Instant.now();
         if (start.get() != null) throw new IllegalStateException();
         start.set(now);
     }
 
     public void end() {
+        if (DISABLED) return;
         Instant now = Instant.now();
         Instant start = this.start.get();
         if (start == null) throw new IllegalStateException();
@@ -72,6 +79,7 @@ public enum Events {
     }
 
     public static String print() {
+        if (DISABLED) return null;
         return Arrays.stream(values()).map(Events::toString).collect(Collectors.joining("\n"));
     }
 }

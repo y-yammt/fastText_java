@@ -256,77 +256,77 @@ public final class Args {
         }
 
         public Builder setDim(int dim) {
-            _args.dim = dim;
+            _args.dim = requirePositive(dim, "dim");
             return this;
         }
 
         public Builder setWS(int ws) {
-            _args.ws = ws;
+            _args.ws = requirePositive(ws, "ws");
             return this;
         }
 
         public Builder setLR(double lr) {
-            _args.lr = lr;
+            _args.lr = requirePositive(lr, "lr");
             return this;
         }
 
         public Builder setLRUpdateRate(int lrUpdateRate) {
-            _args.lrUpdateRate = lrUpdateRate;
+            _args.lrUpdateRate = requirePositive(lrUpdateRate, "lrUpdateRate");
             return this;
         }
 
         public Builder setWordNgrams(int wordNgrams) {
-            _args.wordNgrams = wordNgrams;
+            _args.wordNgrams = requirePositive(wordNgrams, "wordNgrams");
             return this;
         }
 
         public Builder setMinCount(int minCount) {
-            _args.minCount = minCount;
+            _args.minCount = requirePositive(minCount, "minCount");
             return this;
         }
 
         public Builder setMinCountLabel(int minCountLabel) {
-            _args.minCountLabel = minCountLabel;
+            _args.minCountLabel = requireNotNegative(minCountLabel, "minCountLabel");
             return this;
         }
 
         public Builder setNeg(int neg) {
-            _args.neg = neg;
+            _args.neg = requirePositive(neg, "neq");
             return this;
         }
 
         public Builder setBucket(int bucket) {
-            _args.bucket = bucket;
+            _args.bucket = requireNotNegative(bucket, "bucket");
             return this;
         }
 
         public Builder setMinN(int minn) {
-            _args.minn = minn;
+            _args.minn = requireNotNegative(minn, "minn");
             return this;
         }
 
         public Builder setMaxN(int maxn) {
-            _args.maxn = maxn;
+            _args.maxn = requireNotNegative(maxn, "maxn");
             return this;
         }
 
         public Builder setEpoch(int epoch) {
-            _args.epoch = epoch;
+            _args.epoch = requirePositive(epoch, "epoch");
             return this;
         }
 
         public Builder setThread(int thread) {
-            _args.thread = thread;
+            _args.thread = requireNotNegative(thread, "thread");
             return this;
         }
 
         public Builder setSamplingThreshold(double t) {
-            _args.t = t;
+            _args.t = requirePositive(t, "samplingThreshold");
             return this;
         }
 
         public Builder setLabel(String label) {
-            _args.label = Objects.requireNonNull(label, "Null label");
+            _args.label = Objects.requireNonNull(label, "Null label prefix");
             return this;
         }
 
@@ -341,12 +341,12 @@ public final class Args {
         }
 
         public Builder setCutOff(int cutoff) {
-            _args.cutoff = cutoff;
+            _args.cutoff = requireNotNegative(cutoff, "cutoff");
             return this;
         }
 
         public Builder setDSub(int dsub) {
-            _args.dsub = dsub;
+            _args.dsub = requirePositive(dsub, "dsub");
             return this;
         }
 
@@ -362,6 +362,21 @@ public final class Args {
                 _args.bucket = 0;
             }
             return _args;
+        }
+
+        private static int requirePositive(int val, String name) {
+            if (val > 0) return val;
+            throw new IllegalArgumentException("The '" + name + "' must be positive: " + val);
+        }
+
+        private static int requireNotNegative(int val, String name) {
+            if (val >= 0) return val;
+            throw new IllegalArgumentException("The '" + name + "' must not be negative: " + val);
+        }
+
+        private static double requirePositive(double val, String name) {
+            if (val > 0) return val;
+            throw new IllegalArgumentException("The '" + name + "' must be positive: " + val);
         }
     }
 

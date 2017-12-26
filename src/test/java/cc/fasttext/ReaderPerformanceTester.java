@@ -3,8 +3,6 @@ package cc.fasttext;
 import cc.fasttext.base.Tests;
 import cc.fasttext.io.WordReader;
 import org.apache.commons.math3.distribution.UniformIntegerDistribution;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -14,7 +12,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -91,7 +88,7 @@ public class ReaderPerformanceTester {
 
     private static Set<String> newDictionaryRead(Path p, int buff) {
         Set<String> res = new LinkedHashSet<>();
-        try (WordReader r = createReader(Files.newInputStream(p), buff)) {
+        try (WordReader r = Dictionary.createWordReader(Files.newInputStream(p), StandardCharsets.UTF_8, buff)) {
             String w;
             while ((w = r.nextWord()) != null) {
                 res.add(w);
@@ -141,39 +138,6 @@ public class ReaderPerformanceTester {
 
     private static String[] split(String line) { // c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == 0x000b || c == '\f' || c == '\0'
         return line.split("\\s|\\t|\\v|\\f\0");
-    }
-
-    public static class WordReaderTester {
-        private static final Logger LOGGER = LoggerFactory.getLogger(DictionaryTest.class);
-
-        public static void main(String... args) throws Exception {
-            /*Path data = Paths.get(DictionaryTest.class.getResource("/text-data.txt").toURI());
-            Path words = Paths.get(DictionaryTest.class.getResource("/text-data.words").toURI());*/
-            Path data = Tests.DESTINATION_DIR.resolve("dbpedia.train");
-            Path words = Tests.DESTINATION_DIR.resolve("dbpedia.words");
-            /*Path data = Tests.DESTINATION_DIR.resolve("dbpedia.test");
-            Path words = Tests.DESTINATION_DIR.resolve("dbpedia.test.words");*/
-            LOGGER.info("Data file {}", data);
-            LOGGER.info("Words file {}", words);
-            testWords(data, words);
-        }
-
-        public static void testWords(Path dataFile, Path wordsFile) throws Exception {
-            List<String> expected = Files.lines(wordsFile).collect(Collectors.toList());
-            try (WordReader r = createReader(Files.newInputStream(dataFile))) {
-                DictionaryTest.testReadWords(expected, r::nextWord);
-            }
-        }
-    }
-
-    public static WordReader createReader(InputStream in) {
-        return createReader(in, 8 * 1024);
-    }
-
-    public static WordReader createReader(InputStream in, int buff) {
-        String end = Dictionary.EOS;
-        String delimiters = "\n\r\t \u000b\f\0";
-        return new WordReader(in, StandardCharsets.UTF_8, buff, end, delimiters);
     }
 
 }
