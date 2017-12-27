@@ -1451,10 +1451,6 @@ public class FastText {
             return new Trainer(args, file, size, dictionary, input, output);
         }
 
-        public FastText train(Args args, String file) throws IOException, ExecutionException {
-            return train(args, file, null);
-        }
-
         /**
          * Trains new model (FastText instance).
          *
@@ -1704,18 +1700,26 @@ public class FastText {
                         float progress = tokenCount.floatValue() / epochTokens;
                         float lr = (float) (args.lr() * (1 - progress));
                         if (ModelName.SUP == args.model()) {
+                            Events.DIC_GET_LINE.start();
                             localTokenCount += dictionary.getLine(in, line, labels);
+                            Events.DIC_GET_LINE.end();
+                            Events.TRAIN_CALC.start();
                             supervised(model, lr, line, labels);
+                            Events.TRAIN_CALC.end();
                         } else if (ModelName.CBOW == args.model()) {
                             Events.DIC_GET_LINE.start();
                             localTokenCount += dictionary.getLine(in, line, model.random());
                             Events.DIC_GET_LINE.end();
-                            Events.CBOW_CALC.start();
+                            Events.TRAIN_CALC.start();
                             cbow(model, lr, line);
-                            Events.CBOW_CALC.end();
+                            Events.TRAIN_CALC.end();
                         } else if (ModelName.SG == args.model()) {
+                            Events.DIC_GET_LINE.start();
                             localTokenCount += dictionary.getLine(in, line, model.random());
+                            Events.DIC_GET_LINE.end();
+                            Events.TRAIN_CALC.start();
                             skipgram(model, lr, line);
+                            Events.TRAIN_CALC.end();
                         }
                         if (localTokenCount > args.lrUpdateRate()) {
                             tokenCount.addAndGet(localTokenCount);
@@ -1783,7 +1787,9 @@ public class FastText {
                 if (labels.isEmpty() || line.isEmpty())
                     return;
                 int i = new UniformIntegerDistribution(model.random(), 0, labels.size() - 1).sample();
+                Events.MODEL_UPDATE.start();
                 model.update(line, labels.get(i), lr);
+                Events.MODEL_UPDATE.end();
             }
 
             /**
@@ -1816,9 +1822,7 @@ public class FastText {
                     for (int c = -boundary; c <= boundary; c++) {
                         int wc;
                         if (c != 0 && (wc = w + c) >= 0 && wc < line.size()) {
-                            Events.DIC_GET_SUBWORDS_INT.start();
                             List<Integer> ngrams = dictionary.getSubwords(line.get(wc));
-                            Events.DIC_GET_SUBWORDS_INT.end();
                             bow.addAll(ngrams);
                         }
                     }
@@ -1854,7 +1858,9 @@ public class FastText {
                     for (int c = -boundary; c <= boundary; c++) {
                         int wc;
                         if (c != 0 && (wc = w + c) >= 0 && wc < line.size()) {
+                            Events.MODEL_UPDATE.start();
                             model.update(ngrams, line.get(wc), lr);
+                            Events.MODEL_UPDATE.end();
                         }
                     }
                 }

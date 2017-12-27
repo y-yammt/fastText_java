@@ -14,7 +14,6 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 /**
  * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.cc'>model.cc</a> and
@@ -326,7 +325,6 @@ public class Model {
      *
      * @param input  List of ints (int32_t)
      * @param hidden {@link Vector}
-     * @see #matrixToVector(Map)
      */
     private void computeHidden(List<Integer> input, Vector hidden) {
         Validate.isTrue(hidden.size() == dim, "Wrong size of hidden vector: " + hidden.size() + "!=" + dim);
@@ -535,55 +533,44 @@ public class Model {
         if (input.isEmpty()) {
             return;
         }
-        Events.MODEL_COMPUTE_INPUTS_MAP.start();
-        Stream<Integer> ints = input.stream();
-        if (FastText.USE_PARALLEL_COMPUTATION && input.size() > PARALLEL_SIZE_THRESHOLD) {
-            ints = ints.parallel();
-        }
-        Map<Integer, Long> map = ints.collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
-        Events.MODEL_COMPUTE_INPUTS_MAP.end();
         Events.MODEL_COMPUTE_HIDDEN.start();
-        // compute hidden:
-        this.hidden_ = matrixToVector(map);
-        this.hidden_.mul(1.0f / input.size());
+        Map<Integer, Long> inputMap;
+        if (FastText.USE_PARALLEL_COMPUTATION && input.size() > PARALLEL_SIZE_THRESHOLD) {
+            inputMap = input.parallelStream().collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+            hidden_.clear();
+            inputMap.entrySet().parallelStream().forEach(e -> hidden_.addRow(isQuant() ? qwi_ : wi_, e.getKey(), e.getValue()));
+            hidden_.mul(1.0f / input.size());
+        } else {
+            inputMap = Collections.emptyMap();
+            computeHidden(input, hidden_);
+        }
         Events.MODEL_COMPUTE_HIDDEN.end();
+
+        Events.MODEL_LOSS_CALC.start();
         if (LossName.NS == loss) {
-            Events.MODEL_NEGATIVE_SAMPLING.start();
             loss_ += negativeSampling(target, lr);
-            Events.MODEL_NEGATIVE_SAMPLING.end();
         } else if (LossName.HS == loss) {
             loss_ += hierarchicalSoftmax(target, lr);
         } else {
             loss_ += softmax(target, lr);
         }
+        Events.MODEL_LOSS_CALC.end();
+
         nexamples_ += 1;
+
+        Events.MODEL_GRAD_MUL.start();
         if (ModelName.SUP == model) {
             grad_.mul(1.0f / input.size());
         }
-        Events.MODEL_INPUT_ADD_ROW.start();
-        Stream<Map.Entry<Integer, Long>> pairs = map.entrySet().stream();
-        if (FastText.USE_PARALLEL_COMPUTATION && map.size() > PARALLEL_SIZE_THRESHOLD) {
-            pairs = pairs.parallel();
-        }
-        pairs.forEach(e -> wi_.addRow(grad_, e.getKey(), e.getValue()));
-        Events.MODEL_INPUT_ADD_ROW.end();
-    }
+        Events.MODEL_GRAD_MUL.end();
 
-    /**
-     * Computes a vector by adding matrix rows with specified indexes.
-     *
-     * @param input the Map of indexes with its count as values
-     * @return {@link Vector}
-     * @see #computeHidden(List, Vector)
-     */
-    private Vector matrixToVector(Map<Integer, Long> input) {
-        Vector res = new Vector(dim);
-        Stream<Map.Entry<Integer, Long>> pairs = input.entrySet().stream();
-        if (FastText.USE_PARALLEL_COMPUTATION && input.size() > PARALLEL_SIZE_THRESHOLD) {
-            pairs = pairs.parallel();
+        Events.MODEL_INPUT_ADD_ROW.start();
+        if (inputMap.isEmpty()) {
+            input.forEach(it -> wi_.addRow(grad_, it, 1.0f));
+        } else {
+            inputMap.entrySet().parallelStream().forEach(e -> wi_.addRow(grad_, e.getKey(), e.getValue()));
         }
-        pairs.forEach(e -> res.addRow(isQuant() ? qwi_ : wi_, e.getKey(), e.getValue()));
-        return res;
+        Events.MODEL_INPUT_ADD_ROW.end();
     }
 
     /**

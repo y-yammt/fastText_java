@@ -40,8 +40,7 @@ public class Dictionary {
     private static final Integer WORD_ID_DEFAULT = -1;
     private static final Integer PRUNE_IDX_SIZE_DEFAULT = -1;
 
-    private static final long ADD_WORDS_NGRAMS_FACTOR_LONG = 116_049_371L;
-    private static final UnsignedLong ADD_WORDS_NGRAMS_FACTOR_UNSIGNED_LONG = UnsignedLong.valueOf(ADD_WORDS_NGRAMS_FACTOR_LONG);
+    private static final UnsignedLong ADD_WORDS_NGRAMS_FACTOR_UNSIGNED_LONG = UnsignedLong.valueOf(116_049_371L);
 
     private static final long READ_LOG_STEP = 1_000_000;
 
@@ -162,11 +161,11 @@ public class Dictionary {
         return words;
     }
 
-    public int getSize() {
+    public int size() {
         return size;
     }
 
-    List<Float> getPdiscard() {
+    List<Float> pdiscard() {
         return pdiscard;
     }
 
@@ -333,8 +332,8 @@ public class Dictionary {
      *  }
      * }}</pre>
      *
-     * @param word
-     * @param ngrams
+     * @param word String
+     * @param ngrams List of ints
      */
     private void computeSubwords(String word, List<Integer> ngrams) {
         computeSubwords(word, ngrams, null, this::pushHash);
@@ -593,9 +592,9 @@ public class Dictionary {
      * }
      * }</pre>
      *
-     * @param id
-     * @param rand
-     * @return
+     * @param id int
+     * @param rand rand
+     * @return boolean
      */
     private boolean discard(int id, double rand) {
         Validate.isTrue(id >= 0);
