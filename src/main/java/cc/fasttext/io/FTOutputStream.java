@@ -14,8 +14,8 @@ import java.util.Objects;
  * FastText output stream.
  * To write byte data in c++(linux) little endian order.
  * Covers only primitives.
- *
  * @see com.google.common.io.LittleEndianDataOutputStream
+ *
  * Created by @szuev on 26.10.2017.
  */
 public class FTOutputStream extends FilterOutputStream {

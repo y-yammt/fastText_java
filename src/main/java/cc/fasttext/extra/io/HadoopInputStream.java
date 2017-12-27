@@ -30,7 +30,7 @@ public class HadoopInputStream extends ScrollableInputStream {
     }
 
     @Override
-    public long getLen() throws IOException {
+    public long getLen() {
         return size;
     }
 

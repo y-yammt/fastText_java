@@ -48,7 +48,7 @@ public class FastText {
 
     // experimental, use parallel streams where it makes sense:
     public static final boolean USE_PARALLEL_COMPUTATION = Boolean.parseBoolean(System.getProperty("parallel", "true"));
-    static final int PARALLEL_THRESHOLD_FACTOR = 100;
+    static final int PARALLEL_THRESHOLD_FACTOR = Integer.parseInt(System.getProperty("parallel.factor", "100"));
 
     private static final Logger LOGGER = LoggerFactory.getLogger(FastText.class);
 

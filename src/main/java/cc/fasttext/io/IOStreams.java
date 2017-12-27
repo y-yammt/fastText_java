@@ -63,25 +63,24 @@ public interface IOStreams {
     }
 
     /**
-     * @param uri
-     * @return
-     * @throws IOException
-     * @throws UnsupportedOperationException
+     * Opens a file to read with seek supporting.
+     *
+     * @param uri, the file URI
+     * @return {@link ScrollableInputStream}
+     * @throws IOException if I/O error occurs
      */
-    default ScrollableInputStream openScrollable(String uri) throws IOException, UnsupportedOperationException {
-        // TODO: add default impl
-        throw new UnsupportedOperationException("TODO: implement");
+    default ScrollableInputStream openScrollable(String uri) throws IOException {
+        return new DefScrollInStreamImpl(uri, this);
     }
 
     /**
-     * @param uri
-     * @return
-     * @throws IOException
-     * @throws UnsupportedOperationException
+     * Retrieves the file size.
+     * @param uri, the file URI
+     * @return long, the size in bytes
+     * @throws IOException if I/O error occurs
      */
-    default long size(String uri) throws IOException, UnsupportedOperationException {
-        // TODO: add default impl
-        throw new UnsupportedOperationException("TODO: implement");
+    default long size(String uri) throws IOException {
+        return openScrollable(uri).getLen();
     }
 
     /**

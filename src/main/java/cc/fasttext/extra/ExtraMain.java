@@ -29,7 +29,7 @@ import java.util.stream.Stream;
 
 /**
  * Supports read/write from/to HDFS and LocalFS
- * TODO: add support reading from web.
+
  * Created by @szuev on 28.11.2017.
  */
 @SuppressWarnings("WeakerAccess")
@@ -121,13 +121,28 @@ public class ExtraMain {
         }
     }
 
-    public static IOStreams createFS(URI uri, Map<String, String> settings) {
+    /**
+     * The factory method to create FS.
+     * Supported schemes:
+     * - hdfs: hadoop file system.
+     * - http: web (read only)
+     * - https: web (read only)
+     * - empty or file: local file system
+     *
+     * @param uri               {@link URI} fs root path
+     * @param hadoopSettingsMap the Map with settings to init hadoop
+     * @return {@link IOStreams}, fs
+     */
+    public static IOStreams createFS(URI uri, Map<String, String> hadoopSettingsMap) {
         String scheme = uri.getScheme();
         if (scheme == null || "file".equalsIgnoreCase(scheme)) {
             return new LocalIOStreams();
         }
         if ("hdfs".equalsIgnoreCase(scheme)) {
-            return createHadoopFS(uri, settings);
+            return createHadoopFS(uri, hadoopSettingsMap);
+        }
+        if ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) {
+            return new WebIOStreams();
         }
         throw new UnsupportedOperationException("Not supported fs: " + uri);
     }
@@ -184,5 +199,29 @@ public class ExtraMain {
         private static URI getRoot(String uri) {
             return IOStreams.toURI(uri).resolve("/");
         }
+    }
+
+    public static class WebIOStreams implements IOStreams {
+
+        @Override
+        public OutputStream createOutput(String uri) {
+            throw new UnsupportedOperationException("Writing is prohibited: " + uri);
+        }
+
+        @Override
+        public InputStream openInput(String uri) throws IOException {
+            return IOStreams.toURI(uri).toURL().openStream();
+        }
+
+        @Override
+        public boolean canRead(String uri) {
+            return true;
+        }
+
+        @Override
+        public boolean canWrite(String uri) {
+            return false;
+        }
+
     }
 }
