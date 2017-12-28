@@ -34,6 +34,7 @@ import java.util.stream.StreamSupport;
 /**
  * FastText class, can be used as a lib in other projects.
  * It is assumed that all public methods of the instance do not change the state of the object and therefore thread-safe.
+ * To create instance use {@link Factory factory}.
  * <p>
  * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/fasttext.cc'>fasttext.cc</a> and
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/fasttext.h'>fasttext.h</a>

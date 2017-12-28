@@ -1,5 +1,10 @@
 package cc.fasttext;
 
+import cc.fasttext.io.FormatUtils;
+import cc.fasttext.io.IOStreams;
+import cc.fasttext.io.PrintLogs;
+import org.apache.commons.lang.StringUtils;
+
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.*;
@@ -10,17 +15,11 @@ import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.apache.commons.lang.StringUtils;
-
-import cc.fasttext.io.FormatUtils;
-import cc.fasttext.io.IOStreams;
-import cc.fasttext.io.PrintLogs;
-
 /**
  * The main class to run FastText as application from command line.
- * All public methods: the output to std:out, the input from std:in or from command line (through file-references maybe).
- * This and only this class is allowed to work directly with standard i/o and perform exit (from main method only of course).
- * Parsing args has been moved here from {@link Args args.cc, args.h}
+ * All public methods: the output goes to std:out and std:err, the input comes from std:in or command line (through file-references maybe).
+ * This and only this class is allowed to work directly with standard i/o and perform exit.
+ * Unlike original cpp-class it contains also parsing args which has been moved from {@link Args args.cc, args.h}.
  * <p>
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/main.cc'>main.cc</a>
  * <a href='https://github.com/facebookresearch/fastText/blob/master/src/main.h'>main.h</a>

@@ -72,6 +72,7 @@ public enum Events {
         return times.stream().mapToLong(t -> t).sum() / 1_000_000d;
     }
 
+    @Override
     public String toString() {
         return StringUtils.rightPad(name(), 40) +
                 StringUtils.rightPad(String.valueOf(size()), 15) +
