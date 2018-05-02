@@ -1379,6 +1379,7 @@ public class FastText {
                     if (numbers.size() < dim)
                         throw new IllegalArgumentException("Wrong numbers in the line: " + numbers.size() + ". Expected " + dim);
                     words.add(word);
+                    dictionary.add(word);
                     for (int j = 0; j < numbers.size(); j++) {
                         mat.set(i, j, numbers.get(j));
                     }
