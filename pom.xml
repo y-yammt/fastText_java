@@ -24,6 +24,9 @@
         <profile>
             <!--pure configuration - without package cc.fasttext.extra and hadoop dependencies-->
             <id>main</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
             <build>
                 <resources>
                     <resource>
