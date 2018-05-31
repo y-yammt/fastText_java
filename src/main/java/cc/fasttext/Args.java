@@ -136,6 +136,7 @@ public final class Args {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void Args::save(std::ostream& out) {
      *  out.write((char*) &(dim), sizeof(int));
@@ -173,6 +174,7 @@ public final class Args {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void Args::load(std::istream& in) {
      *  in.read((char*) &(dim), sizeof(int));
      *  in.read((char*) &(ws), sizeof(int));

@@ -12,6 +12,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 /**
+ * Implementation of {@link IOStreams} to work with local file system.
+ * <p>
  * Created by @szuev on 30.10.2017.
  */
 public class LocalIOStreams implements IOStreams {

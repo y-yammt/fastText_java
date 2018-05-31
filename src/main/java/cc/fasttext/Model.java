@@ -16,8 +16,9 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
- * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.cc'>model.cc</a> and
- * <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.h'>model.h</>
+ * Model implementation.
+ * @see <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.cc'>model.cc</a>
+ * @see <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.h'>model.h</a>
  */
 public class Model {
 
@@ -87,6 +88,7 @@ public class Model {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void Model::setQuantizePointer(std::shared_ptr<QMatrix> qwi, std::shared_ptr<QMatrix> qwo, bool qout) {
      *  qwi_ = qwi;
@@ -134,6 +136,7 @@ public class Model {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code real Model::binaryLogistic(int32_t target, bool label, real lr) {
      *  real score = sigmoid(wo_->dotRow(hidden_, target));
      *  real alpha = lr * (real(label) - score);
@@ -164,6 +167,7 @@ public class Model {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code real Model::negativeSampling(int32_t target, real lr) {
      *  real loss = 0.0;
      *  grad_.zero();
@@ -195,6 +199,7 @@ public class Model {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code real Model::hierarchicalSoftmax(int32_t target, real lr) {
      *  real loss = 0.0;
      *  grad_.zero();
@@ -222,6 +227,7 @@ public class Model {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void Model::computeOutputSoftmax(Vector& hidden, Vector& output) const {
      *  if (quant_ && args_->qout) {
      *      output.mul(*qwo_, hidden);
@@ -280,6 +286,7 @@ public class Model {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code real Model::softmax(int32_t target, real lr) {
      *  grad_.zero();
      *  computeOutputSoftmax();
@@ -310,6 +317,7 @@ public class Model {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void Model::computeHidden(const std::vector<int32_t>& input, Vector& hidden) const {
      *  assert(hidden.size() == hsz_);
      *  hidden.zero();
@@ -340,6 +348,7 @@ public class Model {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void Model::predict(const std::vector<int32_t>& input, int32_t k, std::vector<std::pair<real, int32_t>>& heap, Vector& hidden, Vector& output) const {
      *  if (k <= 0) {
@@ -382,6 +391,7 @@ public class Model {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void Model::predict(const std::vector<int32_t>& input, int32_t k, std::vector<std::pair<real, int32_t>>& heap) {
      *  predict(input, k, heap, hidden_, output_);
@@ -396,6 +406,7 @@ public class Model {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void Model::findKBest(int32_t k, std::vector<std::pair<real, int32_t>>& heap, Vector& hidden, Vector& output) const {
      *  computeOutputSoftmax(hidden, output);
@@ -449,6 +460,7 @@ public class Model {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void Model::dfs(int32_t k, int32_t node, real score, std::vector<std::pair<real, int32_t>>& heap, Vector& hidden) const {
      *  if (heap.size() == k && score < heap.front().first) {
@@ -502,6 +514,7 @@ public class Model {
     /**
      * Updates the model.
      * Used while train only.
+     * Original (c++) code:
      * <pre>{@code void Model::update(const std::vector<int32_t>& input, int32_t target, real lr) {
      *  assert(target >= 0);
      *  assert(target < osz_);
@@ -574,6 +587,7 @@ public class Model {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void Model::setTargetCounts(const std::vector<int64_t>& counts) {
      *  assert(counts.size() == osz_);
@@ -599,6 +613,7 @@ public class Model {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void Model::initTableNegatives(const std::vector<int64_t>& counts) {
      *  real z = 0.0;
@@ -644,6 +659,7 @@ public class Model {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code int32_t Model::getNegative(int32_t target) {
      *  int32_t negative;
      *  do {
@@ -666,6 +682,7 @@ public class Model {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void Model::buildTree(const std::vector<int64_t>& counts) {
      *  tree.resize(2 * osz_ - 1);
      *  for (int32_t i = 0; i < 2 * osz_ - 1; i++) {
@@ -761,9 +778,10 @@ public class Model {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code real Model::getLoss() const {
      *  return loss_ / nexamples_;
-     * }</pre>
+     * }}</pre>
      *
      * @return float
      */
@@ -772,6 +790,7 @@ public class Model {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void Model::initSigmoid() {
      *  for (int i = 0; i < SIGMOID_TABLE_SIZE + 1; i++) {
      *      real x = real(i * 2 * MAX_SIGMOID) / SIGMOID_TABLE_SIZE - MAX_SIGMOID;
@@ -788,6 +807,7 @@ public class Model {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void Model::initLog() {
      *  for (int i = 0; i < LOG_TABLE_SIZE + 1; i++) {
      *      real x = (real(i) + 1e-5) / LOG_TABLE_SIZE;
@@ -804,6 +824,7 @@ public class Model {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code real Model::log(real x) const {
      *  if (x > 1.0) {
      *      return 0.0;
@@ -825,6 +846,7 @@ public class Model {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code real Model::std_log(real x) const {
      * return std::log(x+1e-5);
      * }}</pre>
@@ -837,6 +859,7 @@ public class Model {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code real Model::sigmoid(real x) const {
      *  if (x < -MAX_SIGMOID) {
      *      return 0.0;

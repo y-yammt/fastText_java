@@ -25,8 +25,8 @@ import java.util.stream.Stream;
 
 /**
  * The dictionary.
- * See <a href='https://github.com/facebookresearch/fastText/blob/master/src/dictionary.cc'>dictionary.cc</a> &
- * <a href='https://github.com/facebookresearch/fastText/blob/master/src/dictionary.h'>dictionary.h</a>
+ * @see <a href='https://github.com/facebookresearch/fastText/blob/master/src/dictionary.cc'>dictionary.cc</a>
+ * @see <a href='https://github.com/facebookresearch/fastText/blob/master/src/dictionary.h'>dictionary.h</a>
  */
 public class Dictionary {
 
@@ -94,6 +94,7 @@ public class Dictionary {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code int32_t Dictionary::find(const std::string& w, uint32_t h) const {
      *  int32_t id = h % MAX_VOCAB_SIZE;
      *  while (word2int_[id] != -1 && words_[word2int_[id]].word != w) {
@@ -116,6 +117,7 @@ public class Dictionary {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void Dictionary::add(const std::string& w) {
      *  int32_t h = find(w);
      *  ntokens_++;
@@ -174,6 +176,7 @@ public class Dictionary {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code int32_t Dictionary::getId(const std::string& w) const {
      *  int32_t h = find(w);
      *  return word2int_[h];
@@ -187,6 +190,7 @@ public class Dictionary {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code int32_t Dictionary::getId(const std::string& w, uint32_t h) const {
      *  int32_t id = find(w, h);
      *  return word2int_[id];
@@ -201,6 +205,7 @@ public class Dictionary {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code entry_type Dictionary::getType(const std::string& w) const {
      *  return (w.find(args_->label) == 0) ? entry_type::label : entry_type::word;
      * }}</pre>
@@ -213,6 +218,7 @@ public class Dictionary {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code entry_type Dictionary::getType(int32_t id) const {
      *  assert(id >= 0);
      *  assert(id < size_);
@@ -280,6 +286,7 @@ public class Dictionary {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void Dictionary::initNgrams() {
      *  for (size_t i = 0; i < size_; i++) {
@@ -340,6 +347,7 @@ public class Dictionary {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void Dictionary::computeSubwords(const std::string& word, std::vector<int32_t>& ngrams, std::vector<std::string>& substrings) const {
      *  for (size_t i = 0; i < word.size(); i++) {
@@ -388,6 +396,7 @@ public class Dictionary {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void Dictionary::pushHash(std::vector<int32_t>& hashes, int32_t id) const {
      *  if (pruneidx_size_ == 0 || id < 0) return;
@@ -418,6 +427,7 @@ public class Dictionary {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void Dictionary::initTableDiscard() {
      *  pdiscard_.resize(size_);
      *  for (size_t i = 0; i < size_; i++) {
@@ -442,6 +452,7 @@ public class Dictionary {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * std::vector<int64_t> Dictionary::getCounts(entry_type type) const {
      *  std::vector<int64_t> counts;
@@ -466,6 +477,7 @@ public class Dictionary {
 
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * int32_t Dictionary::getLine(std::istream& in, std::vector<int32_t>& words, std::vector<int32_t>& labels, std::minstd_rand& rng) const {
      *  std::vector<int32_t> word_hashes;
@@ -536,6 +548,7 @@ public class Dictionary {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * int32_t Dictionary::getLine(std::istream& in, std::vector<int32_t>& words, std::minstd_rand& rng) const {
      *  std::uniform_real_distribution<> uniform(0, 1);
@@ -583,6 +596,7 @@ public class Dictionary {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * bool Dictionary::discard(int32_t id, real rand) const {
      *  assert(id >= 0);
@@ -603,6 +617,7 @@ public class Dictionary {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void Dictionary::addWordNgrams(std::vector<int32_t>& line, const std::vector<int32_t>& hashes, int32_t n) const {
      *  for (int32_t i = 0; i < hashes.size(); i++) {
@@ -643,6 +658,7 @@ public class Dictionary {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void Dictionary::addSubwords(std::vector<int32_t>& line, const std::string& token, int32_t wid) const {
      *  if (wid < 0) { // out of vocab
@@ -674,6 +690,7 @@ public class Dictionary {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * const std::vector<int32_t>& Dictionary::getSubwords(int32_t i) const {
      *  assert(i >= 0);
@@ -692,6 +709,7 @@ public class Dictionary {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * const std::vector<int32_t> Dictionary::getSubwords(const std::string& word) const {
      *  int32_t i = getId(word);
@@ -717,6 +735,7 @@ public class Dictionary {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void Dictionary::getSubwords(const std::string& word, std::vector<int32_t>& ngrams, std::vector<std::string>& substrings) const {
      *  int32_t i = getId(word);
@@ -770,6 +789,7 @@ public class Dictionary {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * std::string Dictionary::getLabel(int32_t lid) const {
      *  if (lid < 0 || lid >= nlabels_) {
@@ -789,6 +809,7 @@ public class Dictionary {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code bool isPruned() {
      *  return pruneidx_size_ >= 0;
      *  }
@@ -801,6 +822,7 @@ public class Dictionary {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void Dictionary::threshold(int64_t t, int64_t tl) {
      *  sort(words_.begin(), words_.end(), [](const entry& e1, const entry& e2) {
@@ -853,6 +875,7 @@ public class Dictionary {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void Dictionary::prune(std::vector<int32_t>& idx) {
      *  std::vector<int32_t> words, ngrams;
      *  for (auto it = idx.cbegin(); it != idx.cend(); ++it) {
@@ -951,6 +974,7 @@ public class Dictionary {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void Dictionary::save(std::ostream& out) const {
      *  out.write((char*) &size_, sizeof(int32_t));
@@ -992,6 +1016,7 @@ public class Dictionary {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void Dictionary::load(std::istream& in) {
      *  words_.clear();
      *  std::fill(word2int_.begin(), word2int_.end(), -1);
@@ -1054,6 +1079,7 @@ public class Dictionary {
 
     /**
      * Reads a dictionary from stream.
+     * Original (c++) code:
      * <pre>{@code void Dictionary::readFromFile(std::istream& in) {
      *  std::string word;
      *  int64_t minThreshold = 1;

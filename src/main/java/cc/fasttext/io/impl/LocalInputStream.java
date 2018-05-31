@@ -9,7 +9,8 @@ import java.nio.file.Path;
 import java.util.Objects;
 
 /**
- * The simple version of {@link org.apache.hadoop.fs.RawLocalFileSystem.LocalFSFileInputStream}
+ * An analogue of <a href='https://github.com/kohsuke/hadoop/blob/master/src/core/org/apache/hadoop/fs/RawLocalFileSystem.java#L101'>org.apache.hadoop.fs.RawLocalFileSystem.LocalFSFileInputStream</a>.
+ * <p>
  * Created by @szuev on 30.10.2017.
  */
 @SuppressWarnings("WeakerAccess")

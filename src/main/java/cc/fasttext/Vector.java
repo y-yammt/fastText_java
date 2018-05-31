@@ -13,8 +13,9 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
- * See <a href='https://github.com/facebookresearch/fastText/blob/master/src/vector.cc'>vector.cc</a> &
- * <a href='https://github.com/facebookresearch/fastText/blob/master/src/vector.h'>vector.h</a>
+ * Vector implementation.
+ * @see <a href='https://github.com/facebookresearch/fastText/blob/master/src/vector.cc'>vector.cc</a>
+ * @see <a href='https://github.com/facebookresearch/fastText/blob/master/src/vector.h'>vector.h</a>
  */
 public class Vector {
 
@@ -66,6 +67,7 @@ public class Vector {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code real Vector::norm() const {
      *  real sum = 0;
      *  for (int64_t i = 0; i < m_; i++) {
@@ -91,6 +93,7 @@ public class Vector {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void Vector::addVector(const Vector& source) {
      *  assert(m_ == source.m_);
      *  for (int64_t i = 0; i < m_; i++) {
@@ -106,6 +109,7 @@ public class Vector {
 
     /**
      * Sums up the vector with another one and some multiplier.
+     * Original (c++) code:
      * <pre>{@code void Vector::addVector(const Vector& source, real s) {
      *  assert(m_ == source.m_);
      *  for (int64_t i = 0; i < m_; i++) {
@@ -128,6 +132,7 @@ public class Vector {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void Vector::mul(real a) {
      *  for (int64_t i = 0; i < m_; i++) {
@@ -148,6 +153,7 @@ public class Vector {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void Vector::addRow(const Matrix& A, int64_t i) {
      *  assert(i >= 0);
@@ -179,6 +185,7 @@ public class Vector {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void Vector::addRow(const QMatrix& A, int64_t i) {
      *  assert(i >= 0);
@@ -194,6 +201,7 @@ public class Vector {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void Vector::addRow(const Matrix& A, int64_t i, real a) {
      *  assert(i >= 0);
@@ -223,6 +231,7 @@ public class Vector {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void Vector::mul(const Matrix& A, const Vector& vec) {
      *  assert(A.m_ == m_);
@@ -248,6 +257,7 @@ public class Vector {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code int64_t Vector::argmax() {
      *  real max = data_[0];
      *  int64_t argmax = 0;

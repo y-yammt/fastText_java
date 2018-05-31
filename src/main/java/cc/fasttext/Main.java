@@ -20,9 +20,8 @@ import java.util.stream.Stream;
  * All public methods: the output goes to std:out and std:err, the input comes from std:in or command line (through file-references maybe).
  * This and only this class is allowed to work directly with standard i/o and perform exit.
  * Unlike original cpp-class it contains also parsing args which has been moved from {@link Args args.cc, args.h}.
- * <p>
- * <a href='https://github.com/facebookresearch/fastText/blob/master/src/main.cc'>main.cc</a>
- * <a href='https://github.com/facebookresearch/fastText/blob/master/src/main.h'>main.h</a>
+ * @see <a href='https://github.com/facebookresearch/fastText/blob/master/src/main.cc'>main.cc</a>
+ * @see <a href='https://github.com/facebookresearch/fastText/blob/master/src/main.h'>main.h</a>
  */
 public class Main {
 
@@ -37,6 +36,7 @@ public class Main {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void test(const std::vector<std::string>& args) {
      *  if (args.size() < 4 || args.size() > 5) {
      *      printTestUsage();
@@ -81,6 +81,7 @@ public class Main {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void predict(const std::vector<std::string>& args) {
      *  if (args.size() < 4 || args.size() > 5) {
      *      printPredictUsage();
@@ -136,6 +137,7 @@ public class Main {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void printWordVectors(const std::vector<std::string> args) {
      *  if (args.size() != 3) {
      *      printPrintWordVectorsUsage();
@@ -170,6 +172,7 @@ public class Main {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void printSentenceVectors(const std::vector<std::string> args) {
      *  if (args.size() != 3) {
      *      printPrintSentenceVectorsUsage();
@@ -203,6 +206,7 @@ public class Main {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void printNgrams(const std::vector<std::string> args) {
      *  if (args.size() != 4) {
      *      printPrintNgramsUsage();
@@ -227,6 +231,7 @@ public class Main {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void nn(const std::vector<std::string> args) {
      *  int32_t k;
      *  if (args.size() == 3) {
@@ -272,6 +277,7 @@ public class Main {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void analogies(const std::vector<std::string> args) {
      *  int32_t k;
      *  if (args.size() == 3) {
@@ -323,6 +329,7 @@ public class Main {
 
 
     /**
+     * Original (c++) code:
      * <pre>{@code void train(const std::vector<std::string> args) {
      *  std::shared_ptr<Args> a = std::make_shared<Args>();
      *  a->parseArgs(args);
@@ -379,6 +386,7 @@ public class Main {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void quantize(const std::vector<std::string>& args) {
      *  std::shared_ptr<Args> a = std::make_shared<Args>();
      *  if (args.size() < 3) {
@@ -507,7 +515,7 @@ public class Main {
     }
 
     /**
-     * from args.cc:
+     * Original (c++) code from args.cc:
      * <pre>{@code void Args::parseArgs(const std::vector<std::string>& args) {
      *  std::string command(args[1]);
      *  if (command == "supervised") {
@@ -651,7 +659,7 @@ public class Main {
 
     /**
      * Parses an array to Map
-     * Example: "cbow -thread 4 -dim 128 -ws 5 -epoch 10 -minCount 5 -input %s -output %s" =>
+     * Example: "cbow -thread 4 -dim 128 -ws 5 -epoch 10 -minCount 5 -input %s -output %s" =&gt;
      * "[cbow=null, -thread=4, -dim=128, -ws=5, -epoch=10, -minCount=5, -input=%s, -output=%s]"
      *
      * @param input array of strings

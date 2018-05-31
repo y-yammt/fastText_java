@@ -19,8 +19,8 @@ import java.util.stream.IntStream;
 
 /**
  * The matrix.
- * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.cc'>matrix.cc</a> and
- * <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.h'>matrix.h</a>
+ * @see <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.cc'>matrix.cc</a>
+ * @see <a href='https://github.com/facebookresearch/fastText/blob/master/src/model.h'>matrix.h</a>
  */
 public class Matrix {
 
@@ -134,6 +134,7 @@ public class Matrix {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void Matrix::uniform(real a) {
      *  std::minstd_rand rng(1);
@@ -159,6 +160,7 @@ public class Matrix {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code real Matrix::dotRow(const Vector& vec, int64_t i) const {
      *  assert(i >= 0);
      *  assert(i < m_);
@@ -196,6 +198,7 @@ public class Matrix {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void Matrix::addRow(const Vector& vec, int64_t i, real a) {
      *  assert(i >= 0);
      *  assert(i < m_);
@@ -222,6 +225,7 @@ public class Matrix {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void Matrix::multiplyRow(const Vector& nums, int64_t ib, int64_t ie) {
      *  if (ie == -1) {
      *      ie = m_;
@@ -250,6 +254,7 @@ public class Matrix {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void Matrix::divideRow(const Vector& denoms, int64_t ib, int64_t ie) {
      *  if (ie == -1) {
      *      ie = m_;
@@ -307,6 +312,7 @@ public class Matrix {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code real Matrix::l2NormRow(int64_t i) const {
      *  auto norm = 0.0;
      *  for (auto j = 0; j < n_; j++) {
@@ -340,6 +346,7 @@ public class Matrix {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void Matrix::l2NormRow(Vector& norms) const {
      *  assert(norms.size() == m_);
      *  for (auto i = 0; i < m_; i++) {
@@ -360,6 +367,7 @@ public class Matrix {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void Matrix::save(std::ostream& out) {
      *  out.write((char*) &m_, sizeof(int64_t));
@@ -381,6 +389,7 @@ public class Matrix {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void Matrix::load(std::istream& in) {
      *  in.read((char*) &m_, sizeof(int64_t));
      *  in.read((char*) &n_, sizeof(int64_t));

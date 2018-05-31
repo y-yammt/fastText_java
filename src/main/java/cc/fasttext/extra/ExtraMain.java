@@ -29,7 +29,7 @@ import java.util.stream.Stream;
 
 /**
  * Supports read/write from/to HDFS and LocalFS
-
+ * <p>
  * Created by @szuev on 28.11.2017.
  */
 @SuppressWarnings("WeakerAccess")

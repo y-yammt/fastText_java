@@ -7,7 +7,7 @@ import java.util.Locale;
 
 /**
  * Minor helper to print and format strings
- *
+ * <p>
  * Created by @szuev on 13.12.2017.
  */
 public class FormatUtils {

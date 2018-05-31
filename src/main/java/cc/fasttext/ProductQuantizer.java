@@ -1,5 +1,15 @@
 package cc.fasttext;
 
+import cc.fasttext.io.FTInputStream;
+import cc.fasttext.io.FTOutputStream;
+import com.google.common.primitives.Bytes;
+import com.google.common.primitives.Floats;
+import com.google.common.primitives.Ints;
+import org.apache.commons.math3.distribution.UniformRealDistribution;
+import org.apache.commons.math3.random.RandomAdaptor;
+import org.apache.commons.math3.random.RandomGenerator;
+import org.apache.commons.math3.util.FastMath;
+
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -8,22 +18,10 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
-import org.apache.commons.math3.distribution.UniformRealDistribution;
-import org.apache.commons.math3.random.RandomAdaptor;
-import org.apache.commons.math3.random.RandomGenerator;
-import org.apache.commons.math3.util.FastMath;
-
-import cc.fasttext.io.FTInputStream;
-import cc.fasttext.io.FTOutputStream;
-import com.google.common.primitives.Bytes;
-import com.google.common.primitives.Floats;
-import com.google.common.primitives.Ints;
-
 /**
- * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/productquantizer.cc'>productquantizer.cc</a> and
- * <a href='https://github.com/facebookresearch/fastText/blob/master/src/productquantizer.h'>productquantizer.h</>
- *
  * Created by @szuev on 27.10.2017.
+ * @see <a href='https://github.com/facebookresearch/fastText/blob/master/src/productquantizer.cc'>productquantizer.cc</a>
+ * @see <a href='https://github.com/facebookresearch/fastText/blob/master/src/productquantizer.h'>productquantizer.h</a>
  */
 public class ProductQuantizer {
 
@@ -49,6 +47,7 @@ public class ProductQuantizer {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code ProductQuantizer::ProductQuantizer(int32_t dim, int32_t dsub):
      *  dim_(dim), nsubq_(dim / dsub), dsub_(dsub), centroids_(dim * ksub_), rng(seed_) {
      *  lastdsub_ = dim_ % dsub;
@@ -57,9 +56,9 @@ public class ProductQuantizer {
      * }
      * }</pre>
      *
-     * @param randomProvider
-     * @param dim
-     * @param dsub
+     * @param randomProvider {@link RandomGenerator} provider
+     * @param dim int
+     * @param dsub int
      */
     public ProductQuantizer(IntFunction<RandomGenerator> randomProvider, int dim, int dsub) {
         this(randomProvider);
@@ -76,6 +75,7 @@ public class ProductQuantizer {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code real* ProductQuantizer::get_centroids(int32_t m, uint8_t i) {
      *  if (m == nsubq_ - 1) {
      *      return &centroids_[m * ksub_ * dsub_ + i * lastdsub_];
@@ -83,9 +83,9 @@ public class ProductQuantizer {
      *  return &centroids_[(m * ksub_ + i) * dsub_];
      * }}</pre>
      *
-     * @param m
-     * @param b
-     * @return
+     * @param m int
+     * @param b byte
+     * @return List of {@link Float}s
      */
     List<Float> getCentroids(int m, byte b) {
         int i = Byte.toUnsignedInt(b);
@@ -98,6 +98,7 @@ public class ProductQuantizer {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code real distL2(const real* x, const real* y, int32_t d) {
      *  real dist = 0;
      *  for (auto i = 0; i < d; i++) {
@@ -107,10 +108,10 @@ public class ProductQuantizer {
      *  return dist;
      * }}</pre>
      *
-     * @param x
-     * @param y
-     * @param d
-     * @return
+     * @param x List of {@link Float}s
+     * @param y List of {@link Float}s
+     * @param d int
+     * @return float
      */
     private float distL2(List<Float> x, List<Float> y, int d) {
         float dist = 0;
@@ -122,6 +123,7 @@ public class ProductQuantizer {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * real ProductQuantizer::assign_centroid(const real * x, const real* c0, uint8_t* code, int32_t d) const {
      *  const real* c = c0;
@@ -138,11 +140,11 @@ public class ProductQuantizer {
      *  return dis;
      * }}</pre>
      *
-     * @param x
-     * @param c
-     * @param code
-     * @param d
-     * @return
+     * @param x List of {@link Float}s
+     * @param c List of {@link Float}s
+     * @param code List of {@link Byte}s
+     * @param d int
+     * @return float
      */
     private float assignCentroid(List<Float> x, List<Float> c, List<Byte> code, int d) {
         float dis = distL2(x, c, d);
@@ -160,6 +162,7 @@ public class ProductQuantizer {
 
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void ProductQuantizer::Estep(const real* x, const real* centroids, uint8_t* codes, int32_t d, int32_t n) const {
      *  for (auto i = 0; i < n; i++) {
@@ -167,11 +170,11 @@ public class ProductQuantizer {
      *  }
      * }}</pre>
      *
-     * @param x
-     * @param centroids
-     * @param codes
-     * @param d
-     * @param n
+     * @param x array of float
+     * @param centroids List of {@link Float}s
+     * @param codes List of {@link Byte}s
+     * @param d int
+     * @param n int
      */
     private void eStep(float[] x, List<Float> centroids, List<Byte> codes, int d, int n) {
         List<Float> _x = asFloatList(x);
@@ -181,6 +184,7 @@ public class ProductQuantizer {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void ProductQuantizer::MStep(const real* x0, real* centroids, const uint8_t* codes, int32_t d, int32_t n) {
      *  std::vector<int32_t> nelts(ksub_, 0);
@@ -224,11 +228,11 @@ public class ProductQuantizer {
      *  }
      * }}</pre>
      *
-     * @param x0
-     * @param centroids
-     * @param codes
-     * @param d
-     * @param n
+     * @param x0 array of float
+     * @param centroids List of {@link Float}s
+     * @param codes List of {@link Byte}s
+     * @param d int
+     * @param n int
      */
     private void mStep(float[] x0, List<Float> centroids, List<Byte> codes, int d, int n) {
         List<Integer> nelts = asIntList(new int[KSUB]);
@@ -281,6 +285,7 @@ public class ProductQuantizer {
 
 
     /**
+     * Original (c++) code:
      * <pre>{@code void ProductQuantizer::train(int32_t n, const real * x) {
      *  if (n < ksub_) {
      *      std::cerr<<"Matrix too small for quantization, must have > 256 rows"<<std::endl;
@@ -306,8 +311,8 @@ public class ProductQuantizer {
      *  delete [] xslice;
      * }}</pre>
      *
-     * @param n
-     * @param data
+     * @param n int
+     * @param data float[]
      */
     public void train(int n, float[] data) {
         if (n < KSUB) {
@@ -344,6 +349,7 @@ public class ProductQuantizer {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void ProductQuantizer::kmeans(const real *x, real* c, int32_t n, int32_t d) {
      *  std::vector<int32_t> perm(n,0);
      *  std::iota(perm.begin(), perm.end(), 0);
@@ -358,6 +364,10 @@ public class ProductQuantizer {
      *  }
      *  delete [] codes;
      * }}</pre>
+     * @param x float[]
+     * @param c List of {@link Float}s
+     * @param n int
+     * @param d int
      */
     private void kmeans(float[] x, List<Float> c, int n, int d) {
         List<Integer> perm = IntStream.iterate(0, operand -> ++operand).limit(n).boxed().collect(Collectors.toList());
@@ -378,6 +388,7 @@ public class ProductQuantizer {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void ProductQuantizer::compute_code(const real* x, uint8_t* code) const {
      *  auto d = dsub_;
      *  for (auto m = 0; m < nsubq_; m++) {
@@ -388,8 +399,8 @@ public class ProductQuantizer {
      *  }
      * }}</pre>
      *
-     * @param x
-     * @param code
+     * @param x List of {@link Float}s
+     * @param code List of {@link Byte}s
      */
     private void computeCode(List<Float> x, List<Byte> code) {
         int d = dsub_;
@@ -402,15 +413,16 @@ public class ProductQuantizer {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void ProductQuantizer::compute_codes(const real* x, uint8_t* codes, int32_t n) const {
      *  for (auto i = 0; i < n; i++) {
      *      compute_code(x + i * dim_, codes + i * nsubq_);
      *  }
      * }}</pre>
      *
-     * @param data
-     * @param codes
-     * @param n
+     * @param data float[]
+     * @param codes byte[]
+     * @param n int
      */
     void computeCodes(float[] data, byte[] codes, int n) {
         List<Float> _x = asFloatList(data);
@@ -421,6 +433,7 @@ public class ProductQuantizer {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * real ProductQuantizer::mulcode(const Vector& x, const uint8_t* codes, int32_t t, real alpha) const {
      *  real res = 0.0;
@@ -438,11 +451,11 @@ public class ProductQuantizer {
      *  return res * alpha;
      * }}</pre>
      *
-     * @param vector
-     * @param codes
-     * @param t
-     * @param alpha
-     * @return
+     * @param vector {@link Vector}
+     * @param codes byte[]
+     * @param t int
+     * @param alpha float
+     * @return float
      */
     float mulCode(Vector vector, byte[] codes, int t, float alpha) {
         return mulCode(vector.data(), codes, t) * alpha;
@@ -465,6 +478,7 @@ public class ProductQuantizer {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void ProductQuantizer::addcode(Vector& x, const uint8_t* codes, int32_t t, real alpha) const {
      *  auto d = dsub_;
@@ -480,10 +494,10 @@ public class ProductQuantizer {
      *  }
      * }}</pre>
      *
-     * @param vector
-     * @param codes
-     * @param t
-     * @param alpha
+     * @param vector {@link Vector}
+     * @param codes byte[]
+     * @param t int
+     * @param alpha float
      */
     void addCode(Vector vector, byte[] codes, int t, float alpha) {
         addCode(vector.data(), codes, t, alpha);
@@ -504,6 +518,7 @@ public class ProductQuantizer {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void ProductQuantizer::save(std::ostream& out) {
      *  out.write((char*) &dim_, sizeof(dim_));
      *  out.write((char*) &nsubq_, sizeof(nsubq_));
@@ -513,8 +528,8 @@ public class ProductQuantizer {
      * }
      * }</pre>
      *
-     * @param out
-     * @throws IOException
+     * @param out {@link FTOutputStream}
+     * @throws IOException I/O error
      */
     void save(FTOutputStream out) throws IOException {
         out.writeInt(dim_);
@@ -527,6 +542,7 @@ public class ProductQuantizer {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void ProductQuantizer::load(std::istream& in) {
      *  in.read((char*) &dim_, sizeof(dim_));
      *  in.read((char*) &nsubq_, sizeof(nsubq_));

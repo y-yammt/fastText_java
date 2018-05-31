@@ -1,19 +1,18 @@
 package cc.fasttext;
 
+import cc.fasttext.io.FTInputStream;
+import cc.fasttext.io.FTOutputStream;
+import org.apache.commons.math3.random.RandomGenerator;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.function.IntFunction;
 
-import org.apache.commons.math3.random.RandomGenerator;
-
-import cc.fasttext.io.FTInputStream;
-import cc.fasttext.io.FTOutputStream;
-
 /**
- * See <a href='https://github.com/facebookresearch/fastText/blob/master/src/qmatrix.cc'>qmatrix.cc</a> &
- * <a href='https://github.com/facebookresearch/fastText/blob/master/src/qmatrix.h'>qmatrix.h</a>
- * <p>
+ * QMatrix implementation.
  * Created by @szuev on 24.10.2017.
+ * @see <a href='https://github.com/facebookresearch/fastText/blob/master/src/qmatrix.cc'>qmatrix.cc</a>
+ * @see  <a href='https://github.com/facebookresearch/fastText/blob/master/src/qmatrix.h'>qmatrix.h</a>
  */
 public class QMatrix extends Matrix {
 
@@ -30,6 +29,7 @@ public class QMatrix extends Matrix {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code QMatrix::QMatrix(const Matrix& mat, int32_t dsub, bool qnorm)
      *  : qnorm_(qnorm), m_(mat.m_), n_(mat.n_),
      *  codesize_(m_ * ((n_ + dsub - 1) / dsub)) {
@@ -44,10 +44,10 @@ public class QMatrix extends Matrix {
      *  quantize(mat);
      * }}</pre>
      *
-     * @param matrix
-     * @param randomProvider
-     * @param dsub
-     * @param qnorm
+     * @param matrix {@link Matrix}
+     * @param randomProvider {@link RandomGenerator} provider
+     * @param dsub int
+     * @param qnorm boolean
      */
     public QMatrix(Matrix matrix, IntFunction<RandomGenerator> randomProvider, int dsub, boolean qnorm) {
         this.qnorm_ = qnorm;
@@ -99,6 +99,7 @@ public class QMatrix extends Matrix {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void QMatrix::quantize(const Matrix& matrix) {
      *  assert(n_ == matrix.n_);
      *  assert(m_ == matrix.m_);
@@ -114,7 +115,7 @@ public class QMatrix extends Matrix {
      *  pq_->compute_codes(dataptr, codes_, m_);
      * }}</pre>
      *
-     * @param matrix
+     * @param matrix {@link Matrix}
      */
     private void quantize(Matrix matrix) {
         if (qnorm_) {
@@ -129,6 +130,7 @@ public class QMatrix extends Matrix {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void QMatrix::quantizeNorm(const Vector& norms) {
      *  assert(qnorm_);
      *  assert(norms.m_ == m_);
@@ -137,7 +139,7 @@ public class QMatrix extends Matrix {
      *  npq_->compute_codes(dataptr, norm_codes_, m_);
      * }}</pre>
      *
-     * @param norms
+     * @param norms {@link Vector}
      */
     private void quantizeNorm(Vector norms) {
         npq_.train(getM(), norms.data());
@@ -145,6 +147,7 @@ public class QMatrix extends Matrix {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void QMatrix::addToVector(Vector& x, int32_t t) const {
      *  real norm = 1;
      *  if (qnorm_) {
@@ -153,8 +156,8 @@ public class QMatrix extends Matrix {
      *  pq_->addcode(x, codes_, t, norm);
      * }}</pre>
      *
-     * @param x
-     * @param t
+     * @param x int
+     * @param t int
      */
     void addToVector(Vector x, int t) {
         float norm = 1;
@@ -165,6 +168,7 @@ public class QMatrix extends Matrix {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code real QMatrix::dotRow(const Vector& vec, int64_t i) const {
      *  assert(i >= 0);
      *  assert(i < m_);
@@ -213,6 +217,7 @@ public class QMatrix extends Matrix {
 
 
     /**
+     * Original (c++) code:
      * <pre>{@code void QMatrix::save(std::ostream& out) {
      *  out.write((char*) &qnorm_, sizeof(qnorm_));
      *  out.write((char*) &m_, sizeof(m_));
@@ -247,6 +252,7 @@ public class QMatrix extends Matrix {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void QMatrix::load(std::istream& in) {
      *  in.read((char*) &qnorm_, sizeof(qnorm_));

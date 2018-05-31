@@ -36,10 +36,9 @@ import java.util.stream.StreamSupport;
  * It is assumed that all public methods of the instance do not change the state of the object and therefore thread-safe.
  * To create instance use {@link Factory factory}.
  * <p>
- * see <a href='https://github.com/facebookresearch/fastText/blob/master/src/fasttext.cc'>fasttext.cc</a> and
- * <a href='https://github.com/facebookresearch/fastText/blob/master/src/fasttext.h'>fasttext.h</a>
- *
  * @author Ivan
+ * @see <a href='https://github.com/facebookresearch/fastText/blob/master/src/fasttext.cc'>fasttext.cc</a>
+ * @see <a href='https://github.com/facebookresearch/fastText/blob/master/src/fasttext.h'>fasttext.h</a>
  */
 public class FastText {
     // binary file version:
@@ -111,6 +110,7 @@ public class FastText {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void FastText::getWordVector(Vector& vec, const std::string& word) const {
      *  const std::vector<int32_t>& ngrams = dict_->getSubwords(word);
      *  vec.zero();
@@ -138,6 +138,7 @@ public class FastText {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void FastText::getSentenceVector(std::istream& in, fasttext::Vector& svec) {
      *  svec.zero();
      *  if (args_->model == model_name::sup) {
@@ -171,10 +172,10 @@ public class FastText {
      *  }
      * }}</pre>
      *
+     * @param line String
      * @return {@link Vector}
-     * @throws IOException something wrong while i/o
      */
-    public Vector getSentenceVector(String line) throws IOException {
+    public Vector getSentenceVector(String line) {
         // add '\n' to the end of line to synchronize behaviour of c++ and java versions
         line += "\n";
         Vector res = new Vector(args.dim());
@@ -204,6 +205,7 @@ public class FastText {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void FastText::precomputeWordVectors(Matrix& wordVectors) {
      *  Vector vec(args_->dim);
      *  wordVectors.zero();
@@ -246,6 +248,7 @@ public class FastText {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void FastText::findNN(const Matrix& wordVectors, const Vector& queryVec, int32_t k, const std::set<std::string>& banSet) {
      *  real queryNorm = queryVec.norm();
@@ -305,6 +308,7 @@ public class FastText {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void FastText::nn(int32_t k) {
      *  std::string queryWord;
      *  Vector queryVec(args_->dim);
@@ -337,6 +341,7 @@ public class FastText {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void FastText::analogies(int32_t k) {
      *  std::string word;
      *  Vector buffer(args_->dim), query(args_->dim);
@@ -364,7 +369,7 @@ public class FastText {
      * }
      * }}</pre>
      *
-     * @param k int factor, > 0
+     * @param k int factor, positive
      * @param a String, first word, not null, not empty
      * @param b String, second word, not null, not empty
      * @param c String, third word, not null, not empty
@@ -388,6 +393,7 @@ public class FastText {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void FastText::ngramVectors(std::string word) {
      *  std::vector<int32_t> ngrams;
      *  std::vector<std::string> substrings;
@@ -421,6 +427,7 @@ public class FastText {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code void FastText::addInputVector(Vector& vec, int32_t ind) const {
      *  if (quant_) {
      *      vec.addRow(*qinput_, ind);
@@ -442,7 +449,7 @@ public class FastText {
 
     /**
      * Saves vectors.
-     * <p>
+     * Original (c++) code:
      * <pre>{@code
      * void FastText::saveVectors() {
      *  std::ofstream ofs(args_->output + ".vec");
@@ -472,7 +479,7 @@ public class FastText {
 
     /**
      * Saves output.
-     * <p>
+     * Original (c++) code:
      * <pre>{@code void FastText::saveOutput() {
      *  std::ofstream ofs(args_->output + ".output");
      *  if (!ofs.is_open()) {
@@ -496,7 +503,7 @@ public class FastText {
      * }
      * }</pre>
      *
-     * @param file, String file uri path, not null
+     * @param file String file uri path, not null
      * @throws IOException              if an I/O error occurs
      * @throws IllegalArgumentException if no possible to write file
      * @throws IllegalStateException    if model is quantized
@@ -545,6 +552,7 @@ public class FastText {
 
     /**
      * Saves model to file.
+     * Original (c++) code:
      * <pre>{@code
      * void FastText::saveModel() {
      *  std::string fn(args_->output);
@@ -611,6 +619,7 @@ public class FastText {
 
     /**
      * Writes versions to the model file bin.
+     * Original (c++) code:
      * <pre>{@code
      * void FastText::signModel(std::ostream& out) {
      *  const int32_t magic = FASTTEXT_FILEFORMAT_MAGIC_INT32;
@@ -629,7 +638,7 @@ public class FastText {
 
     /**
      * Performs testing.
-     * <p>
+     * Original (c++) code:
      * <pre>{@code void FastText::test(std::istream& in, int32_t k) {
      *  int32_t nexamples = 0, nlabels = 0;
      *  double precision = 0.0;
@@ -799,6 +808,7 @@ public class FastText {
     }
 
     /**
+     * Original (c++) code:
      * <pre>{@code
      * void FastText::predict(std::istream& in, int32_t k, std::vector<std::pair<real,std::string>>& predictions) const {
      *  std::vector<int32_t> words, labels;
@@ -889,6 +899,7 @@ public class FastText {
 
     /**
      * Auxiliary method, used while {@link #quantize(Args, String)}
+     * Original (c++) code:
      * <pre>{@code std::vector<int32_t> FastText::selectEmbeddings(int32_t cutoff) const {
      *  Vector norms(input_->m_);
      *  input_->l2NormRow(norms);
@@ -920,7 +931,7 @@ public class FastText {
      * Creates a quantized model from existing one.
      * Note 1: unlike original c++ method, this one does not change state of current FastText object, so take care about memory!
      * Note 2: Only for supervised models.
-     * <p>
+     * Original (c++) code:
      * <pre>{@code void FastText::quantize(std::shared_ptr<Args> qargs) {
      *  if (args_->model != model_name::sup) {
      *      throw std::invalid_argument("For now we only support quantization of supervised models");
@@ -1161,7 +1172,7 @@ public class FastText {
 
         /**
          * Loads model by file-reference (URI) using {@link IOStreams file-system}.
-         * <p>
+         * Original (c++) code:
          * <pre>{@code void FastText::loadModel(const std::string& filename) {
          *  std::ifstream ifs(filename, std::ifstream::binary);
          *  if (!ifs.is_open()) {
@@ -1196,7 +1207,6 @@ public class FastText {
 
         /**
          * Loads model from any InputStream.
-         * <p>
          * Original methods:
          * <pre>{@code void FastText::loadModel(std::istream& in) {
          *  args_ = std::make_shared<Args>();
@@ -1303,7 +1313,7 @@ public class FastText {
 
         /**
          * Loads matrix from file.
-         * <p>
+         * Original (c++) code:
          * <pre>{@code void FastText::loadVectors(std::string filename) {
          *  std::ifstream in(filename);
          *  std::vector<std::string> words;
@@ -1537,6 +1547,7 @@ public class FastText {
             }
 
             /**
+             * Original (c++) code:
              * <pre>{@code void FastText::train(std::shared_ptr<Args> args) {
              *  args_ = args;
              *  dict_ = std::make_shared<Dictionary>(args_);
@@ -1589,7 +1600,7 @@ public class FastText {
 
             /**
              * Runs training treads and waits for finishing.
-             * <p>
+             * Original (c++) code:
              * <pre>{@code void FastText::startThreads() {
              *  start = clock();
              *  tokenCount = 0;
@@ -1643,6 +1654,7 @@ public class FastText {
             }
 
             /**
+             * Original (c++) code:
              * <pre>{@code void FastText::trainThread(int32_t threadId) {
              *  std::ifstream ifs(args_->input);
              *  utils::seek(ifs, threadId * utils::size(ifs) / args_->thread);
@@ -1739,7 +1751,7 @@ public class FastText {
 
             /**
              * Composes message to print debug train info to console or somewhere else.
-             * <p>
+             * Original (c++) code:
              * <pre>{@code void FastText::printInfo(real progress, real loss) {
              *  real t = real(clock() - start) / CLOCKS_PER_SEC;
              *  real wst = real(tokenCount) / t;
@@ -1758,6 +1770,7 @@ public class FastText {
              *
              * @param progress float
              * @param loss     float
+             * @return String message
              */
             protected String progressMessage(float progress, float loss) {
                 float t = ChronoUnit.NANOS.between(start, Instant.now()) / 1_000_000_000f;
@@ -1772,6 +1785,7 @@ public class FastText {
             }
 
             /**
+             * Original (c++) code:
              * <pre>{@code
              * void FastText::supervised(Model& model, real lr, const std::vector<int32_t>& line, const std::vector<int32_t>& labels) {
              *  if (labels.size() == 0 || line.size() == 0) return;
@@ -1795,6 +1809,7 @@ public class FastText {
             }
 
             /**
+             * Original (c++) code:
              * <pre>{@code
              * void FastText::cbow(Model& model, real lr, const std::vector<int32_t>& line) {
              *  std::vector<int32_t> bow;
@@ -1835,6 +1850,7 @@ public class FastText {
             }
 
             /**
+             * Original (c++) code:
              * <pre>{@code void FastText::skipgram(Model& model, real lr, const std::vector<int32_t>& line) {
              *  std::uniform_int_distribution<> uniform(1, args_->ws);
              *  for (int32_t w = 0; w < line.size(); w++) {
