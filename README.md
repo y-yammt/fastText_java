@@ -14,6 +14,14 @@ The main differences with the original port:
 ### last checked c++ revision number: [09/12/2017](https://github.com/facebookresearch/fastText/commit/b928c9f01d02fcf2f115f06ee7a2c02d5c6a0ca2)
 ### bin model version: 12
 
-# Maven
-* to build use commands 'mvn package -Pmain' or 'mvn package -Pextra'
-* to include in dependencies [jitpack.io](https://jitpack.io/) can be used 
+### Maven
+    <dependency>
+        <groupId>com.github.sszuev</groupId>
+        <artifactId>fasttext</artifactId>
+        <version>1.0.0</version>
+    </dependency>
+### Tools
+to build command-line tools use `mvn package -Pmain` or `mvn package -Pextra`
+
+
+
