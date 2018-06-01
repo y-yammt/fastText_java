@@ -9,18 +9,24 @@ The main differences with the original port:
 * java8
 * changes in java-coding & OOP styles
 
-# Version
+## Version
 ### release c++ version: [0.1.0](https://github.com/facebookresearch/fastText/releases/tag/v0.1.0)
 ### last checked c++ revision number: [09/12/2017](https://github.com/facebookresearch/fastText/commit/b928c9f01d02fcf2f115f06ee7a2c02d5c6a0ca2)
 ### bin model version: 12
 
-### Maven
+## Resources
+You can find more information and resources at https://github.com/facebookresearch/fastText
+
+## License
+fastText is BSD-licensed. Facebook also provide an additional patent grant.
+
+## Maven
     <dependency>
         <groupId>com.github.sszuev</groupId>
         <artifactId>fasttext</artifactId>
         <version>1.0.0</version>
     </dependency>
-### Tools
+## Tools
 to build command-line tools use `mvn package -Pmain` or `mvn package -Pextra`
 
 
