@@ -341,6 +341,21 @@ public class FastText {
     }
 
     /**
+     * Retrieve k nearest neighbours for a given word vector.
+     * @param k          int number of expected results
+     * @param queryVec,  Vector vector to query
+     * @return {@link Multimap}
+     * @throws IllegalArgumentException if wrong input
+     */
+    public Multimap<String, Float> nn(int k, Vector queryVec) throws IllegalArgumentException {
+        Validate.notNull(queryVec, "Empty query vector");
+        Validate.isTrue(k > 0, "Not positive factor");
+        Matrix wordVectors = getPrecomputedWordVectors();
+        Set<String> banSet = new HashSet<>();
+        return Multimaps.invertFrom(findNN(wordVectors, queryVec, k, banSet), ArrayListMultimap.create());
+    }
+
+    /**
      * Original (c++) code:
      * <pre>{@code void FastText::analogies(int32_t k) {
      *  std::string word;
