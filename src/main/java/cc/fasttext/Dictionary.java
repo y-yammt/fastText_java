@@ -376,15 +376,15 @@ public class Dictionary {
     }
 
     private void computeSubwords(String word, List<Integer> ngrams, List<String> substrings, BiConsumer<List<Integer>, Integer> pushMethod) {
-        for (int i = 0; i < word.length(); i++) {
-            if ((word.charAt(i) & 0xC0) == 0x80) continue;
+        int len = word.length();
+        for (int i = 0, cpI; i < len; i += Character.charCount(cpI)) {
+            cpI = word.codePointAt(i);
             StringBuilder ngram = new StringBuilder();
-            for (int j = i, n = 1; j < word.length() && n <= maxn; n++) {
-                ngram.append(word.charAt(j++));
-                while (j < word.length() && (word.charAt(j) & 0xC0) == 0x80) {
-                    ngram.append(word.charAt(j++));
-                }
-                if (n >= minn && !(n == 1 && (i == 0 || j == word.length()))) {
+            for (int j = i, n = 1, cpJ; j < len && n <= maxn; n++) {
+                cpJ = word.codePointAt(j);
+                ngram.appendCodePoint(cpJ);
+                j += Character.charCount(cpJ);
+                if (n >= minn && !(n == 1 && (i == 0 || j == len))) {
                     int h = (int) (hash(ngram.toString()) % bucket.intValue());
                     pushMethod.accept(ngrams, h);
                     if (substrings != null) {

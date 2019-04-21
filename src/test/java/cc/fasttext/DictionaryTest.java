@@ -1,6 +1,8 @@
 package cc.fasttext;
 
 import cc.fasttext.io.WordReader;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -15,6 +17,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
@@ -155,4 +158,23 @@ public class DictionaryTest {
         return sb.length() == 0 ? null : sb.toString();
     }
 
+    @Test
+    public void testComputeSubwords() {
+        ImmutableMap<String, Set<String>> wordToSubwords = ImmutableMap.of(
+                "abcdef",
+                ImmutableSet.of("abcdef", "<ab", "<abc", "<abcd", "<abcde", "abc", "abcd", "abcde", "abcdef", "bcd",
+                        "bcde", "bcdef", "bcdef>", "cde", "cdef", "cdef>", "def", "def>", "ef>"
+                ),
+                // The character `𠮟` is a surrogate character. It is represented as a pair of char-type values, not a single value.
+                "父が息子を𠮟る",
+                ImmutableSet.of("父が息子を𠮟る", "<父が", "<父が息", "<父が息子", "<父が息子を", "父が息", "父が息子",
+                        "父が息子を", "父が息子を𠮟", "が息子", "が息子を", "が息子を𠮟", "が息子を𠮟る", "息子を", "息子を𠮟",
+                        "息子を𠮟る", "息子を𠮟る>", "子を𠮟", "子を𠮟る", "子を𠮟る>", "を𠮟る", "を𠮟る>", "𠮟る>"
+                )
+        );
+        for (Map.Entry<String, Set<String>> entry : wordToSubwords.entrySet()) {
+            Set<String> actualSubwords = dictionary.getSubwordsMap(entry.getKey()).keySet();
+            Assert.assertEquals(entry.getValue(), actualSubwords);
+        }
+    }
 }
