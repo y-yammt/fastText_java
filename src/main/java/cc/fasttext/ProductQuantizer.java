@@ -48,6 +48,7 @@ public class ProductQuantizer {
 
     /**
      * Original (c++) code:
+     * // FIXME: The original code could not be found by auto completion.
      * <pre>{@code ProductQuantizer::ProductQuantizer(int32_t dim, int32_t dsub):
      *  dim_(dim), nsubq_(dim / dsub), dsub_(dsub), centroids_(dim * ksub_), rng(seed_) {
      *  lastdsub_ = dim_ % dsub;
@@ -76,6 +77,13 @@ public class ProductQuantizer {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code real* ProductQuantizer::get_centroids(int32_t m, uint8_t i) {
+     *  if (m == nsubq_ - 1) {
+     *    return &centroids_[m * ksub_ * dsub_ + i * lastdsub_];
+     *  }
+     *  return &centroids_[(m * ksub_ + i) * dsub_];
+     * }}</pre>
      * <pre>{@code real* ProductQuantizer::get_centroids(int32_t m, uint8_t i) {
      *  if (m == nsubq_ - 1) {
      *      return &centroids_[m * ksub_ * dsub_ + i * lastdsub_];
@@ -99,6 +107,15 @@ public class ProductQuantizer {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code real distL2(const real* x, const real* y, int32_t d) {
+     *  real dist = 0;
+     *  for (auto i = 0; i < d; i++) {
+     *    auto tmp = x[i] - y[i];
+     *    dist += tmp * tmp;
+     *  }
+     *  return dist;
+     * }}</pre>
      * <pre>{@code real distL2(const real* x, const real* y, int32_t d) {
      *  real dist = 0;
      *  for (auto i = 0; i < d; i++) {
@@ -124,6 +141,7 @@ public class ProductQuantizer {
 
     /**
      * Original (c++) code:
+     * // FIXME: The original code could not be found by auto completion.
      * <pre>{@code
      * real ProductQuantizer::assign_centroid(const real * x, const real* c0, uint8_t* code, int32_t d) const {
      *  const real* c = c0;
@@ -163,6 +181,7 @@ public class ProductQuantizer {
 
     /**
      * Original (c++) code:
+     * // FIXME: The original code could not be found by auto completion.
      * <pre>{@code
      * void ProductQuantizer::Estep(const real* x, const real* centroids, uint8_t* codes, int32_t d, int32_t n) const {
      *  for (auto i = 0; i < n; i++) {
@@ -185,6 +204,7 @@ public class ProductQuantizer {
 
     /**
      * Original (c++) code:
+     * // FIXME: The original code could not be found by auto completion.
      * <pre>{@code
      * void ProductQuantizer::MStep(const real* x0, real* centroids, const uint8_t* codes, int32_t d, int32_t n) {
      *  std::vector<int32_t> nelts(ksub_, 0);
@@ -286,6 +306,7 @@ public class ProductQuantizer {
 
     /**
      * Original (c++) code:
+     * // FIXME: The original code could not be found by auto completion.
      * <pre>{@code void ProductQuantizer::train(int32_t n, const real * x) {
      *  if (n < ksub_) {
      *      std::cerr<<"Matrix too small for quantization, must have > 256 rows"<<std::endl;
@@ -350,6 +371,7 @@ public class ProductQuantizer {
 
     /**
      * Original (c++) code:
+     * // FIXME: The original code could not be found by auto completion.
      * <pre>{@code void ProductQuantizer::kmeans(const real *x, real* c, int32_t n, int32_t d) {
      *  std::vector<int32_t> perm(n,0);
      *  std::iota(perm.begin(), perm.end(), 0);
@@ -389,6 +411,16 @@ public class ProductQuantizer {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void ProductQuantizer::compute_code(const real* x, uint8_t* code) const {
+     *  auto d = dsub_;
+     *  for (auto m = 0; m < nsubq_; m++) {
+     *    if (m == nsubq_ - 1) {
+     *      d = lastdsub_;
+     *    }
+     *    assign_centroid(x + m * dsub_, get_centroids(m, 0), code + m, d);
+     *  }
+     * }}</pre>
      * <pre>{@code void ProductQuantizer::compute_code(const real* x, uint8_t* code) const {
      *  auto d = dsub_;
      *  for (auto m = 0; m < nsubq_; m++) {
@@ -414,6 +446,7 @@ public class ProductQuantizer {
 
     /**
      * Original (c++) code:
+     * // FIXME: The original code could not be found by auto completion.
      * <pre>{@code void ProductQuantizer::compute_codes(const real* x, uint8_t* codes, int32_t n) const {
      *  for (auto i = 0; i < n; i++) {
      *      compute_code(x + i * dim_, codes + i * nsubq_);
@@ -434,6 +467,7 @@ public class ProductQuantizer {
 
     /**
      * Original (c++) code:
+     * // FIXME: The original code could not be found by auto completion.
      * <pre>{@code
      * real ProductQuantizer::mulcode(const Vector& x, const uint8_t* codes, int32_t t, real alpha) const {
      *  real res = 0.0;
@@ -479,6 +513,7 @@ public class ProductQuantizer {
 
     /**
      * Original (c++) code:
+     * // FIXME: The original code could not be found by auto completion.
      * <pre>{@code
      * void ProductQuantizer::addcode(Vector& x, const uint8_t* codes, int32_t t, real alpha) const {
      *  auto d = dsub_;
@@ -519,6 +554,14 @@ public class ProductQuantizer {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void ProductQuantizer::save(std::ostream& out) {
+     *  out.write((char*)&dim_, sizeof(dim_));
+     *  out.write((char*)&nsubq_, sizeof(nsubq_));
+     *  out.write((char*)&dsub_, sizeof(dsub_));
+     *  out.write((char*)&lastdsub_, sizeof(lastdsub_));
+     *  out.write((char*)centroids_.data(), centroids_.size() * sizeof(real));
+     * }}</pre>
      * <pre>{@code void ProductQuantizer::save(std::ostream& out) {
      *  out.write((char*) &dim_, sizeof(dim_));
      *  out.write((char*) &nsubq_, sizeof(nsubq_));
@@ -543,6 +586,17 @@ public class ProductQuantizer {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void ProductQuantizer::load(std::istream& in) {
+     *  in.read((char*)&dim_, sizeof(dim_));
+     *  in.read((char*)&nsubq_, sizeof(nsubq_));
+     *  in.read((char*)&dsub_, sizeof(dsub_));
+     *  in.read((char*)&lastdsub_, sizeof(lastdsub_));
+     *  centroids_.resize(dim_ * ksub_);
+     *  for (auto i = 0; i < centroids_.size(); i++) {
+     *    in.read((char*)&centroids_[i], sizeof(real));
+     *  }
+     * }}</pre>
      * <pre>{@code void ProductQuantizer::load(std::istream& in) {
      *  in.read((char*) &dim_, sizeof(dim_));
      *  in.read((char*) &nsubq_, sizeof(nsubq_));

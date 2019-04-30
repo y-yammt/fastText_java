@@ -95,6 +95,15 @@ public class Dictionary {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code int32_t Dictionary::find(const std::string& w, uint32_t h) const {
+     *  int32_t word2intsize = word2int_.size();
+     *  int32_t id = h % word2intsize;
+     *  while (word2int_[id] != -1 && words_[word2int_[id]].word != w) {
+     *    id = (id + 1) % word2intsize;
+     *  }
+     *  return id;
+     * }}</pre>
      * <pre>{@code int32_t Dictionary::find(const std::string& w, uint32_t h) const {
      *  int32_t id = h % MAX_VOCAB_SIZE;
      *  while (word2int_[id] != -1 && words_[word2int_[id]].word != w) {
@@ -118,6 +127,21 @@ public class Dictionary {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void Dictionary::add(const std::string& w) {
+     *  int32_t h = find(w);
+     *  ntokens_++;
+     *  if (word2int_[h] == -1) {
+     *    entry e;
+     *    e.word = w;
+     *    e.count = 1;
+     *    e.type = getType(w);
+     *    words_.push_back(e);
+     *    word2int_[h] = size_++;
+     *  } else {
+     *    words_[word2int_[h]].count++;
+     *  }
+     * }}</pre>
      * <pre>{@code void Dictionary::add(const std::string& w) {
      *  int32_t h = find(w);
      *  ntokens_++;
@@ -177,6 +201,11 @@ public class Dictionary {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code int32_t Dictionary::getId(const std::string& w) const {
+     *  int32_t h = find(w);
+     *  return word2int_[h];
+     * }}</pre>
      * <pre>{@code int32_t Dictionary::getId(const std::string& w) const {
      *  int32_t h = find(w);
      *  return word2int_[h];
@@ -191,6 +220,11 @@ public class Dictionary {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code int32_t Dictionary::getId(const std::string& w, uint32_t h) const {
+     *  int32_t id = find(w, h);
+     *  return word2int_[id];
+     * }}</pre>
      * <pre>{@code int32_t Dictionary::getId(const std::string& w, uint32_t h) const {
      *  int32_t id = find(w, h);
      *  return word2int_[id];
@@ -206,6 +240,10 @@ public class Dictionary {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code entry_type Dictionary::getType(const std::string& w) const {
+     *  return (w.find(args_->label) == 0) ? entry_type::label : entry_type::word;
+     * }}</pre>
      * <pre>{@code entry_type Dictionary::getType(const std::string& w) const {
      *  return (w.find(args_->label) == 0) ? entry_type::label : entry_type::word;
      * }}</pre>
@@ -219,6 +257,12 @@ public class Dictionary {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code entry_type Dictionary::getType(int32_t id) const {
+     *  assert(id >= 0);
+     *  assert(id < size_);
+     *  return words_[id].type;
+     * }}</pre>
      * <pre>{@code entry_type Dictionary::getType(int32_t id) const {
      *  assert(id >= 0);
      *  assert(id < size_);
@@ -253,6 +297,16 @@ public class Dictionary {
      * 3337793681      'Тестовое предложение'
      * </pre>
      * C++ code (dictionary.cc):
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code
+     * uint32_t Dictionary::hash(const std::string& str) const {
+     *  uint32_t h = 2166136261;
+     *  for (size_t i = 0; i < str.size(); i++) {
+     *    h = h ^ uint32_t(int8_t(str[i]));
+     *    h = h * 16777619;
+     *  }
+     *  return h;
+     * }}</pre>
      * <pre> {@code
      *  uint32_t Dictionary::hash(const std::string& str) const {
      *      uint32_t h = 2166136261;
@@ -287,6 +341,18 @@ public class Dictionary {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code
+     * void Dictionary::initNgrams() {
+     *  for (size_t i = 0; i < size_; i++) {
+     *    std::string word = BOW + words_[i].word + EOW;
+     *    words_[i].subwords.clear();
+     *    words_[i].subwords.push_back(i);
+     *    if (words_[i].word != EOS) {
+     *      computeSubwords(word, words_[i].subwords);
+     *    }
+     *  }
+     * }}</pre>
      * <pre>{@code
      * void Dictionary::initNgrams() {
      *  for (size_t i = 0; i < size_; i++) {
@@ -321,6 +387,7 @@ public class Dictionary {
 
     /**
      * Original code:
+     * // FIXME: The original code could not be found by auto completion.
      * <pre>{@code
      * void Dictionary::computeSubwords(const std::string& word, std::vector<int32_t>& ngrams) const {
      *  for (size_t i = 0; i < word.size(); i++) {
@@ -348,6 +415,7 @@ public class Dictionary {
 
     /**
      * Original (c++) code:
+     * // FIXME: The original code could not be found by auto completion.
      * <pre>{@code
      * void Dictionary::computeSubwords(const std::string& word, std::vector<int32_t>& ngrams, std::vector<std::string>& substrings) const {
      *  for (size_t i = 0; i < word.size(); i++) {
@@ -397,6 +465,21 @@ public class Dictionary {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code
+     * void Dictionary::pushHash(std::vector<int32_t>& hashes, int32_t id) const {
+     *  if (pruneidx_size_ == 0 || id < 0) {
+     *    return;
+     *  }
+     *  if (pruneidx_size_ > 0) {
+     *    if (pruneidx_.count(id)) {
+     *      id = pruneidx_.at(id);
+     *    } else {
+     *      return;
+     *    }
+     *  }
+     *  hashes.push_back(nwords_ + id);
+     * }}</pre>
      * <pre>{@code
      * void Dictionary::pushHash(std::vector<int32_t>& hashes, int32_t id) const {
      *  if (pruneidx_size_ == 0 || id < 0) return;
@@ -428,6 +511,14 @@ public class Dictionary {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void Dictionary::initTableDiscard() {
+     *  pdiscard_.resize(size_);
+     *  for (size_t i = 0; i < size_; i++) {
+     *    real f = real(words_[i].count) / real(ntokens_);
+     *    pdiscard_[i] = std::sqrt(args_->t / f) + args_->t / f;
+     *  }
+     * }}</pre>
      * <pre>{@code void Dictionary::initTableDiscard() {
      *  pdiscard_.resize(size_);
      *  for (size_t i = 0; i < size_; i++) {
@@ -453,6 +544,17 @@ public class Dictionary {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code
+     * std::vector<int64_t> Dictionary::getCounts(entry_type type) const {
+     *  std::vector<int64_t> counts;
+     *  for (auto& w : words_) {
+     *    if (w.type == type) {
+     *      counts.push_back(w.count);
+     *    }
+     *  }
+     *  return counts;
+     * }}</pre>
      * <pre>{@code
      * std::vector<int64_t> Dictionary::getCounts(entry_type type) const {
      *  std::vector<int64_t> counts;
@@ -478,6 +580,7 @@ public class Dictionary {
 
     /**
      * Original (c++) code:
+     * // FIXME: The original code could not be found by auto completion.
      * <pre>{@code
      * int32_t Dictionary::getLine(std::istream& in, std::vector<int32_t>& words, std::vector<int32_t>& labels, std::minstd_rand& rng) const {
      *  std::vector<int32_t> word_hashes;
@@ -549,6 +652,7 @@ public class Dictionary {
 
     /**
      * Original (c++) code:
+     * // FIXME: The original code could not be found by auto completion.
      * <pre>{@code
      * int32_t Dictionary::getLine(std::istream& in, std::vector<int32_t>& words, std::minstd_rand& rng) const {
      *  std::uniform_real_distribution<> uniform(0, 1);
@@ -597,6 +701,16 @@ public class Dictionary {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code
+     * bool Dictionary::discard(int32_t id, real rand) const {
+     *  assert(id >= 0);
+     *  assert(id < nwords_);
+     *  if (args_->model == model_name::sup) {
+     *    return false;
+     *  }
+     *  return rand > pdiscard_[id];
+     * }}</pre>
      * <pre>{@code
      * bool Dictionary::discard(int32_t id, real rand) const {
      *  assert(id >= 0);
@@ -618,6 +732,7 @@ public class Dictionary {
 
     /**
      * Original (c++) code:
+     * // FIXME: The original code could not be found by auto completion.
      * <pre>{@code
      * void Dictionary::addWordNgrams(std::vector<int32_t>& line, const std::vector<int32_t>& hashes, int32_t n) const {
      *  for (int32_t i = 0; i < hashes.size(); i++) {
@@ -659,6 +774,7 @@ public class Dictionary {
 
     /**
      * Original (c++) code:
+     * // FIXME: The original code could not be found by auto completion.
      * <pre>{@code
      * void Dictionary::addSubwords(std::vector<int32_t>& line, const std::string& token, int32_t wid) const {
      *  if (wid < 0) { // out of vocab
@@ -691,6 +807,13 @@ public class Dictionary {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code
+     * const std::vector<int32_t>& Dictionary::getSubwords(int32_t i) const {
+     *  assert(i >= 0);
+     *  assert(i < nwords_);
+     *  return words_[i].subwords;
+     * }}</pre>
      * <pre>{@code
      * const std::vector<int32_t>& Dictionary::getSubwords(int32_t i) const {
      *  assert(i >= 0);
@@ -710,6 +833,7 @@ public class Dictionary {
 
     /**
      * Original (c++) code:
+     * // FIXME: The original code could not be found by auto completion.
      * <pre>{@code
      * const std::vector<int32_t> Dictionary::getSubwords(const std::string& word) const {
      *  int32_t i = getId(word);
@@ -736,6 +860,7 @@ public class Dictionary {
 
     /**
      * Original (c++) code:
+     * // FIXME: The original code could not be found by auto completion.
      * <pre>{@code
      * void Dictionary::getSubwords(const std::string& word, std::vector<int32_t>& ngrams, std::vector<std::string>& substrings) const {
      *  int32_t i = getId(word);
@@ -790,6 +915,15 @@ public class Dictionary {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code
+     * std::string Dictionary::getLabel(int32_t lid) const {
+     *  if (lid < 0 || lid >= nlabels_) {
+     *    throw std::invalid_argument(
+     *        "Label id is out of range [0, " + std::to_string(nlabels_) + "]");
+     *  }
+     *  return words_[lid + nwords_].word;
+     * }}</pre>
      * <pre>{@code
      * std::string Dictionary::getLabel(int32_t lid) const {
      *  if (lid < 0 || lid >= nlabels_) {
@@ -810,6 +944,7 @@ public class Dictionary {
 
     /**
      * Original (c++) code:
+     * // FIXME: The original code could not be found by auto completion.
      * <pre>{@code bool isPruned() {
      *  return pruneidx_size_ >= 0;
      *  }
@@ -823,6 +958,40 @@ public class Dictionary {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code
+     * void Dictionary::threshold(int64_t t, int64_t tl) {
+     *  sort(words_.begin(), words_.end(), [](const entry& e1, const entry& e2) {
+     *    if (e1.type != e2.type) {
+     *      return e1.type < e2.type;
+     *    }
+     *    return e1.count > e2.count;
+     *  });
+     *  words_.erase(
+     *      remove_if(
+     *          words_.begin(),
+     *          words_.end(),
+     *          [&](const entry& e) {
+     *            return (e.type == entry_type::word && e.count < t) ||
+     *                (e.type == entry_type::label && e.count < tl);
+     *          }),
+     *      words_.end());
+     *  words_.shrink_to_fit();
+     *  size_ = 0;
+     *  nwords_ = 0;
+     *  nlabels_ = 0;
+     *  std::fill(word2int_.begin(), word2int_.end(), -1);
+     *  for (auto it = words_.begin(); it != words_.end(); ++it) {
+     *    int32_t h = find(it->word);
+     *    word2int_[h] = size_++;
+     *    if (it->type == entry_type::word) {
+     *      nwords_++;
+     *    }
+     *    if (it->type == entry_type::label) {
+     *      nlabels_++;
+     *    }
+     *  }
+     * }}</pre>
      * <pre>{@code
      * void Dictionary::threshold(int64_t t, int64_t tl) {
      *  sort(words_.begin(), words_.end(), [](const entry& e1, const entry& e2) {
@@ -876,6 +1045,45 @@ public class Dictionary {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void Dictionary::prune(std::vector<int32_t>& idx) {
+     *  std::vector<int32_t> words, ngrams;
+     *  for (auto it = idx.cbegin(); it != idx.cend(); ++it) {
+     *    if (*it < nwords_) {
+     *      words.push_back(*it);
+     *    } else {
+     *      ngrams.push_back(*it);
+     *    }
+     *  }
+     *  std::sort(words.begin(), words.end());
+     *  idx = words;
+     * 
+     *  if (ngrams.size() != 0) {
+     *    int32_t j = 0;
+     *    for (const auto ngram : ngrams) {
+     *      pruneidx_[ngram - nwords_] = j;
+     *      j++;
+     *    }
+     *    idx.insert(idx.end(), ngrams.begin(), ngrams.end());
+     *  }
+     *  pruneidx_size_ = pruneidx_.size();
+     * 
+     *  std::fill(word2int_.begin(), word2int_.end(), -1);
+     * 
+     *  int32_t j = 0;
+     *  for (int32_t i = 0; i < words_.size(); i++) {
+     *    if (getType(i) == entry_type::label ||
+     *        (j < words.size() && words[j] == i)) {
+     *      words_[j] = words_[i];
+     *      word2int_[find(words_[j].word)] = j;
+     *      j++;
+     *    }
+     *  }
+     *  nwords_ = words.size();
+     *  size_ = nwords_ + nlabels_;
+     *  words_.erase(words_.begin() + size_, words_.end());
+     *  initNgrams();
+     * }}</pre>
      * <pre>{@code void Dictionary::prune(std::vector<int32_t>& idx) {
      *  std::vector<int32_t> words, ngrams;
      *  for (auto it = idx.cbegin(); it != idx.cend(); ++it) {
@@ -975,6 +1183,26 @@ public class Dictionary {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code
+     * void Dictionary::save(std::ostream& out) const {
+     *  out.write((char*)&size_, sizeof(int32_t));
+     *  out.write((char*)&nwords_, sizeof(int32_t));
+     *  out.write((char*)&nlabels_, sizeof(int32_t));
+     *  out.write((char*)&ntokens_, sizeof(int64_t));
+     *  out.write((char*)&pruneidx_size_, sizeof(int64_t));
+     *  for (int32_t i = 0; i < size_; i++) {
+     *    entry e = words_[i];
+     *    out.write(e.word.data(), e.word.size() * sizeof(char));
+     *    out.put(0);
+     *    out.write((char*)&(e.count), sizeof(int64_t));
+     *    out.write((char*)&(e.type), sizeof(entry_type));
+     *  }
+     *  for (const auto pair : pruneidx_) {
+     *    out.write((char*)&(pair.first), sizeof(int32_t));
+     *    out.write((char*)&(pair.second), sizeof(int32_t));
+     *  }
+     * }}</pre>
      * <pre>{@code
      * void Dictionary::save(std::ostream& out) const {
      *  out.write((char*) &size_, sizeof(int32_t));
@@ -1017,6 +1245,41 @@ public class Dictionary {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void Dictionary::load(std::istream& in) {
+     *  words_.clear();
+     *  in.read((char*)&size_, sizeof(int32_t));
+     *  in.read((char*)&nwords_, sizeof(int32_t));
+     *  in.read((char*)&nlabels_, sizeof(int32_t));
+     *  in.read((char*)&ntokens_, sizeof(int64_t));
+     *  in.read((char*)&pruneidx_size_, sizeof(int64_t));
+     *  for (int32_t i = 0; i < size_; i++) {
+     *    char c;
+     *    entry e;
+     *    while ((c = in.get()) != 0) {
+     *      e.word.push_back(c);
+     *    }
+     *    in.read((char*)&e.count, sizeof(int64_t));
+     *    in.read((char*)&e.type, sizeof(entry_type));
+     *    words_.push_back(e);
+     *  }
+     *  pruneidx_.clear();
+     *  for (int32_t i = 0; i < pruneidx_size_; i++) {
+     *    int32_t first;
+     *    int32_t second;
+     *    in.read((char*)&first, sizeof(int32_t));
+     *    in.read((char*)&second, sizeof(int32_t));
+     *    pruneidx_[first] = second;
+     *  }
+     *  initTableDiscard();
+     *  initNgrams();
+     * 
+     *  int32_t word2intsize = std::ceil(size_ / 0.7);
+     *  word2int_.assign(word2intsize, -1);
+     *  for (int32_t i = 0; i < size_; i++) {
+     *    word2int_[find(words_[i].word)] = i;
+     *  }
+     * }}</pre>
      * <pre>{@code void Dictionary::load(std::istream& in) {
      *  words_.clear();
      *  std::fill(word2int_.begin(), word2int_.end(), -1);
@@ -1080,6 +1343,33 @@ public class Dictionary {
     /**
      * Reads a dictionary from stream.
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void Dictionary::readFromFile(std::istream& in) {
+     *  std::string word;
+     *  int64_t minThreshold = 1;
+     *  while (readWord(in, word)) {
+     *    add(word);
+     *    if (ntokens_ % 1000000 == 0 && args_->verbose > 1) {
+     *      std::cerr << "\rRead " << ntokens_ / 1000000 << "M words" << std::flush;
+     *    }
+     *    if (size_ > 0.75 * MAX_VOCAB_SIZE) {
+     *      minThreshold++;
+     *      threshold(minThreshold, minThreshold);
+     *    }
+     *  }
+     *  threshold(args_->minCount, args_->minCountLabel);
+     *  initTableDiscard();
+     *  initNgrams();
+     *  if (args_->verbose > 0) {
+     *    std::cerr << "\rRead " << ntokens_ / 1000000 << "M words" << std::endl;
+     *    std::cerr << "Number of words:  " << nwords_ << std::endl;
+     *    std::cerr << "Number of labels: " << nlabels_ << std::endl;
+     *  }
+     *  if (size_ == 0) {
+     *    throw std::invalid_argument(
+     *        "Empty vocabulary. Try a smaller -minCount value.");
+     *  }
+     * }}</pre>
      * <pre>{@code void Dictionary::readFromFile(std::istream& in) {
      *  std::string word;
      *  int64_t minThreshold = 1;

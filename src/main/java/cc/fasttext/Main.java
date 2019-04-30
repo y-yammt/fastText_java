@@ -37,6 +37,60 @@ public class Main {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void test(const std::vector<std::string>& args) {
+     *  bool perLabel = args[1] == "test-label";
+     * 
+     *  if (args.size() < 4 || args.size() > 6) {
+     *    perLabel ? printTestLabelUsage() : printTestUsage();
+     *    exit(EXIT_FAILURE);
+     *  }
+     * 
+     *  const auto& model = args[2];
+     *  const auto& input = args[3];
+     *  int32_t k = args.size() > 4 ? std::stoi(args[4]) : 1;
+     *  real threshold = args.size() > 5 ? std::stof(args[5]) : 0.0;
+     * 
+     *  FastText fasttext;
+     *  fasttext.loadModel(model);
+     * 
+     *  Meter meter;
+     * 
+     *  if (input == "-") {
+     *    fasttext.test(std::cin, k, threshold, meter);
+     *  } else {
+     *    std::ifstream ifs(input);
+     *    if (!ifs.is_open()) {
+     *      std::cerr << "Test file cannot be opened!" << std::endl;
+     *      exit(EXIT_FAILURE);
+     *    }
+     *    fasttext.test(ifs, k, threshold, meter);
+     *  }
+     * 
+     *  if (perLabel) {
+     *    std::cout << std::fixed << std::setprecision(6);
+     *    auto writeMetric = [](const std::string& name, double value) {
+     *      std::cout << name << " : ";
+     *      if (std::isfinite(value)) {
+     *        std::cout << value;
+     *      } else {
+     *        std::cout << "--------";
+     *      }
+     *      std::cout << "  ";
+     *    };
+     * 
+     *    std::shared_ptr<const Dictionary> dict = fasttext.getDictionary();
+     *    for (int32_t labelId = 0; labelId < dict->nlabels(); labelId++) {
+     *      writeMetric("F1-Score", meter.f1Score(labelId));
+     *      writeMetric("Precision", meter.precision(labelId));
+     *      writeMetric("Recall", meter.recall(labelId));
+     *      std::cout << " " << dict->getLabel(labelId) << std::endl;
+     *    }
+     *  }
+     *  meter.writeGeneralMetrics(std::cout, k);
+     * 
+     *  exit(0);
+     * }}</pre>
      * <pre>{@code void test(const std::vector<std::string>& args) {
      *  if (args.size() < 4 || args.size() > 5) {
      *      printTestUsage();
@@ -82,6 +136,46 @@ public class Main {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void predict(const std::vector<std::string>& args) {
+     *  if (args.size() < 4 || args.size() > 6) {
+     *    printPredictUsage();
+     *    exit(EXIT_FAILURE);
+     *  }
+     *  int32_t k = 1;
+     *  real threshold = 0.0;
+     *  if (args.size() > 4) {
+     *    k = std::stoi(args[4]);
+     *    if (args.size() == 6) {
+     *      threshold = std::stof(args[5]);
+     *    }
+     *  }
+     * 
+     *  bool printProb = args[1] == "predict-prob";
+     *  FastText fasttext;
+     *  fasttext.loadModel(std::string(args[2]));
+     * 
+     *  std::ifstream ifs;
+     *  std::string infile(args[3]);
+     *  bool inputIsStdIn = infile == "-";
+     *  if (!inputIsStdIn) {
+     *    ifs.open(infile);
+     *    if (!inputIsStdIn && !ifs.is_open()) {
+     *      std::cerr << "Input file cannot be opened!" << std::endl;
+     *      exit(EXIT_FAILURE);
+     *    }
+     *  }
+     *  std::istream& in = inputIsStdIn ? std::cin : ifs;
+     *  std::vector<std::pair<real, std::string>> predictions;
+     *  while (fasttext.predictLine(in, predictions, k, threshold)) {
+     *    printPredictions(predictions, printProb, false);
+     *  }
+     *  if (ifs.is_open()) {
+     *    ifs.close();
+     *  }
+     * 
+     *  exit(0);
+     * }}</pre>
      * <pre>{@code void predict(const std::vector<std::string>& args) {
      *  if (args.size() < 4 || args.size() > 5) {
      *      printPredictUsage();
@@ -138,6 +232,22 @@ public class Main {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void printWordVectors(const std::vector<std::string> args) {
+     *  if (args.size() != 3) {
+     *    printPrintWordVectorsUsage();
+     *    exit(EXIT_FAILURE);
+     *  }
+     *  FastText fasttext;
+     *  fasttext.loadModel(std::string(args[2]));
+     *  std::string word;
+     *  Vector vec(fasttext.getDimension());
+     *  while (std::cin >> word) {
+     *    fasttext.getWordVector(vec, word);
+     *    std::cout << word << " " << vec << std::endl;
+     *  }
+     *  exit(0);
+     * }}</pre>
      * <pre>{@code void printWordVectors(const std::vector<std::string> args) {
      *  if (args.size() != 3) {
      *      printPrintWordVectorsUsage();
@@ -173,6 +283,22 @@ public class Main {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void printSentenceVectors(const std::vector<std::string> args) {
+     *  if (args.size() != 3) {
+     *    printPrintSentenceVectorsUsage();
+     *    exit(EXIT_FAILURE);
+     *  }
+     *  FastText fasttext;
+     *  fasttext.loadModel(std::string(args[2]));
+     *  Vector svec(fasttext.getDimension());
+     *  while (std::cin.peek() != EOF) {
+     *    fasttext.getSentenceVector(std::cin, svec);
+     *    // Don't print sentence
+     *    std::cout << svec << std::endl;
+     *  }
+     *  exit(0);
+     * }}</pre>
      * <pre>{@code void printSentenceVectors(const std::vector<std::string> args) {
      *  if (args.size() != 3) {
      *      printPrintSentenceVectorsUsage();
@@ -207,6 +333,25 @@ public class Main {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void printNgrams(const std::vector<std::string> args) {
+     *  if (args.size() != 4) {
+     *    printPrintNgramsUsage();
+     *    exit(EXIT_FAILURE);
+     *  }
+     *  FastText fasttext;
+     *  fasttext.loadModel(std::string(args[2]));
+     * 
+     *  std::string word(args[3]);
+     *  std::vector<std::pair<std::string, Vector>> ngramVectors =
+     *      fasttext.getNgramVectors(word);
+     * 
+     *  for (const auto& ngramVector : ngramVectors) {
+     *    std::cout << ngramVector.first << " " << ngramVector.second << std::endl;
+     *  }
+     * 
+     *  exit(0);
+     * }}</pre>
      * <pre>{@code void printNgrams(const std::vector<std::string> args) {
      *  if (args.size() != 4) {
      *      printPrintNgramsUsage();
@@ -232,6 +377,29 @@ public class Main {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void nn(const std::vector<std::string> args) {
+     *  int32_t k;
+     *  if (args.size() == 3) {
+     *    k = 10;
+     *  } else if (args.size() == 4) {
+     *    k = std::stoi(args[3]);
+     *  } else {
+     *    printNNUsage();
+     *    exit(EXIT_FAILURE);
+     *  }
+     *  FastText fasttext;
+     *  fasttext.loadModel(std::string(args[2]));
+     *  std::string prompt("Query word? ");
+     *  std::cout << prompt;
+     * 
+     *  std::string queryWord;
+     *  while (std::cin >> queryWord) {
+     *    printPredictions(fasttext.getNN(queryWord, k), true, true);
+     *    std::cout << prompt;
+     *  }
+     *  exit(0);
+     * }}</pre>
      * <pre>{@code void nn(const std::vector<std::string> args) {
      *  int32_t k;
      *  if (args.size() == 3) {
@@ -278,6 +446,38 @@ public class Main {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void analogies(const std::vector<std::string> args) {
+     *  int32_t k;
+     *  if (args.size() == 3) {
+     *    k = 10;
+     *  } else if (args.size() == 4) {
+     *    k = std::stoi(args[3]);
+     *  } else {
+     *    printAnalogiesUsage();
+     *    exit(EXIT_FAILURE);
+     *  }
+     *  if (k <= 0) {
+     *    throw std::invalid_argument("k needs to be 1 or higher!");
+     *  }
+     *  FastText fasttext;
+     *  std::string model(args[2]);
+     *  std::cout << "Loading model " << model << std::endl;
+     *  fasttext.loadModel(model);
+     * 
+     *  std::string prompt("Query triplet (A - B + C)? ");
+     *  std::string wordA, wordB, wordC;
+     *  std::cout << prompt;
+     *  while (true) {
+     *    std::cin >> wordA;
+     *    std::cin >> wordB;
+     *    std::cin >> wordC;
+     *    printPredictions(fasttext.getAnalogies(k, wordA, wordB, wordC), true, true);
+     * 
+     *    std::cout << prompt;
+     *  }
+     *  exit(0);
+     * }}</pre>
      * <pre>{@code void analogies(const std::vector<std::string> args) {
      *  int32_t k;
      *  if (args.size() == 3) {
@@ -330,6 +530,25 @@ public class Main {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void train(const std::vector<std::string> args) {
+     *  Args a = Args();
+     *  a.parseArgs(args);
+     *  FastText fasttext;
+     *  std::string outputFileName(a.output + ".bin");
+     *  std::ofstream ofs(outputFileName);
+     *  if (!ofs.is_open()) {
+     *    throw std::invalid_argument(
+     *        outputFileName + " cannot be opened for saving.");
+     *  }
+     *  ofs.close();
+     *  fasttext.train(a);
+     *  fasttext.saveModel(outputFileName);
+     *  fasttext.saveVectors(a.output + ".vec");
+     *  if (a.saveOutput) {
+     *    fasttext.saveOutput(a.output + ".output");
+     *  }
+     * }}</pre>
      * <pre>{@code void train(const std::vector<std::string> args) {
      *  std::shared_ptr<Args> a = std::make_shared<Args>();
      *  a->parseArgs(args);
@@ -387,6 +606,22 @@ public class Main {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void quantize(const std::vector<std::string>& args) {
+     *  Args a = Args();
+     *  if (args.size() < 3) {
+     *    printQuantizeUsage();
+     *    a.printHelp();
+     *    exit(EXIT_FAILURE);
+     *  }
+     *  a.parseArgs(args);
+     *  FastText fasttext;
+     *  // parseArgs checks if a->output is given.
+     *  fasttext.loadModel(a.output + ".bin");
+     *  fasttext.quantize(a);
+     *  fasttext.saveModel(a.output + ".ftz");
+     *  exit(0);
+     * }}</pre>
      * <pre>{@code void quantize(const std::vector<std::string>& args) {
      *  std::shared_ptr<Args> a = std::make_shared<Args>();
      *  if (args.size() < 3) {
@@ -516,6 +751,119 @@ public class Main {
 
     /**
      * Original (c++) code from args.cc:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void Args::parseArgs(const std::vector<std::string>& args) {
+     *  std::string command(args[1]);
+     *  if (command == "supervised") {
+     *    model = model_name::sup;
+     *    loss = loss_name::softmax;
+     *    minCount = 1;
+     *    minn = 0;
+     *    maxn = 0;
+     *    lr = 0.1;
+     *  } else if (command == "cbow") {
+     *    model = model_name::cbow;
+     *  }
+     *  for (int ai = 2; ai < args.size(); ai += 2) {
+     *    if (args[ai][0] != '-') {
+     *      std::cerr << "Provided argument without a dash! Usage:" << std::endl;
+     *      printHelp();
+     *      exit(EXIT_FAILURE);
+     *    }
+     *    try {
+     *      if (args[ai] == "-h") {
+     *        std::cerr << "Here is the help! Usage:" << std::endl;
+     *        printHelp();
+     *        exit(EXIT_FAILURE);
+     *      } else if (args[ai] == "-input") {
+     *        input = std::string(args.at(ai + 1));
+     *      } else if (args[ai] == "-output") {
+     *        output = std::string(args.at(ai + 1));
+     *      } else if (args[ai] == "-lr") {
+     *        lr = std::stof(args.at(ai + 1));
+     *      } else if (args[ai] == "-lrUpdateRate") {
+     *        lrUpdateRate = std::stoi(args.at(ai + 1));
+     *      } else if (args[ai] == "-dim") {
+     *        dim = std::stoi(args.at(ai + 1));
+     *      } else if (args[ai] == "-ws") {
+     *        ws = std::stoi(args.at(ai + 1));
+     *      } else if (args[ai] == "-epoch") {
+     *        epoch = std::stoi(args.at(ai + 1));
+     *      } else if (args[ai] == "-minCount") {
+     *        minCount = std::stoi(args.at(ai + 1));
+     *      } else if (args[ai] == "-minCountLabel") {
+     *        minCountLabel = std::stoi(args.at(ai + 1));
+     *      } else if (args[ai] == "-neg") {
+     *        neg = std::stoi(args.at(ai + 1));
+     *      } else if (args[ai] == "-wordNgrams") {
+     *        wordNgrams = std::stoi(args.at(ai + 1));
+     *      } else if (args[ai] == "-loss") {
+     *        if (args.at(ai + 1) == "hs") {
+     *          loss = loss_name::hs;
+     *        } else if (args.at(ai + 1) == "ns") {
+     *          loss = loss_name::ns;
+     *        } else if (args.at(ai + 1) == "softmax") {
+     *          loss = loss_name::softmax;
+     *        } else if (
+     *            args.at(ai + 1) == "one-vs-all" || args.at(ai + 1) == "ova") {
+     *          loss = loss_name::ova;
+     *        } else {
+     *          std::cerr << "Unknown loss: " << args.at(ai + 1) << std::endl;
+     *          printHelp();
+     *          exit(EXIT_FAILURE);
+     *        }
+     *      } else if (args[ai] == "-bucket") {
+     *        bucket = std::stoi(args.at(ai + 1));
+     *      } else if (args[ai] == "-minn") {
+     *        minn = std::stoi(args.at(ai + 1));
+     *      } else if (args[ai] == "-maxn") {
+     *        maxn = std::stoi(args.at(ai + 1));
+     *      } else if (args[ai] == "-thread") {
+     *        thread = std::stoi(args.at(ai + 1));
+     *      } else if (args[ai] == "-t") {
+     *        t = std::stof(args.at(ai + 1));
+     *      } else if (args[ai] == "-label") {
+     *        label = std::string(args.at(ai + 1));
+     *      } else if (args[ai] == "-verbose") {
+     *        verbose = std::stoi(args.at(ai + 1));
+     *      } else if (args[ai] == "-pretrainedVectors") {
+     *        pretrainedVectors = std::string(args.at(ai + 1));
+     *      } else if (args[ai] == "-saveOutput") {
+     *        saveOutput = true;
+     *        ai--;
+     *      } else if (args[ai] == "-qnorm") {
+     *        qnorm = true;
+     *        ai--;
+     *      } else if (args[ai] == "-retrain") {
+     *        retrain = true;
+     *        ai--;
+     *      } else if (args[ai] == "-qout") {
+     *        qout = true;
+     *        ai--;
+     *      } else if (args[ai] == "-cutoff") {
+     *        cutoff = std::stoi(args.at(ai + 1));
+     *      } else if (args[ai] == "-dsub") {
+     *        dsub = std::stoi(args.at(ai + 1));
+     *      } else {
+     *        std::cerr << "Unknown argument: " << args[ai] << std::endl;
+     *        printHelp();
+     *        exit(EXIT_FAILURE);
+     *      }
+     *    } catch (std::out_of_range) {
+     *      std::cerr << args[ai] << " is missing an argument" << std::endl;
+     *      printHelp();
+     *      exit(EXIT_FAILURE);
+     *    }
+     *  }
+     *  if (input.empty() || output.empty()) {
+     *    std::cerr << "Empty input or output path." << std::endl;
+     *    printHelp();
+     *    exit(EXIT_FAILURE);
+     *  }
+     *  if (wordNgrams <= 1 && maxn == 0) {
+     *    bucket = 0;
+     *  }
+     * }}</pre>
      * <pre>{@code void Args::parseArgs(const std::vector<std::string>& args) {
      *  std::string command(args[1]);
      *  if (command == "supervised") {

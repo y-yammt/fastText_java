@@ -105,6 +105,32 @@ public class DictionaryTest {
     /**
      * Reads next word from the stream.
      * Original code (from dictionary.cc):
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code bool Dictionary::readWord(std::istream& in, std::string& word) const {
+     *  int c;
+     *  std::streambuf& sb = *in.rdbuf();
+     *  word.clear();
+     *  while ((c = sb.sbumpc()) != EOF) {
+     *    if (c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == '\v' ||
+     *        c == '\f' || c == '\0') {
+     *      if (word.empty()) {
+     *        if (c == '\n') {
+     *          word += EOS;
+     *          return true;
+     *        }
+     *        continue;
+     *      } else {
+     *        if (c == '\n')
+     *          sb.sungetc();
+     *        return true;
+     *      }
+     *    }
+     *    word.push_back(c);
+     *  }
+     *  // trigger eofbit
+     *  in.get();
+     *  return !word.empty();
+     * }}</pre>
      * <pre>{@code bool Dictionary::readWord(std::istream& in, std::string& word) const {
      *  char c;
      *  std::streambuf& sb = *in.rdbuf();

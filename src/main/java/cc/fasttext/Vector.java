@@ -68,6 +68,14 @@ public class Vector {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code real Vector::norm() const {
+     *  real sum = 0;
+     *  for (int64_t i = 0; i < size(); i++) {
+     *    sum += data_[i] * data_[i];
+     *  }
+     *  return std::sqrt(sum);
+     * }}</pre>
      * <pre>{@code real Vector::norm() const {
      *  real sum = 0;
      *  for (int64_t i = 0; i < m_; i++) {
@@ -94,6 +102,13 @@ public class Vector {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void Vector::addVector(const Vector& source) {
+     *  assert(size() == source.size());
+     *  for (int64_t i = 0; i < size(); i++) {
+     *    data_[i] += source.data_[i];
+     *  }
+     * }}</pre>
      * <pre>{@code void Vector::addVector(const Vector& source) {
      *  assert(m_ == source.m_);
      *  for (int64_t i = 0; i < m_; i++) {
@@ -110,6 +125,13 @@ public class Vector {
     /**
      * Sums up the vector with another one and some multiplier.
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void Vector::addVector(const Vector& source, real s) {
+     *  assert(size() == source.size());
+     *  for (int64_t i = 0; i < size(); i++) {
+     *    data_[i] += s * source.data_[i];
+     *  }
+     * }}</pre>
      * <pre>{@code void Vector::addVector(const Vector& source, real s) {
      *  assert(m_ == source.m_);
      *  for (int64_t i = 0; i < m_; i++) {
@@ -133,6 +155,13 @@ public class Vector {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code
+     * void Vector::mul(real a) {
+     *  for (int64_t i = 0; i < size(); i++) {
+     *    data_[i] *= a;
+     *  }
+     * }}</pre>
      * <pre>{@code
      * void Vector::mul(real a) {
      *  for (int64_t i = 0; i < m_; i++) {
@@ -154,6 +183,16 @@ public class Vector {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code
+     * void Vector::addRow(const Matrix& A, int64_t i) {
+     *  assert(i >= 0);
+     *  assert(i < A.size(0));
+     *  assert(size() == A.size(1));
+     *  for (int64_t j = 0; j < A.size(1); j++) {
+     *    data_[j] += A.at(i, j);
+     *  }
+     * }}</pre>
      * <pre>{@code
      * void Vector::addRow(const Matrix& A, int64_t i) {
      *  assert(i >= 0);
@@ -186,6 +225,12 @@ public class Vector {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code
+     * void Vector::addRow(const QMatrix& A, int64_t i) {
+     *  assert(i >= 0);
+     *  A.addToVector(*this, i);
+     * }}</pre>
      * <pre>{@code
      * void Vector::addRow(const QMatrix& A, int64_t i) {
      *  assert(i >= 0);
@@ -202,6 +247,16 @@ public class Vector {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code
+     * void Vector::addRow(const Matrix& A, int64_t i, real a) {
+     *  assert(i >= 0);
+     *  assert(i < A.size(0));
+     *  assert(size() == A.size(1));
+     *  for (int64_t j = 0; j < A.size(1); j++) {
+     *    data_[j] += a * A.at(i, j);
+     *  }
+     * }}</pre>
      * <pre>{@code
      * void Vector::addRow(const Matrix& A, int64_t i, real a) {
      *  assert(i >= 0);
@@ -232,6 +287,15 @@ public class Vector {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code
+     * void Vector::mul(const Matrix& A, const Vector& vec) {
+     *  assert(A.size(0) == size());
+     *  assert(A.size(1) == vec.size());
+     *  for (int64_t i = 0; i < size(); i++) {
+     *    data_[i] = A.dotRow(vec, i);
+     *  }
+     * }}</pre>
      * <pre>{@code
      * void Vector::mul(const Matrix& A, const Vector& vec) {
      *  assert(A.m_ == m_);
@@ -258,6 +322,18 @@ public class Vector {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code int64_t Vector::argmax() {
+     *  real max = data_[0];
+     *  int64_t argmax = 0;
+     *  for (int64_t i = 1; i < size(); i++) {
+     *    if (data_[i] > max) {
+     *      max = data_[i];
+     *      argmax = i;
+     *    }
+     *  }
+     *  return argmax;
+     * }}</pre>
      * <pre>{@code int64_t Vector::argmax() {
      *  real max = data_[0];
      *  int64_t argmax = 0;

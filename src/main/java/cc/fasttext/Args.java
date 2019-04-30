@@ -137,6 +137,23 @@ public final class Args {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code
+     * void Args::save(std::ostream& out) {
+     *  out.write((char*)&(dim), sizeof(int));
+     *  out.write((char*)&(ws), sizeof(int));
+     *  out.write((char*)&(epoch), sizeof(int));
+     *  out.write((char*)&(minCount), sizeof(int));
+     *  out.write((char*)&(neg), sizeof(int));
+     *  out.write((char*)&(wordNgrams), sizeof(int));
+     *  out.write((char*)&(loss), sizeof(loss_name));
+     *  out.write((char*)&(model), sizeof(model_name));
+     *  out.write((char*)&(bucket), sizeof(int));
+     *  out.write((char*)&(minn), sizeof(int));
+     *  out.write((char*)&(maxn), sizeof(int));
+     *  out.write((char*)&(lrUpdateRate), sizeof(int));
+     *  out.write((char*)&(t), sizeof(double));
+     * }}</pre>
      * <pre>{@code
      * void Args::save(std::ostream& out) {
      *  out.write((char*) &(dim), sizeof(int));
@@ -175,6 +192,22 @@ public final class Args {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void Args::load(std::istream& in) {
+     *  in.read((char*)&(dim), sizeof(int));
+     *  in.read((char*)&(ws), sizeof(int));
+     *  in.read((char*)&(epoch), sizeof(int));
+     *  in.read((char*)&(minCount), sizeof(int));
+     *  in.read((char*)&(neg), sizeof(int));
+     *  in.read((char*)&(wordNgrams), sizeof(int));
+     *  in.read((char*)&(loss), sizeof(loss_name));
+     *  in.read((char*)&(model), sizeof(model_name));
+     *  in.read((char*)&(bucket), sizeof(int));
+     *  in.read((char*)&(minn), sizeof(int));
+     *  in.read((char*)&(maxn), sizeof(int));
+     *  in.read((char*)&(lrUpdateRate), sizeof(int));
+     *  in.read((char*)&(t), sizeof(double));
+     * }}</pre>
      * <pre>{@code void Args::load(std::istream& in) {
      *  in.read((char*) &(dim), sizeof(int));
      *  in.read((char*) &(ws), sizeof(int));

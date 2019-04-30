@@ -135,6 +135,15 @@ public class Matrix {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code
+     * void Matrix::uniform(real a) {
+     *  std::minstd_rand rng(1);
+     *  std::uniform_real_distribution<> uniform(-a, a);
+     *  for (int64_t i = 0; i < (m_ * n_); i++) {
+     *    data_[i] = uniform(rng);
+     *  }
+     * }}</pre>
      * <pre>{@code
      * void Matrix::uniform(real a) {
      *  std::minstd_rand rng(1);
@@ -161,6 +170,20 @@ public class Matrix {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code real Matrix::dotRow(const Vector& vec, int64_t i) const {
+     *  assert(i >= 0);
+     *  assert(i < m_);
+     *  assert(vec.size() == n_);
+     *  real d = 0.0;
+     *  for (int64_t j = 0; j < n_; j++) {
+     *    d += at(i, j) * vec[j];
+     *  }
+     *  if (std::isnan(d)) {
+     *    throw std::runtime_error("Encountered NaN.");
+     *  }
+     *  return d;
+     * }}</pre>
      * <pre>{@code real Matrix::dotRow(const Vector& vec, int64_t i) const {
      *  assert(i >= 0);
      *  assert(i < m_);
@@ -199,6 +222,15 @@ public class Matrix {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void Matrix::addRow(const Vector& vec, int64_t i, real a) {
+     *  assert(i >= 0);
+     *  assert(i < m_);
+     *  assert(vec.size() == n_);
+     *  for (int64_t j = 0; j < n_; j++) {
+     *    data_[i * n_ + j] += a * vec[j];
+     *  }
+     * }}</pre>
      * <pre>{@code void Matrix::addRow(const Vector& vec, int64_t i, real a) {
      *  assert(i >= 0);
      *  assert(i < m_);
@@ -226,6 +258,21 @@ public class Matrix {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void Matrix::multiplyRow(const Vector& nums, int64_t ib, int64_t ie) {
+     *  if (ie == -1) {
+     *    ie = m_;
+     *  }
+     *  assert(ie <= nums.size());
+     *  for (auto i = ib; i < ie; i++) {
+     *    real n = nums[i - ib];
+     *    if (n != 0) {
+     *      for (auto j = 0; j < n_; j++) {
+     *        at(i, j) *= n;
+     *      }
+     *    }
+     *  }
+     * }}</pre>
      * <pre>{@code void Matrix::multiplyRow(const Vector& nums, int64_t ib, int64_t ie) {
      *  if (ie == -1) {
      *      ie = m_;
@@ -255,6 +302,21 @@ public class Matrix {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void Matrix::divideRow(const Vector& denoms, int64_t ib, int64_t ie) {
+     *  if (ie == -1) {
+     *    ie = m_;
+     *  }
+     *  assert(ie <= denoms.size());
+     *  for (auto i = ib; i < ie; i++) {
+     *    real n = denoms[i - ib];
+     *    if (n != 0) {
+     *      for (auto j = 0; j < n_; j++) {
+     *        at(i, j) /= n;
+     *      }
+     *    }
+     *  }
+     * }}</pre>
      * <pre>{@code void Matrix::divideRow(const Vector& denoms, int64_t ib, int64_t ie) {
      *  if (ie == -1) {
      *      ie = m_;
@@ -313,6 +375,17 @@ public class Matrix {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code real Matrix::l2NormRow(int64_t i) const {
+     *  auto norm = 0.0;
+     *  for (auto j = 0; j < n_; j++) {
+     *    norm += at(i, j) * at(i, j);
+     *  }
+     *  if (std::isnan(norm)) {
+     *    throw std::runtime_error("Encountered NaN.");
+     *  }
+     *  return std::sqrt(norm);
+     * }}</pre>
      * <pre>{@code real Matrix::l2NormRow(int64_t i) const {
      *  auto norm = 0.0;
      *  for (auto j = 0; j < n_; j++) {
@@ -347,6 +420,13 @@ public class Matrix {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void Matrix::l2NormRow(Vector& norms) const {
+     *  assert(norms.size() == m_);
+     *  for (auto i = 0; i < m_; i++) {
+     *    norms[i] = l2NormRow(i);
+     *  }
+     * }}</pre>
      * <pre>{@code void Matrix::l2NormRow(Vector& norms) const {
      *  assert(norms.size() == m_);
      *  for (auto i = 0; i < m_; i++) {
@@ -368,6 +448,13 @@ public class Matrix {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code
+     * void Matrix::save(std::ostream& out) {
+     *  out.write((char*)&m_, sizeof(int64_t));
+     *  out.write((char*)&n_, sizeof(int64_t));
+     *  out.write((char*)data_.data(), m_ * n_ * sizeof(real));
+     * }}</pre>
      * <pre>{@code
      * void Matrix::save(std::ostream& out) {
      *  out.write((char*) &m_, sizeof(int64_t));
@@ -390,6 +477,13 @@ public class Matrix {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void Matrix::load(std::istream& in) {
+     *  in.read((char*)&m_, sizeof(int64_t));
+     *  in.read((char*)&n_, sizeof(int64_t));
+     *  data_ = std::vector<real>(m_ * n_);
+     *  in.read((char*)data_.data(), m_ * n_ * sizeof(real));
+     * }}</pre>
      * <pre>{@code void Matrix::load(std::istream& in) {
      *  in.read((char*) &m_, sizeof(int64_t));
      *  in.read((char*) &n_, sizeof(int64_t));

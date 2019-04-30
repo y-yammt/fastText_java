@@ -30,6 +30,7 @@ public class QMatrix extends Matrix {
 
     /**
      * Original (c++) code:
+     * // FIXME: The original code could not be found by auto completion.
      * <pre>{@code QMatrix::QMatrix(const Matrix& mat, int32_t dsub, bool qnorm)
      *  : qnorm_(qnorm), m_(mat.m_), n_(mat.n_),
      *  codesize_(m_ * ((n_ + dsub - 1) / dsub)) {
@@ -100,6 +101,21 @@ public class QMatrix extends Matrix {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void QMatrix::quantize(const Matrix& matrix) {
+     *  assert(m_ == matrix.size(0));
+     *  assert(n_ == matrix.size(1));
+     *  Matrix temp(matrix);
+     *  if (qnorm_) {
+     *    Vector norms(temp.size(0));
+     *    temp.l2NormRow(norms);
+     *    temp.divideRow(norms);
+     *    quantizeNorm(norms);
+     *  }
+     *  auto dataptr = temp.data();
+     *  pq_->train(m_, dataptr);
+     *  pq_->compute_codes(dataptr, codes_.data(), m_);
+     * }}</pre>
      * <pre>{@code void QMatrix::quantize(const Matrix& matrix) {
      *  assert(n_ == matrix.n_);
      *  assert(m_ == matrix.m_);
@@ -131,6 +147,14 @@ public class QMatrix extends Matrix {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void QMatrix::quantizeNorm(const Vector& norms) {
+     *  assert(qnorm_);
+     *  assert(norms.size() == m_);
+     *  auto dataptr = norms.data();
+     *  npq_->train(m_, dataptr);
+     *  npq_->compute_codes(dataptr, norm_codes_.data(), m_);
+     * }}</pre>
      * <pre>{@code void QMatrix::quantizeNorm(const Vector& norms) {
      *  assert(qnorm_);
      *  assert(norms.m_ == m_);
@@ -148,6 +172,14 @@ public class QMatrix extends Matrix {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void QMatrix::addToVector(Vector& x, int32_t t) const {
+     *  real norm = 1;
+     *  if (qnorm_) {
+     *    norm = npq_->get_centroids(0, norm_codes_[t])[0];
+     *  }
+     *  pq_->addcode(x, codes_.data(), t, norm);
+     * }}</pre>
      * <pre>{@code void QMatrix::addToVector(Vector& x, int32_t t) const {
      *  real norm = 1;
      *  if (qnorm_) {
@@ -169,6 +201,17 @@ public class QMatrix extends Matrix {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code real QMatrix::dotRow(const Vector& vec, int64_t i) const {
+     *  assert(i >= 0);
+     *  assert(i < m_);
+     *  assert(vec.size() == n_);
+     *  real norm = 1;
+     *  if (qnorm_) {
+     *    norm = npq_->get_centroids(0, norm_codes_[i])[0];
+     *  }
+     *  return pq_->mulcode(vec, codes_.data(), i, norm);
+     * }}</pre>
      * <pre>{@code real QMatrix::dotRow(const Vector& vec, int64_t i) const {
      *  assert(i >= 0);
      *  assert(i < m_);
@@ -218,6 +261,19 @@ public class QMatrix extends Matrix {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void QMatrix::save(std::ostream& out) {
+     *  out.write((char*)&qnorm_, sizeof(qnorm_));
+     *  out.write((char*)&m_, sizeof(m_));
+     *  out.write((char*)&n_, sizeof(n_));
+     *  out.write((char*)&codesize_, sizeof(codesize_));
+     *  out.write((char*)codes_.data(), codesize_ * sizeof(uint8_t));
+     *  pq_->save(out);
+     *  if (qnorm_) {
+     *    out.write((char*)norm_codes_.data(), m_ * sizeof(uint8_t));
+     *    npq_->save(out);
+     *  }
+     * }}</pre>
      * <pre>{@code void QMatrix::save(std::ostream& out) {
      *  out.write((char*) &qnorm_, sizeof(qnorm_));
      *  out.write((char*) &m_, sizeof(m_));
@@ -253,6 +309,24 @@ public class QMatrix extends Matrix {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code
+     * void QMatrix::load(std::istream& in) {
+     *  in.read((char*)&qnorm_, sizeof(qnorm_));
+     *  in.read((char*)&m_, sizeof(m_));
+     *  in.read((char*)&n_, sizeof(n_));
+     *  in.read((char*)&codesize_, sizeof(codesize_));
+     *  codes_ = std::vector<uint8_t>(codesize_);
+     *  in.read((char*)codes_.data(), codesize_ * sizeof(uint8_t));
+     *  pq_ = std::unique_ptr<ProductQuantizer>(new ProductQuantizer());
+     *  pq_->load(in);
+     *  if (qnorm_) {
+     *    norm_codes_ = std::vector<uint8_t>(m_);
+     *    in.read((char*)norm_codes_.data(), m_ * sizeof(uint8_t));
+     *    npq_ = std::unique_ptr<ProductQuantizer>(new ProductQuantizer());
+     *    npq_->load(in);
+     *  }
+     * }}</pre>
      * <pre>{@code
      * void QMatrix::load(std::istream& in) {
      *  in.read((char*) &qnorm_, sizeof(qnorm_));

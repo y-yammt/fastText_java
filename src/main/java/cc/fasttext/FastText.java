@@ -111,6 +111,17 @@ public class FastText {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void FastText::getWordVector(Vector& vec, const std::string& word) const {
+     *  const std::vector<int32_t>& ngrams = dict_->getSubwords(word);
+     *  vec.zero();
+     *  for (int i = 0; i < ngrams.size(); i++) {
+     *    addInputVector(vec, ngrams[i]);
+     *  }
+     *  if (ngrams.size() > 0) {
+     *    vec.mul(1.0 / ngrams.size());
+     *  }
+     * }}</pre>
      * <pre>{@code void FastText::getWordVector(Vector& vec, const std::string& word) const {
      *  const std::vector<int32_t>& ngrams = dict_->getSubwords(word);
      *  vec.zero();
@@ -139,6 +150,39 @@ public class FastText {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void FastText::getSentenceVector(std::istream& in, fasttext::Vector& svec) {
+     *  svec.zero();
+     *  if (args_->model == model_name::sup) {
+     *    std::vector<int32_t> line, labels;
+     *    dict_->getLine(in, line, labels);
+     *    for (int32_t i = 0; i < line.size(); i++) {
+     *      addInputVector(svec, line[i]);
+     *    }
+     *    if (!line.empty()) {
+     *      svec.mul(1.0 / line.size());
+     *    }
+     *  } else {
+     *    Vector vec(args_->dim);
+     *    std::string sentence;
+     *    std::getline(in, sentence);
+     *    std::istringstream iss(sentence);
+     *    std::string word;
+     *    int32_t count = 0;
+     *    while (iss >> word) {
+     *      getWordVector(vec, word);
+     *      real norm = vec.norm();
+     *      if (norm > 0) {
+     *        vec.mul(1.0 / norm);
+     *        svec.addVector(vec);
+     *        count++;
+     *      }
+     *    }
+     *    if (count > 0) {
+     *      svec.mul(1.0 / count);
+     *    }
+     *  }
+     * }}</pre>
      * <pre>{@code void FastText::getSentenceVector(std::istream& in, fasttext::Vector& svec) {
      *  svec.zero();
      *  if (args_->model == model_name::sup) {
@@ -206,6 +250,19 @@ public class FastText {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void FastText::precomputeWordVectors(Matrix& wordVectors) {
+     *  Vector vec(args_->dim);
+     *  wordVectors.zero();
+     *  for (int32_t i = 0; i < dict_->nwords(); i++) {
+     *    std::string word = dict_->getWord(i);
+     *    getWordVector(vec, word);
+     *    real norm = vec.norm();
+     *    if (norm > 0) {
+     *      wordVectors.addRow(vec, i, 1.0 / norm);
+     *    }
+     *  }
+     * }}</pre>
      * <pre>{@code void FastText::precomputeWordVectors(Matrix& wordVectors) {
      *  Vector vec(args_->dim);
      *  wordVectors.zero();
@@ -249,6 +306,7 @@ public class FastText {
 
     /**
      * Original (c++) code:
+     * // FIXME: The original code could not be found by auto completion.
      * <pre>{@code
      * void FastText::findNN(const Matrix& wordVectors, const Vector& queryVec, int32_t k, const std::set<std::string>& banSet) {
      *  real queryNorm = queryVec.norm();
@@ -309,6 +367,7 @@ public class FastText {
 
     /**
      * Original (c++) code:
+     * // FIXME: The original code could not be found by auto completion.
      * <pre>{@code void FastText::nn(int32_t k) {
      *  std::string queryWord;
      *  Vector queryVec(args_->dim);
@@ -357,6 +416,23 @@ public class FastText {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void FastText::analogies(int32_t k) {
+     *  std::string prompt("Query triplet (A - B + C)? ");
+     *  std::string wordA, wordB, wordC;
+     *  std::cout << prompt;
+     *  while (true) {
+     *    std::cin >> wordA;
+     *    std::cin >> wordB;
+     *    std::cin >> wordC;
+     *    auto results = getAnalogies(k, wordA, wordB, wordC);
+     * 
+     *    for (auto& pair : results) {
+     *      std::cout << pair.second << " " << pair.first << std::endl;
+     *    }
+     *    std::cout << prompt;
+     *  }
+     * }}</pre>
      * <pre>{@code void FastText::analogies(int32_t k) {
      *  std::string word;
      *  Vector buffer(args_->dim), query(args_->dim);
@@ -409,6 +485,15 @@ public class FastText {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void FastText::ngramVectors(std::string word) {
+     *  std::vector<std::pair<std::string, Vector>> ngramVectors =
+     *      getNgramVectors(word);
+     * 
+     *  for (const auto& ngramVector : ngramVectors) {
+     *    std::cout << ngramVector.first << " " << ngramVector.second << std::endl;
+     *  }
+     * }}</pre>
      * <pre>{@code void FastText::ngramVectors(std::string word) {
      *  std::vector<int32_t> ngrams;
      *  std::vector<std::string> substrings;
@@ -443,6 +528,14 @@ public class FastText {
 
     /**
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void FastText::addInputVector(Vector& vec, int32_t ind) const {
+     *  if (quant_) {
+     *    vec.addRow(*qinput_, ind);
+     *  } else {
+     *    vec.addRow(*input_, ind);
+     *  }
+     * }}</pre>
      * <pre>{@code void FastText::addInputVector(Vector& vec, int32_t ind) const {
      *  if (quant_) {
      *      vec.addRow(*qinput_, ind);
@@ -465,6 +558,11 @@ public class FastText {
     /**
      * Saves vectors.
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code
+     * void FastText::saveVectors() {
+     *  saveVectors(args_->output + ".vec");
+     * }}</pre>
      * <pre>{@code
      * void FastText::saveVectors() {
      *  std::ofstream ofs(args_->output + ".vec");
@@ -495,6 +593,10 @@ public class FastText {
     /**
      * Saves output.
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code void FastText::saveOutput() {
+     *  saveOutput(args_->output + ".output");
+     * }}</pre>
      * <pre>{@code void FastText::saveOutput() {
      *  std::ofstream ofs(args_->output + ".output");
      *  if (!ofs.is_open()) {
@@ -568,6 +670,17 @@ public class FastText {
     /**
      * Saves model to file.
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code
+     * void FastText::saveModel() {
+     *  std::string fn(args_->output);
+     *  if (quant_) {
+     *    fn += ".ftz";
+     *  } else {
+     *    fn += ".bin";
+     *  }
+     *  saveModel(fn);
+     * }}</pre>
      * <pre>{@code
      * void FastText::saveModel() {
      *  std::string fn(args_->output);
@@ -635,6 +748,14 @@ public class FastText {
     /**
      * Writes versions to the model file bin.
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code
+     * void FastText::signModel(std::ostream& out) {
+     *  const int32_t magic = FASTTEXT_FILEFORMAT_MAGIC_INT32;
+     *  const int32_t version = FASTTEXT_VERSION;
+     *  out.write((char*)&(magic), sizeof(int32_t));
+     *  out.write((char*)&(version), sizeof(int32_t));
+     * }}</pre>
      * <pre>{@code
      * void FastText::signModel(std::ostream& out) {
      *  const int32_t magic = FASTTEXT_FILEFORMAT_MAGIC_INT32;
@@ -654,6 +775,7 @@ public class FastText {
     /**
      * Performs testing.
      * Original (c++) code:
+     * // FIXME: The original code could not be found by auto completion.
      * <pre>{@code void FastText::test(std::istream& in, int32_t k) {
      *  int32_t nexamples = 0, nlabels = 0;
      *  double precision = 0.0;
@@ -771,6 +893,7 @@ public class FastText {
      * Predicts most likely labels for input stream.
      * The result is a functional stream to save memory
      * Original code:
+     * // FIXME: The original code could not be found by auto completion.
      * <pre>{@code void FastText::predict(std::istream& in, int32_t k, bool print_prob) {
      *  std::vector<std::pair<real,std::string>> predictions;
      *  while (in.peek() != EOF) {
@@ -824,6 +947,7 @@ public class FastText {
 
     /**
      * Original (c++) code:
+     * // FIXME: The original code could not be found by auto completion.
      * <pre>{@code
      * void FastText::predict(std::istream& in, int32_t k, std::vector<std::pair<real,std::string>>& predictions) const {
      *  std::vector<int32_t> words, labels;
@@ -915,6 +1039,19 @@ public class FastText {
     /**
      * Auxiliary method, used while {@link #quantize(Args, String)}
      * Original (c++) code:
+     * // FIXME: Auto completion found the original code. Check out differences.
+     * <pre>{@code std::vector<int32_t> FastText::selectEmbeddings(int32_t cutoff) const {
+     *  Vector norms(input_->size(0));
+     *  input_->l2NormRow(norms);
+     *  std::vector<int32_t> idx(input_->size(0), 0);
+     *  std::iota(idx.begin(), idx.end(), 0);
+     *  auto eosid = dict_->getId(Dictionary::EOS);
+     *  std::sort(idx.begin(), idx.end(), [&norms, eosid](size_t i1, size_t i2) {
+     *    return eosid == i1 || (eosid != i2 && norms[i1] > norms[i2]);
+     *  });
+     *  idx.erase(idx.begin() + cutoff, idx.end());
+     *  return idx;
+     * }}</pre>
      * <pre>{@code std::vector<int32_t> FastText::selectEmbeddings(int32_t cutoff) const {
      *  Vector norms(input_->m_);
      *  input_->l2NormRow(norms);
@@ -947,6 +1084,7 @@ public class FastText {
      * Note 1: unlike original c++ method, this one does not change state of current FastText object, so take care about memory!
      * Note 2: Only for supervised models.
      * Original (c++) code:
+     * // FIXME: The original code could not be found by auto completion.
      * <pre>{@code void FastText::quantize(std::shared_ptr<Args> qargs) {
      *  if (args_->model != model_name::sup) {
      *      throw std::invalid_argument("For now we only support quantization of supervised models");
@@ -1188,6 +1326,18 @@ public class FastText {
         /**
          * Loads model by file-reference (URI) using {@link IOStreams file-system}.
          * Original (c++) code:
+         * // FIXME: Auto completion found the original code. Check out differences.
+         * <pre>{@code void FastText::loadModel(const std::string& filename) {
+         *  std::ifstream ifs(filename, std::ifstream::binary);
+         *  if (!ifs.is_open()) {
+         *    throw std::invalid_argument(filename + " cannot be opened for loading!");
+         *  }
+         *  if (!checkModel(ifs)) {
+         *    throw std::invalid_argument(filename + " has wrong file format!");
+         *  }
+         *  loadModel(ifs);
+         *  ifs.close();
+         * }}</pre>
          * <pre>{@code void FastText::loadModel(const std::string& filename) {
          *  std::ifstream ifs(filename, std::ifstream::binary);
          *  if (!ifs.is_open()) {
@@ -1223,6 +1373,53 @@ public class FastText {
         /**
          * Loads model from any InputStream.
          * Original methods:
+         * // FIXME: Auto completion found the original code. Check out differences.
+         * <pre>{@code void FastText::loadModel(std::istream& in) {
+         *  args_ = std::make_shared<Args>();
+         *  input_ = std::make_shared<Matrix>();
+         *  output_ = std::make_shared<Matrix>();
+         *  qinput_ = std::make_shared<QMatrix>();
+         *  qoutput_ = std::make_shared<QMatrix>();
+         *  args_->load(in);
+         *  if (version == 11 && args_->model == model_name::sup) {
+         *    // backward compatibility: old supervised models do not use char ngrams.
+         *    args_->maxn = 0;
+         *  }
+         *  dict_ = std::make_shared<Dictionary>(args_, in);
+         * 
+         *  bool quant_input;
+         *  in.read((char*)&quant_input, sizeof(bool));
+         *  if (quant_input) {
+         *    quant_ = true;
+         *    qinput_->load(in);
+         *  } else {
+         *    input_->load(in);
+         *  }
+         * 
+         *  if (!quant_input && dict_->isPruned()) {
+         *    throw std::invalid_argument(
+         *        "Invalid model file.\n"
+         *        "Please download the updated model from www.fasttext.cc.\n"
+         *        "See issue #332 on Github for more information.\n");
+         *  }
+         * 
+         *  in.read((char*)&args_->qout, sizeof(bool));
+         *  if (quant_ && args_->qout) {
+         *    qoutput_->load(in);
+         *  } else {
+         *    output_->load(in);
+         *  }
+         * 
+         *  model_ = std::make_shared<Model>(input_, output_, args_, 0);
+         *  model_->quant_ = quant_;
+         *  model_->setQuantizePointer(qinput_, qoutput_, args_->qout);
+         * 
+         *  if (args_->model == model_name::sup) {
+         *    model_->setTargetCounts(dict_->getCounts(entry_type::label));
+         *  } else {
+         *    model_->setTargetCounts(dict_->getCounts(entry_type::word));
+         *  }
+         * }}</pre>
          * <pre>{@code void FastText::loadModel(std::istream& in) {
          *  args_ = std::make_shared<Args>();
          *  dict_ = std::make_shared<Dictionary>(args_);
@@ -1263,6 +1460,19 @@ public class FastText {
          *  } else {
          *      model_->setTargetCounts(dict_->getCounts(entry_type::word));
          *  }
+         * }}</pre>
+         * // FIXME: Auto completion found the original code. Check out differences.
+         * <pre>{@code bool FastText::checkModel(std::istream& in) {
+         *  int32_t magic;
+         *  in.read((char*)&(magic), sizeof(int32_t));
+         *  if (magic != FASTTEXT_FILEFORMAT_MAGIC_INT32) {
+         *    return false;
+         *  }
+         *  in.read((char*)&(version), sizeof(int32_t));
+         *  if (version > FASTTEXT_VERSION) {
+         *    return false;
+         *  }
+         *  return true;
          * }}</pre>
          * <pre>{@code bool FastText::checkModel(std::istream& in) {
          *  int32_t magic;
@@ -1329,6 +1539,7 @@ public class FastText {
         /**
          * Loads matrix from file.
          * Original (c++) code:
+         * // FIXME: The original code could not be found by auto completion.
          * <pre>{@code void FastText::loadVectors(std::string filename) {
          *  std::ifstream in(filename);
          *  std::vector<std::string> words;
@@ -1563,6 +1774,7 @@ public class FastText {
 
             /**
              * Original (c++) code:
+             * // FIXME: The original code could not be found by auto completion.
              * <pre>{@code void FastText::train(std::shared_ptr<Args> args) {
              *  args_ = args;
              *  dict_ = std::make_shared<Dictionary>(args_);
@@ -1616,6 +1828,34 @@ public class FastText {
             /**
              * Runs training treads and waits for finishing.
              * Original (c++) code:
+             * // FIXME: Auto completion found the original code. Check out differences.
+             * <pre>{@code void FastText::startThreads() {
+             *  start_ = std::chrono::steady_clock::now();
+             *  tokenCount_ = 0;
+             *  loss_ = -1;
+             *  std::vector<std::thread> threads;
+             *  for (int32_t i = 0; i < args_->thread; i++) {
+             *    threads.push_back(std::thread([=]() { trainThread(i); }));
+             *  }
+             *  const int64_t ntokens = dict_->ntokens();
+             *  // Same condition as trainThread
+             *  while (tokenCount_ < args_->epoch * ntokens) {
+             *    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+             *    if (loss_ >= 0 && args_->verbose > 1) {
+             *      real progress = real(tokenCount_) / (args_->epoch * ntokens);
+             *      std::cerr << "\r";
+             *      printInfo(progress, loss_, std::cerr);
+             *    }
+             *  }
+             *  for (int32_t i = 0; i < args_->thread; i++) {
+             *    threads[i].join();
+             *  }
+             *  if (args_->verbose > 0) {
+             *    std::cerr << "\r";
+             *    printInfo(1.0, loss_, std::cerr);
+             *    std::cerr << std::endl;
+             *  }
+             * }}</pre>
              * <pre>{@code void FastText::startThreads() {
              *  start = clock();
              *  tokenCount = 0;
@@ -1670,6 +1910,45 @@ public class FastText {
 
             /**
              * Original (c++) code:
+             * // FIXME: Auto completion found the original code. Check out differences.
+             * <pre>{@code void FastText::trainThread(int32_t threadId) {
+             *  std::ifstream ifs(args_->input);
+             *  utils::seek(ifs, threadId * utils::size(ifs) / args_->thread);
+             * 
+             *  Model model(input_, output_, args_, threadId);
+             *  if (args_->model == model_name::sup) {
+             *    model.setTargetCounts(dict_->getCounts(entry_type::label));
+             *  } else {
+             *    model.setTargetCounts(dict_->getCounts(entry_type::word));
+             *  }
+             * 
+             *  const int64_t ntokens = dict_->ntokens();
+             *  int64_t localTokenCount = 0;
+             *  std::vector<int32_t> line, labels;
+             *  while (tokenCount_ < args_->epoch * ntokens) {
+             *    real progress = real(tokenCount_) / (args_->epoch * ntokens);
+             *    real lr = args_->lr * (1.0 - progress);
+             *    if (args_->model == model_name::sup) {
+             *      localTokenCount += dict_->getLine(ifs, line, labels);
+             *      supervised(model, lr, line, labels);
+             *    } else if (args_->model == model_name::cbow) {
+             *      localTokenCount += dict_->getLine(ifs, line, model.rng);
+             *      cbow(model, lr, line);
+             *    } else if (args_->model == model_name::sg) {
+             *      localTokenCount += dict_->getLine(ifs, line, model.rng);
+             *      skipgram(model, lr, line);
+             *    }
+             *    if (localTokenCount > args_->lrUpdateRate) {
+             *      tokenCount_ += localTokenCount;
+             *      localTokenCount = 0;
+             *      if (threadId == 0 && args_->verbose > 1)
+             *        loss_ = model.getLoss();
+             *    }
+             *  }
+             *  if (threadId == 0)
+             *    loss_ = model.getLoss();
+             *  ifs.close();
+             * }}</pre>
              * <pre>{@code void FastText::trainThread(int32_t threadId) {
              *  std::ifstream ifs(args_->input);
              *  utils::seek(ifs, threadId * utils::size(ifs) / args_->thread);
@@ -1767,6 +2046,7 @@ public class FastText {
             /**
              * Composes message to print debug train info to console or somewhere else.
              * Original (c++) code:
+             * // FIXME: The original code could not be found by auto completion.
              * <pre>{@code void FastText::printInfo(real progress, real loss) {
              *  real t = real(clock() - start) / CLOCKS_PER_SEC;
              *  real wst = real(tokenCount) / t;
@@ -1801,6 +2081,7 @@ public class FastText {
 
             /**
              * Original (c++) code:
+             * // FIXME: The original code could not be found by auto completion.
              * <pre>{@code
              * void FastText::supervised(Model& model, real lr, const std::vector<int32_t>& line, const std::vector<int32_t>& labels) {
              *  if (labels.size() == 0 || line.size() == 0) return;
@@ -1825,6 +2106,23 @@ public class FastText {
 
             /**
              * Original (c++) code:
+             * // FIXME: Auto completion found the original code. Check out differences.
+             * <pre>{@code
+             * void FastText::cbow(Model& model, real lr, const std::vector<int32_t>& line) {
+             *  std::vector<int32_t> bow;
+             *  std::uniform_int_distribution<> uniform(1, args_->ws);
+             *  for (int32_t w = 0; w < line.size(); w++) {
+             *    int32_t boundary = uniform(model.rng);
+             *    bow.clear();
+             *    for (int32_t c = -boundary; c <= boundary; c++) {
+             *      if (c != 0 && w + c >= 0 && w + c < line.size()) {
+             *        const std::vector<int32_t>& ngrams = dict_->getSubwords(line[w + c]);
+             *        bow.insert(bow.end(), ngrams.cbegin(), ngrams.cend());
+             *      }
+             *    }
+             *    model.update(bow, line, w, lr);
+             *  }
+             * }}</pre>
              * <pre>{@code
              * void FastText::cbow(Model& model, real lr, const std::vector<int32_t>& line) {
              *  std::vector<int32_t> bow;
@@ -1866,6 +2164,7 @@ public class FastText {
 
             /**
              * Original (c++) code:
+             * // FIXME: The original code could not be found by auto completion.
              * <pre>{@code void FastText::skipgram(Model& model, real lr, const std::vector<int32_t>& line) {
              *  std::uniform_int_distribution<> uniform(1, args_->ws);
              *  for (int32_t w = 0; w < line.size(); w++) {
