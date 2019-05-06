@@ -442,11 +442,18 @@ public final class Args {
     }
 
     public enum LossName {
-        HS(1), NS(2), SOFTMAX(3);
-        private final int value;
+        HS("hs", 1), NS("ns", 2), SOFTMAX("softmax", 3), OVA("one-vs-all", 4);
 
-        LossName(int value) {
+        private final int value;
+        private final String name;
+
+        LossName(String name, int value) {
+            this.name = name;
             this.value = value;
+        }
+
+        public String getName() {
+            return name;
         }
 
         public static LossName fromValue(int value) throws IllegalArgumentException {
@@ -454,8 +461,9 @@ public final class Args {
                     .findFirst().orElseThrow(() -> new IllegalArgumentException("Unknown loss enum value: " + value));
         }
 
+
         public static LossName fromName(String value) throws IllegalArgumentException {
-            return Arrays.stream(values()).filter(v -> v.name().equalsIgnoreCase(value))
+            return Arrays.stream(values()).filter(v -> v.name.equalsIgnoreCase(value))
                     .findFirst().orElseThrow(() -> new IllegalArgumentException("Unknown loss name: " + value));
         }
     }
