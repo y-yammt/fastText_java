@@ -1123,7 +1123,7 @@ public class Main {
                 + "  -ws                 size of the context window [integer]\n"
                 + "  -epoch              number of epochs [integer]\n"
                 + "  -neg                number of negatives sampled [integer]\n"
-                + "  -loss               loss function {ns|hs|softmax} [string]\n"
+                + "  -loss               loss function {ns|hs|softmax|one-vs-all} [string]\n"
                 + "  -thread             number of threads [integer]\n"
                 + "  -pretrainedVectors  pretrained word vectors for supervised learning [file uri]\n"
                 + "  -saveOutput         whether output params should be saved [boolean]\n"),
@@ -1131,7 +1131,7 @@ public class Main {
                 + "  -cutoff             number of words and ngrams to retain [integer]\n"
                 + "  -retrain            whether embeddings are finetuned if a cutoff is applied [boolean]\n"
                 + "  -qnorm              whether the norm is quantized separately [boolean]\n"
-                + "  -qout               whether the classifier is quantized [boolean\n"
+                + "  -qout               whether the classifier is quantized [boolean]\n"
                 + "  -dsub               size of each sub-vector [integer]\n"),
         ARGS(ARGS_BASIC_HELP.message + ARGS_DICTIONARY_HELP.message + ARGS_TRAINING_HELP.message + ARGS_QUANTIZATION_HELP.message);
 
