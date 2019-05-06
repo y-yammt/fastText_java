@@ -915,19 +915,11 @@ public class Dictionary {
 
     /**
      * Original (c++) code:
-     * // FIXME: Auto completion found the original code. Check out differences.
      * <pre>{@code
      * std::string Dictionary::getLabel(int32_t lid) const {
      *  if (lid < 0 || lid >= nlabels_) {
      *    throw std::invalid_argument(
      *        "Label id is out of range [0, " + std::to_string(nlabels_) + "]");
-     *  }
-     *  return words_[lid + nwords_].word;
-     * }}</pre>
-     * <pre>{@code
-     * std::string Dictionary::getLabel(int32_t lid) const {
-     *  if (lid < 0 || lid >= nlabels_) {
-     *      throw std::invalid_argument("Label id is out of range [0, " + std::to_string(nlabels_) + "]");
      *  }
      *  return words_[lid + nwords_].word;
      * }}</pre>
@@ -1343,7 +1335,6 @@ public class Dictionary {
     /**
      * Reads a dictionary from stream.
      * Original (c++) code:
-     * // FIXME: Auto completion found the original code. Check out differences.
      * <pre>{@code void Dictionary::readFromFile(std::istream& in) {
      *  std::string word;
      *  int64_t minThreshold = 1;
@@ -1368,32 +1359,6 @@ public class Dictionary {
      *  if (size_ == 0) {
      *    throw std::invalid_argument(
      *        "Empty vocabulary. Try a smaller -minCount value.");
-     *  }
-     * }}</pre>
-     * <pre>{@code void Dictionary::readFromFile(std::istream& in) {
-     *  std::string word;
-     *  int64_t minThreshold = 1;
-     *  while (readWord(in, word)) {
-     *      add(word);
-     *      if (ntokens_ % 1000000 == 0 && args_->verbose > 1) {
-     *          std::cerr << "\rRead " << ntokens_  / 1000000 << "M words" << std::flush;
-     *      }
-     *      if (size_ > 0.75 * MAX_VOCAB_SIZE) {
-     *          minThreshold++;
-     *          threshold(minThreshold, minThreshold);
-     *      }
-     *  }
-     *  threshold(args_->minCount, args_->minCountLabel);
-     *  initTableDiscard();
-     *  initNgrams();
-     *  if (args_->verbose > 0) {
-     *      std::cerr << "\rRead " << ntokens_  / 1000000 << "M words" << std::endl;
-     *      std::cerr << "Number of words:  " << nwords_ << std::endl;
-     *      std::cerr << "Number of labels: " << nlabels_ << std::endl;
-     *  }
-     *  if (size_ == 0) {
-     *      std::cerr << "Empty vocabulary. Try a smaller -minCount value." << std::endl;
-     *      exit(EXIT_FAILURE);
      *  }
      * }}</pre>
      *

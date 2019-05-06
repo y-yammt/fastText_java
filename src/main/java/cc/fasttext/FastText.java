@@ -1373,7 +1373,6 @@ public class FastText {
         /**
          * Loads model from any InputStream.
          * Original methods:
-         * // FIXME: Auto completion found the original code. Check out differences.
          * <pre>{@code void FastText::loadModel(std::istream& in) {
          *  args_ = std::make_shared<Args>();
          *  input_ = std::make_shared<Matrix>();
@@ -1420,48 +1419,6 @@ public class FastText {
          *    model_->setTargetCounts(dict_->getCounts(entry_type::word));
          *  }
          * }}</pre>
-         * <pre>{@code void FastText::loadModel(std::istream& in) {
-         *  args_ = std::make_shared<Args>();
-         *  dict_ = std::make_shared<Dictionary>(args_);
-         *  input_ = std::make_shared<Matrix>();
-         *  output_ = std::make_shared<Matrix>();
-         *  qinput_ = std::make_shared<QMatrix>();
-         *  qoutput_ = std::make_shared<QMatrix>();
-         *  args_->load(in);
-         *  if (version == 11 && args_->model == model_name::sup) {
-         *      // backward compatibility: old supervised models do not use char ngrams.
-         *      args_->maxn = 0;
-         *  }
-         *  dict_->load(in);
-         *  bool quant_input;
-         *  in.read((char*) &quant_input, sizeof(bool));
-         *  if (quant_input) {
-         *      quant_ = true;
-         *      qinput_->load(in);
-         *  } else {
-         *      input_->load(in);
-         *  }
-         *  if (!quant_input && dict_->isPruned()) {
-         *      std::cerr << "Invalid model file.\n"  << "Please download the updated model from www.fasttext.cc.\n"
-         *          << "See issue #332 on Github for more information.\n";
-         *      exit(1);
-         *  }
-         *  in.read((char*) &args_->qout, sizeof(bool));
-         *  if (quant_ && args_->qout) {
-         *      qoutput_->load(in);
-         *  } else {
-         *      output_->load(in);
-         *  }
-         *  model_ = std::make_shared<Model>(input_, output_, args_, 0);
-         *  model_->quant_ = quant_;
-         *  model_->setQuantizePointer(qinput_, qoutput_, args_->qout);
-         *  if (args_->model == model_name::sup) {
-         *      model_->setTargetCounts(dict_->getCounts(entry_type::label));
-         *  } else {
-         *      model_->setTargetCounts(dict_->getCounts(entry_type::word));
-         *  }
-         * }}</pre>
-         * // FIXME: Auto completion found the original code. Check out differences.
          * <pre>{@code bool FastText::checkModel(std::istream& in) {
          *  int32_t magic;
          *  in.read((char*)&(magic), sizeof(int32_t));
@@ -1471,18 +1428,6 @@ public class FastText {
          *  in.read((char*)&(version), sizeof(int32_t));
          *  if (version > FASTTEXT_VERSION) {
          *    return false;
-         *  }
-         *  return true;
-         * }}</pre>
-         * <pre>{@code bool FastText::checkModel(std::istream& in) {
-         *  int32_t magic;
-         *  in.read((char*)&(magic), sizeof(int32_t));
-         *  if (magic != FASTTEXT_FILEFORMAT_MAGIC_INT32) {
-         *      return false;
-         *  }
-         *  in.read((char*)&(version), sizeof(int32_t));
-         *  if (version > FASTTEXT_VERSION) {
-         *      return false;
          *  }
          *  return true;
          * }}</pre>
