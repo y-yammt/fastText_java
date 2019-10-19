@@ -269,8 +269,15 @@ public class Dictionary {
      * @return hash as long (uint32_t)
      */
     public static long hash(String str, Charset charset) {
+        byte[] bytes = str.getBytes(charset);
+        return hash(bytes, 0, bytes.length);
+    }
+
+    private static long hash(byte[] bytes, int offset, int limit) {
+        // FIXME: Check the boundary
         long h = 2_166_136_261L;// 0xffffffc5;
-        for (long b : str.getBytes(charset)) {
+        for (int i = offset; i < limit; i++) {
+            long b = bytes[i];
             h = (h ^ b) * 16_777_619; // FNV-1a
         }
         return h & 0xffff_ffffL;
@@ -376,19 +383,23 @@ public class Dictionary {
     }
 
     private void computeSubwords(String word, List<Integer> ngrams, List<String> substrings, BiConsumer<List<Integer>, Integer> pushMethod) {
-        int len = word.length();
-        for (int i = 0, cpI; i < len; i += Character.charCount(cpI)) {
-            cpI = word.codePointAt(i);
-            StringBuilder ngram = new StringBuilder();
-            for (int j = i, n = 1, cpJ; j < len && n <= maxn; n++) {
-                cpJ = word.codePointAt(j);
-                ngram.appendCodePoint(cpJ);
-                j += Character.charCount(cpJ);
-                if (n >= minn && !(n == 1 && (i == 0 || j == len))) {
-                    int h = (int) (hash(ngram.toString()) % bucket.intValue());
+        byte[] wordBytes = word.getBytes(charset);
+        for (int i = 0; i < wordBytes.length; i++) {
+            if ((wordBytes[i] & 0xC0) == 0x80) continue;
+            for (int j = i, n = 1; j < wordBytes.length && n <= maxn; n++) {
+                j++;
+                while (j < wordBytes.length && (wordBytes[j] & 0xC0) == 0x80) {
+                    j++;
+                }
+                if (n >= minn && !(n == 1 && (i == 0 || j == wordBytes.length))) {
+                    int h = (int) (hash(wordBytes, i, j) % bucket.intValue());
                     pushMethod.accept(ngrams, h);
                     if (substrings != null) {
-                        substrings.add(ngram.toString());
+                        byte[] ngram = new byte[j - i];
+                        for (int k = 0; k < j - i; k++) {
+                            ngram[k] = wordBytes[i + k];
+                        }
+                        substrings.add(new String(ngram, charset));
                     }
                 }
             }
